@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Ophthalmic Electrophysiology{% endblock %}</title>
   <link rel="stylesheet" href="/static/css/app.css">
+  <!-- Shared helpers (api, drawTraces, renderExam) must be defined before the
+       inline page scripts in <main> run, so load them in <head>. -->
+  <script src="/static/js/waveform-plot.js"></script>
+  <script src="/static/js/markers.js"></script>
+  <script src="/static/js/acquisition.js"></script>
 </head>
 <body>
   <header class="topbar">
@@ -28,9 +33,6 @@
     real-device ready
   </footer>
 
-  <script src="/static/js/waveform-plot.js"></script>
-  <script src="/static/js/markers.js"></script>
-  <script src="/static/js/acquisition.js"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -21,6 +21,7 @@
     </label>
     <label>Operator<input name="operator" value="{{ '' }}"></label>
     <button class="btn primary" id="run-btn" type="submit">▶ Acquire</button>
+    <button class="btn" id="stim-btn" type="button">🖥 Stimulus monitor</button>
   </form>
   <p id="exam-msg" class="msg"></p>
 </section>
@@ -49,6 +50,12 @@ ttSel.innerHTML = Object.keys(TEST_TYPES).map(t =>
   `<option value="${t}">${t}</option>`).join("");
 ttSel.addEventListener("change", fillProtocols);
 fillProtocols();
+
+document.getElementById("stim-btn").addEventListener("click", () => {
+  const url = `/stimulus?protocol=${encodeURIComponent(protoSel.value)}`;
+  window.open(url, "stimulus-monitor",
+    "width=1000,height=720,menubar=no,toolbar=no");
+});
 
 document.getElementById("exam-form").addEventListener("submit", async (ev) => {
   ev.preventDefault();

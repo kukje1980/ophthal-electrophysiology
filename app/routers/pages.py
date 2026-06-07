@@ -43,6 +43,12 @@ def patient_detail(patient_id: int, request: Request,
     })
 
 
+@router.get("/stimulus", response_class=HTMLResponse)
+def stimulus_monitor(request: Request):
+    """Patient-facing monitor stimulator surface (pattern / flash / flicker)."""
+    return templates.TemplateResponse("stimulus.html", {"request": request})
+
+
 @router.get("/exam/new", response_class=HTMLResponse)
 def exam_new(patient_id: int, request: Request,
              db: Session = Depends(get_db)):

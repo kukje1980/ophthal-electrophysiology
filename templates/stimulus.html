@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Stimulus monitor · ERG/VEP{% endblock %}
+{% block content %}
+<div class="row-between no-print stim-toolbar">
+  <a class="back" href="javascript:history.back()">← Back</a>
+  <div class="stim-controls">
+    <label>Mode
+      <select id="mode">
+        <option value="pattern">Pattern reversal</option>
+        <option value="flash">Flash</option>
+        <option value="flicker">Flicker</option>
+      </select>
+    </label>
+    <label>Check (deg)<input id="check_deg" type="number" step="0.05" value="1.0"></label>
+    <label>Contrast<input id="contrast" type="number" step="0.01" min="0" max="1" value="0.97"></label>
+    <label>Rate (Hz)<input id="rate_hz" type="number" step="0.5" value="2"></label>
+    <button class="btn" id="toggle">⏸ Pause</button>
+    <button class="btn" id="fs">⛶ Full screen</button>
+  </div>
+</div>
+
+<div class="stim-stage" id="stage">
+  <canvas id="stim-canvas" width="960" height="600"></canvas>
+  <div class="stim-readout" id="readout"></div>
+</div>
+
+<p class="muted no-print" style="font-size:12px">
+  This is the patient-facing <b>monitor stimulator</b> surface. In a real rig
+  it runs full-screen on the stimulus display; the amplifier records each
+  reversal/flash via the trigger. Keys: <kbd>Space</kbd> pause · <kbd>F</kbd>
+  flash · <kbd>P</kbd> pattern.
+</p>
+
+<script>
+const qs = new URLSearchParams(location.search);
+const canvas = document.getElementById("stim-canvas");
+const ctx = canvas.getContext("2d");
+const readout = document.getElementById("readout");
+const $ = (id) => document.getElementById(id);
+
+function applyQuery() {
+  if (qs.get("mode")) $("mode").value = qs.get("mode");
+  for (const k of ["check_deg", "contrast", "rate_hz"]) {
+    if (qs.get(k)) $(k).value = qs.get(k);
+  }
+}
+
+// Optionally pull stimulus parameters straight from a protocol step.
+async function applyProtocol() {
+  const key = qs.get("protocol"), stepKey = qs.get("step");
+  if (!key) return;
+  try {
+    const proto = await api(`/api/protocols/${key}`);
+    const step = (proto.steps || []).find(s => s.key === stepKey) || proto.steps[0];
+    if (!step) return;
+    const s = step.stimulus || {};
+    const kind = step.kind;
+    $("mode").value = kind === "flicker" ? "flicker"
+      : (kind === "perg" || kind === "vep_pr") ? "pattern" : "flash";
+    if (s.check_deg) $("check_deg").value = s.check_deg;
+    if (s.contrast) $("contrast").value = s.contrast;
+    $("rate_hz").value = s.reversal_hz || s.rate_hz || 2;
+    readout.dataset.label = step.label || stepKey || key;
+  } catch (e) { /* ignore */ }
+}
+
+let phase = 0;          // 0/1 checkerboard parity (pattern), flash on/off
+let running = true;
+let lastSwitch = performance.now();
+let flashUntil = 0;
+
+function checkerboard(parity) {
+  const W = canvas.width, H = canvas.height;
+  const contrast = Math.min(1, Math.max(0, parseFloat($("contrast").value) || 0.97));
+  const hi = Math.round(127.5 + 127.5 * contrast);   // bright check
+  const lo = Math.round(127.5 - 127.5 * contrast);   // dark check
+  // Map "deg" to an on-screen check size (assumed geometry); clamp sensibly.
+  const deg = Math.max(0.1, parseFloat($("check_deg").value) || 1.0);
+  const size = Math.max(8, Math.round(deg * 34));     // px per check
+  const cols = Math.ceil(W / size), rows = Math.ceil(H / size);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const on = ((r + c + parity) % 2) === 0;
+      ctx.fillStyle = `rgb(${on ? hi : lo},${on ? hi : lo},${on ? hi : lo})`;
+      ctx.fillRect(c * size, r * size, size, size);
+    }
+  }
+}
+
+function fixation() {
+  const W = canvas.width, H = canvas.height, cx = W / 2, cy = H / 2;
+  ctx.strokeStyle = "#e11d48"; ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(cx - 14, cy); ctx.lineTo(cx + 14, cy);
+  ctx.moveTo(cx, cy - 14); ctx.lineTo(cx, cy + 14);
+  ctx.stroke();
+}
+
+function render(now) {
+  const mode = $("mode").value;
+  const rate = Math.max(0.1, parseFloat($("rate_hz").value) || 2);
+  const W = canvas.width, H = canvas.height;
+
+  if (mode === "pattern") {
+    const interval = 1000 / (2 * rate);  // reversals per second = 2*rate
+    if (running && now - lastSwitch >= interval) { phase ^= 1; lastSwitch = now; }
+    checkerboard(phase);
+    fixation();
+    readout.textContent =
+      `${readout.dataset.label || "Pattern reversal"} · ${rate} rev/s · `
+      + `${$("check_deg").value}° checks · ${Math.round($("contrast").value*100)}% contrast`;
+  } else if (mode === "flicker") {
+    const interval = 1000 / (2 * rate);
+    if (running && now - lastSwitch >= interval) { phase ^= 1; lastSwitch = now; }
+    ctx.fillStyle = phase ? "#ffffff" : "#000000";
+    ctx.fillRect(0, 0, W, H);
+    fixation();
+    readout.textContent = `Flicker · ${rate} Hz full-field`;
+  } else { // flash
+    const interval = 1000 / rate;
+    if (running && now - lastSwitch >= interval) { flashUntil = now + 4; lastSwitch = now; }
+    ctx.fillStyle = "#000000"; ctx.fillRect(0, 0, W, H);
+    if (now < flashUntil) { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, W, H); }
+    fixation();
+    readout.textContent = `Flash · ${rate}/s (Ganzfeld)`;
+  }
+  requestAnimationFrame(render);
+}
+
+$("toggle").addEventListener("click", () => {
+  running = !running;
+  $("toggle").textContent = running ? "⏸ Pause" : "▶ Resume";
+});
+$("fs").addEventListener("click", () => {
+  if (!document.fullscreenElement) $("stage").requestFullscreen?.();
+  else document.exitFullscreen?.();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.code === "Space") { e.preventDefault(); $("toggle").click(); }
+  if (e.key === "f" || e.key === "F") $("mode").value = "flash";
+  if (e.key === "p" || e.key === "P") $("mode").value = "pattern";
+});
+
+(async function () {
+  applyQuery();
+  await applyProtocol();
+  requestAnimationFrame(render);
+})();
+</script>
+{% endblock %}
