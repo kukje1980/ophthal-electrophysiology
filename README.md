@@ -1,14 +1,17 @@
 # Ophthalmic Electrophysiology (ISCEV ERG / VEP)
 
 A FastAPI + web application for recording, analysing and reporting clinical
-visual electrophysiology studies following the **ISCEV** standards:
+visual electrophysiology studies following the current **ISCEV** standards:
 
-| Test  | Protocols |
-|-------|-----------|
-| **ffERG** | DA 0.01, DA 3.0, DA 10.0, dark-adapted oscillatory potentials, LA 3.0, LA 30 Hz flicker |
-| **PERG**  | transient pattern ERG (N35 / P50 / N95) |
-| **VEP**   | pattern-reversal (N75 / P100 / N135), flash VEP |
-| **mfERG** | 61- and 103-hexagon arrays |
+| Test  | ISCEV standard | Protocols |
+|-------|----------------|-----------|
+| **ffERG** | ffERG 2022 | DA 0.01, DA 3, DA 10, dark-adapted oscillatory potentials (75–300 Hz), LA 3 (30 cd·m⁻² background), LA 30 Hz flicker |
+| **PERG**  | PERG 2024 | transient pattern ERG — 0.8° checks, 15°×15° field, 98% contrast (N35 / P50 / N95) |
+| **VEP**   | VEP 2025 | pattern-reversal 1.0°(60′)/0.25°(15′) checks at 2 rev/s (N75 / P100 / **N145**), flash VEP (≥20° field) |
+| **mfERG** | mfERG 2021 | light-adapted 61- and 103-hexagon arrays over 40–50° (N1 / P1 / N2) |
+
+> The pattern-reversal third component follows the **2025 VEP standard**, which
+> renamed **N135 → N145**.
 
 It acquires waveforms, **auto-detects the standard markers** (a/b-wave,
 oscillatory potentials, P50, N95, P100, …), measures implicit time and

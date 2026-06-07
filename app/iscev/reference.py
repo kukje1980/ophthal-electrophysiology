@@ -1,8 +1,10 @@
 """Approximate adult normal reference ranges for ISCEV markers.
 
-These are representative ranges for demonstration. Each laboratory must
-establish its own normative data; values are intentionally kept in one place
-so they are easy to replace with lab-specific norms.
+These are representative ranges for demonstration only. ISCEV standards
+(ffERG 2022, PERG 2024, VEP 2025, mfERG 2021) explicitly require each
+laboratory to establish its own normative data for its specific equipment
+and population; values are intentionally kept in one place so they are easy
+to replace with lab-specific norms.
 
 Each entry maps a (step_key, marker) to a dict with optional limits:
     amp_min / amp_max : microvolts
@@ -24,12 +26,14 @@ REFERENCE_RANGES = {
     # PERG ----------------------------------------------------------------
     ("PERG", "P50"): {"amp_min": 2.0, "lat_min": 45, "lat_max": 60},
     ("PERG", "N95"): {"amp_min": 3.0, "lat_min": 90, "lat_max": 105},
-    # VEP -----------------------------------------------------------------
+    # VEP (N145 = the component renamed from N135 in the VEP 2025 standard) -
     ("PR_1deg", "P100"): {"amp_min": 5.0, "lat_min": 90, "lat_max": 115},
     ("PR_0.25deg", "P100"): {"amp_min": 4.0, "lat_min": 95, "lat_max": 120},
     ("FVEP", "P2"): {"amp_min": 4.0, "lat_min": 90, "lat_max": 150},
-    # mfERG ---------------------------------------------------------------
+    # mfERG (ring 1 / summed) - N1 trough, P1 peak ------------------------
+    ("mfERG61", "N1"): {"lat_max": 22},
     ("mfERG61", "P1"): {"amp_min": 60, "lat_max": 40},
+    ("mfERG103", "N1"): {"lat_max": 22},
     ("mfERG103", "P1"): {"amp_min": 40, "lat_max": 40},
 }
 

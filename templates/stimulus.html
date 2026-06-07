@@ -171,7 +171,9 @@ function render(now) {
   const W = canvas.width, H = canvas.height;
 
   if (mode === "pattern") {
-    const interval = 1000 / (2 * rate);  // reversals per second = 2*rate
+    // ISCEV "reversal rate" counts each reversal; rate = reversals/second,
+    // so one phase flip per reversal: interval = 1000/rate.
+    const interval = 1000 / rate;
     if (running && now - lastSwitch >= interval) { phase ^= 1; lastSwitch = now; }
     checkerboard(phase);
     fixation();

@@ -35,14 +35,23 @@ _DEFAULT = {
     "N95": {"win": (80, 110), "pol": "neg", "from": "P50"},
     "N75": {"win": (60, 90), "pol": "neg"},
     "P100": {"win": (85, 125), "pol": "pos", "from": "N75"},
-    "N135": {"win": (120, 180), "pol": "neg", "from": "P100"},
+    # N145: renamed from N135 in the ISCEV VEP 2025 standard.
+    "N145": {"win": (120, 180), "pol": "neg", "from": "P100"},
     "N2": {"win": (60, 110), "pol": "neg"},
     "P2": {"win": (90, 160), "pol": "pos", "from": "N2"},
 }
 
 # Step-specific overrides where the same marker name needs a different window.
+# The mfERG components N1/P1/N2 peak much earlier (~15/30/55 ms) than the
+# flash-VEP N1/P1/N2, so they get their own short windows per step.
 _OVERRIDE = {
     ("LA3.0_30Hz", "P1"): {"win": (12, 40), "pol": "pos"},
+    ("mfERG61", "N1"): {"win": (8, 22), "pol": "neg"},
+    ("mfERG61", "P1"): {"win": (22, 45), "pol": "pos", "from": "N1"},
+    ("mfERG61", "N2"): {"win": (45, 75), "pol": "neg", "from": "P1"},
+    ("mfERG103", "N1"): {"win": (8, 22), "pol": "neg"},
+    ("mfERG103", "P1"): {"win": (22, 45), "pol": "pos", "from": "N1"},
+    ("mfERG103", "N2"): {"win": (45, 75), "pol": "neg", "from": "P1"},
 }
 
 

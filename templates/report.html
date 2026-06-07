@@ -16,11 +16,14 @@ const EXAM_ID = {{ exam_id }};
   const exam = await api(`/api/exams/${EXAM_ID}`);
   let p = {};
   try { p = await api(`/api/patients/${exam.patient_id}`); } catch (e) {}
+  let proto = {};
+  try { proto = await api(`/api/protocols/${exam.protocol}`); } catch (e) {}
   document.getElementById("report-head").innerHTML = `
     <h1>${exam.test_type} report</h1>
     <div class="report-meta card">
       <div><b>Patient:</b> ${p.name || "-"} (#${p.mrn || exam.patient_id})</div>
-      <div><b>Protocol:</b> ${exam.protocol}</div>
+      <div><b>Protocol:</b> ${proto.label || exam.protocol}</div>
+      <div><b>Standard:</b> ${proto.standard || "—"}</div>
       <div><b>Performed:</b> ${new Date(exam.performed_at).toLocaleString()}</div>
       <div><b>Device:</b> ${exam.device || "-"}</div>
       <div><b>Operator:</b> ${exam.operator || "-"}</div>
