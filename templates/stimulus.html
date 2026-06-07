@@ -9,6 +9,13 @@
         <option value="pattern">Pattern reversal</option>
         <option value="flash">Flash</option>
         <option value="flicker">Flicker</option>
+        <option value="mfocal">Multifocal (mfERG)</option>
+      </select>
+    </label>
+    <label>Hexagons
+      <select id="hexagons">
+        <option value="61">61</option>
+        <option value="103">103</option>
       </select>
     </label>
     <label>Check (deg)<input id="check_deg" type="number" step="0.05" value="1.0"></label>
@@ -56,9 +63,11 @@ async function applyProtocol() {
     const s = step.stimulus || {};
     const kind = step.kind;
     $("mode").value = kind === "flicker" ? "flicker"
+      : kind === "mferg" ? "mfocal"
       : (kind === "perg" || kind === "vep_pr") ? "pattern" : "flash";
     if (s.check_deg) $("check_deg").value = s.check_deg;
     if (s.contrast) $("contrast").value = s.contrast;
+    if (s.hexagons) $("hexagons").value = s.hexagons;
     $("rate_hz").value = s.reversal_hz || s.rate_hz || 2;
     readout.dataset.label = step.label || stepKey || key;
   } catch (e) { /* ignore */ }
@@ -84,6 +93,66 @@ function checkerboard(parity) {
       ctx.fillStyle = `rgb(${on ? hi : lo},${on ? hi : lo},${on ? hi : lo})`;
       ctx.fillRect(c * size, r * size, size, size);
     }
+  }
+}
+
+// Multifocal hexagon array ------------------------------------------------
+let mfCache = null;
+
+function buildMf(count) {
+  // Smallest hexagonal ring count R whose tiling holds >= `count` hexagons
+  // (1 + 3R(R+1)); then keep the `count` most central cells.
+  let R = 0;
+  while (1 + 3 * R * (R + 1) < count) R++;
+  const cells = [];
+  for (let q = -R; q <= R; q++) {
+    for (let r = Math.max(-R, -q - R); r <= Math.min(R, -q + R); r++) {
+      const dist = (Math.abs(q) + Math.abs(r) + Math.abs(q + r)) / 2;
+      cells.push({ q, r, dist, ang: Math.atan2(r + q / 2, q) });
+    }
+  }
+  cells.sort((a, b) => a.dist - b.dist || a.ang - b.ang);
+  const kept = cells.slice(0, count);
+
+  const W = canvas.width, H = canvas.height, sqrt3 = Math.sqrt(3);
+  // Base hex radius, leaving room for the eccentric stretch towards the edge.
+  const base = Math.min(W, H) / (2 * (R + 1) * (1 + 0.12 * R) * 1.55);
+  for (const c of kept) {
+    const px = base * sqrt3 * (c.q + c.r / 2);  // pointy-top axial -> pixel
+    const py = base * 1.5 * c.r;
+    const stretch = 1 + 0.12 * c.dist;          // peripheral hexes spread out
+    c.x = W / 2 + px * stretch;
+    c.y = H / 2 + py * stretch;
+    c.size = base * 0.95 * (1 + 0.13 * c.dist); // and grow with eccentricity
+  }
+  return { count, cells: kept };
+}
+
+function drawHex(cx, cy, size, fill) {
+  ctx.beginPath();
+  for (let k = 0; k < 6; k++) {
+    const a = Math.PI / 180 * (60 * k - 30);   // pointy-top vertices
+    const x = cx + size * Math.cos(a), y = cy + size * Math.sin(a);
+    k === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = fill; ctx.fill();
+  ctx.strokeStyle = "#444"; ctx.lineWidth = 1; ctx.stroke();
+}
+
+function drawMfocal(now) {
+  const count = parseInt($("hexagons").value, 10) || 61;
+  if (!mfCache || mfCache.count !== count) mfCache = buildMf(count);
+  const W = canvas.width, H = canvas.height;
+  ctx.fillStyle = "#7f7f7f"; ctx.fillRect(0, 0, W, H);  // mean-luminance surround
+  // Each hexagon follows its own pseudo-random binary m-sequence; advance the
+  // sequence ~16x/s while running so the array visibly flickers.
+  const step = running ? Math.floor(now / 60) : 0;
+  for (let i = 0; i < mfCache.cells.length; i++) {
+    const c = mfCache.cells[i];
+    const bit = (((step * 73856093) ^ (i * 19349663) ^ ((step >> 1) * 83492791))
+                 >>> ((i + step) % 17)) & 1;
+    drawHex(c.x, c.y, c.size, bit ? "#ffffff" : "#000000");
   }
 }
 
@@ -116,6 +185,13 @@ function render(now) {
     ctx.fillRect(0, 0, W, H);
     fixation();
     readout.textContent = `Flicker · ${rate} Hz full-field`;
+  } else if (mode === "mfocal") {
+    drawMfocal(now);
+    fixation();
+    const count = parseInt($("hexagons").value, 10) || 61;
+    readout.textContent =
+      `${readout.dataset.label || "Multifocal mfERG"} · ${count} hexagons · `
+      + `m-sequence (eccentricity-scaled)`;
   } else { // flash
     const interval = 1000 / rate;
     if (running && now - lastSwitch >= interval) { flashUntil = now + 4; lastSwitch = now; }
