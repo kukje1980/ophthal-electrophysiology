@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Ophthalmic Electrophysiology{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">👁 ERG / VEP <span>ISCEV</span></a>
+    <nav>
+      <a href="/">Dashboard</a>
+      <a href="/patients">Patients</a>
+      <a href="/docs" target="_blank">API</a>
+    </nav>
+    <span class="device-pill" id="device-pill" title="Acquisition device">
+      device: …
+    </span>
+  </header>
+
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    ISCEV ERG / PERG / VEP / mfERG · simulated acquisition ·
+    real-device ready
+  </footer>
+
+  <script src="/static/js/waveform-plot.js"></script>
+  <script src="/static/js/markers.js"></script>
+  <script src="/static/js/acquisition.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

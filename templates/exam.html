@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}New exam · {{ patient.name }}{% endblock %}
+{% block content %}
+<a class="back" href="/patients/{{ patient.id }}">← {{ patient.name }}</a>
+<h1>New exam <span class="muted">{{ patient.name }}</span></h1>
+
+<section class="card">
+  <form id="exam-form" class="form-grid">
+    <label>Test type
+      <select id="test-type" name="test_type"></select>
+    </label>
+    <label>Protocol
+      <select id="protocol" name="protocol"></select>
+    </label>
+    <label>Eyes
+      <select id="eyes" name="eyes">
+        <option value="OD,OS">Both (OD + OS)</option>
+        <option value="OD">OD only</option>
+        <option value="OS">OS only</option>
+      </select>
+    </label>
+    <label>Operator<input name="operator" value="{{ '' }}"></label>
+    <button class="btn primary" id="run-btn" type="submit">▶ Acquire</button>
+  </form>
+  <p id="exam-msg" class="msg"></p>
+</section>
+
+<section id="result" class="hidden">
+  <div class="row-between">
+    <h2>Result</h2>
+    <a id="report-link" class="btn" href="#">Open full report →</a>
+  </div>
+  <div id="waveforms"></div>
+</section>
+
+<script>
+const TEST_TYPES = {{ test_types | tojson }};
+const PATIENT_ID = {{ patient.id }};
+
+const ttSel = document.getElementById("test-type");
+const protoSel = document.getElementById("protocol");
+
+function fillProtocols() {
+  const list = TEST_TYPES[ttSel.value] || [];
+  protoSel.innerHTML = list.map(p =>
+    `<option value="${p.key}">${p.label}</option>`).join("");
+}
+ttSel.innerHTML = Object.keys(TEST_TYPES).map(t =>
+  `<option value="${t}">${t}</option>`).join("");
+ttSel.addEventListener("change", fillProtocols);
+fillProtocols();
+
+document.getElementById("exam-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  const btn = document.getElementById("run-btn");
+  btn.disabled = true; btn.textContent = "Acquiring…";
+  setMsg("exam-msg", "Acquiring sweeps from device…", "");
+  try {
+    const exam = await api("/api/exams", { method: "POST", body: {
+      patient_id: PATIENT_ID,
+      protocol: protoSel.value,
+      eyes: f.eyes.value.split(","),
+      operator: f.operator.value || null,
+    }});
+    setMsg("exam-msg", "Acquisition complete.", "ok");
+    document.getElementById("result").classList.remove("hidden");
+    document.getElementById("report-link").href = `/reports/${exam.id}`;
+    renderExam(exam, document.getElementById("waveforms"));
+  } catch (e) {
+    setMsg("exam-msg", e.message, "err");
+  } finally {
+    btn.disabled = false; btn.textContent = "▶ Acquire";
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Patients · ERG/VEP{% endblock %}
+{% block content %}
+<h1>Patients</h1>
+
+<section class="card">
+  <h2>New patient</h2>
+  <form id="patient-form" class="form-grid">
+    <label>MRN<input name="mrn" required></label>
+    <label>Name<input name="name" required></label>
+    <label>Birth date<input name="birth_date" type="date"></label>
+    <label>Sex
+      <select name="sex">
+        <option value="">-</option>
+        <option value="M">M</option>
+        <option value="F">F</option>
+        <option value="O">O</option>
+      </select>
+    </label>
+    <label class="span2">Note<input name="note"></label>
+    <button class="btn primary" type="submit">Add patient</button>
+  </form>
+  <p id="patient-msg" class="msg"></p>
+</section>
+
+<section class="card">
+  <div class="row-between">
+    <h2>Patient list</h2>
+    <input id="search" placeholder="search name / MRN…" class="search">
+  </div>
+  <table class="table">
+    <thead>
+      <tr><th>MRN</th><th>Name</th><th>Sex</th><th>Birth</th><th></th></tr>
+    </thead>
+    <tbody id="patient-rows"></tbody>
+  </table>
+</section>
+
+<script>
+async function loadPatients(q) {
+  const rows = await api(`/api/patients${q ? "?q=" + encodeURIComponent(q) : ""}`);
+  const tb = document.getElementById("patient-rows");
+  tb.innerHTML = rows.map(p => `
+    <tr>
+      <td>${p.mrn}</td>
+      <td><a href="/patients/${p.id}">${p.name}</a></td>
+      <td>${p.sex || "-"}</td>
+      <td>${p.birth_date || "-"}</td>
+      <td><a class="btn small" href="/patients/${p.id}">Open</a></td>
+    </tr>`).join("") || `<tr><td colspan="5" class="muted">No patients</td></tr>`;
+}
+
+document.getElementById("patient-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const data = Object.fromEntries(new FormData(ev.target).entries());
+  for (const k of ["birth_date", "sex", "note"]) if (!data[k]) delete data[k];
+  try {
+    await api("/api/patients", { method: "POST", body: data });
+    ev.target.reset();
+    setMsg("patient-msg", "Patient added.", "ok");
+    loadPatients();
+  } catch (e) { setMsg("patient-msg", e.message, "err"); }
+});
+
+document.getElementById("search").addEventListener("input", (e) =>
+  loadPatients(e.target.value));
+
+loadPatients();
+</script>
+{% endblock %}

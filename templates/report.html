@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Report · ERG/VEP{% endblock %}
+{% block content %}
+<div class="row-between no-print">
+  <a class="back" href="/">← Dashboard</a>
+  <button class="btn" onclick="window.print()">🖨 Print</button>
+</div>
+
+<div id="report-head"></div>
+<div id="waveforms"></div>
+
+<script>
+const EXAM_ID = {{ exam_id }};
+
+(async function () {
+  const exam = await api(`/api/exams/${EXAM_ID}`);
+  let p = {};
+  try { p = await api(`/api/patients/${exam.patient_id}`); } catch (e) {}
+  document.getElementById("report-head").innerHTML = `
+    <h1>${exam.test_type} report</h1>
+    <div class="report-meta card">
+      <div><b>Patient:</b> ${p.name || "-"} (#${p.mrn || exam.patient_id})</div>
+      <div><b>Protocol:</b> ${exam.protocol}</div>
+      <div><b>Performed:</b> ${new Date(exam.performed_at).toLocaleString()}</div>
+      <div><b>Device:</b> ${exam.device || "-"}</div>
+      <div><b>Operator:</b> ${exam.operator || "-"}</div>
+    </div>`;
+  renderExam(exam, document.getElementById("waveforms"));
+})();
+</script>
+{% endblock %}

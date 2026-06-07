@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ patient.name }} · ERG/VEP{% endblock %}
+{% block content %}
+<a class="back" href="/patients">← Patients</a>
+<h1>{{ patient.name }} <span class="muted">#{{ patient.mrn }}</span></h1>
+<p class="muted">
+  {{ patient.sex or "-" }} ·
+  {{ patient.birth_date or "DOB unknown" }}
+  {% if patient.note %} · {{ patient.note }}{% endif %}
+</p>
+
+<div class="row-between">
+  <h2>Exams</h2>
+  <a class="btn primary" href="/exam/new?patient_id={{ patient.id }}">
+    + New exam
+  </a>
+</div>
+
+<table class="table">
+  <thead>
+    <tr><th>When</th><th>Test</th><th>Protocol</th><th></th></tr>
+  </thead>
+  <tbody id="exam-rows"></tbody>
+</table>
+
+<script>
+async function loadExams() {
+  const rows = await api(`/api/exams?patient_id={{ patient.id }}`);
+  const tb = document.getElementById("exam-rows");
+  tb.innerHTML = rows.map(e => `
+    <tr>
+      <td>${new Date(e.performed_at).toLocaleString()}</td>
+      <td><span class="tag">${e.test_type}</span></td>
+      <td>${e.protocol}</td>
+      <td><a class="btn small" href="/reports/${e.id}">Report</a></td>
+    </tr>`).join("") ||
+    `<tr><td colspan="4" class="muted">No exams yet</td></tr>`;
+}
+loadExams();
+</script>
+{% endblock %}

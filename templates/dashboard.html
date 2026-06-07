@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · ERG/VEP{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+
+<section class="cards">
+  <div class="card stat">
+    <div class="stat-num">{{ patient_count }}</div>
+    <div class="stat-label">Patients</div>
+  </div>
+  <div class="card stat">
+    <div class="stat-num">{{ recent|length }}</div>
+    <div class="stat-label">Recent exams</div>
+  </div>
+  <div class="card stat">
+    <a class="btn primary" href="/patients">+ New patient / exam</a>
+  </div>
+</section>
+
+<h2>Recent exams</h2>
+{% if recent %}
+<table class="table">
+  <thead>
+    <tr><th>When</th><th>Test</th><th>Protocol</th>
+        <th>Device</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for e in recent %}
+    <tr>
+      <td>{{ e.performed_at.strftime("%Y-%m-%d %H:%M") }}</td>
+      <td><span class="tag">{{ e.test_type }}</span></td>
+      <td>{{ e.protocol }}</td>
+      <td>{{ e.device }}</td>
+      <td><a class="btn small" href="/reports/{{ e.id }}">Report</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No exams yet. Create a patient and run a study.</p>
+{% endif %}
+{% endblock %}
