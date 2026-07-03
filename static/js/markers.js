@@ -6,6 +6,22 @@ function flagClass(flag) {
   return "flag-norm";
 }
 
+/* ISCEV PERG 2024: report the N95:P50 amplitude ratio per eye, which helps
+   identify selective / predominant N95 loss. Only shown when both are present. */
+function n95p50Ratios(traces) {
+  const out = [];
+  for (const tr of traces) {
+    const ms = tr.measurements || [];
+    const p50 = ms.find((m) => m.marker === "P50");
+    const n95 = ms.find((m) => m.marker === "N95");
+    if (p50 && n95 && Math.abs(p50.amplitude_uv) > 0) {
+      out.push(`${tr.label}: ${(Math.abs(n95.amplitude_uv) /
+        Math.abs(p50.amplitude_uv)).toFixed(2)}`);
+    }
+  }
+  return out;
+}
+
 function markerTable(traces) {
   const rows = [];
   for (const tr of traces) {
@@ -21,6 +37,10 @@ function markerTable(traces) {
     }
   }
   if (!rows.length) return `<p class="muted">No markers detected.</p>`;
+  const ratios = n95p50Ratios(traces);
+  const ratioLine = ratios.length
+    ? `<p class="muted ratio-line">N95:P50 amplitude ratio — ${ratios.join(" · ")}</p>`
+    : "";
   return `
     <table class="table compact">
       <thead><tr>
@@ -28,5 +48,5 @@ function markerTable(traces) {
         <th>Amplitude</th><th>Status</th>
       </tr></thead>
       <tbody>${rows.join("")}</tbody>
-    </table>`;
+    </table>${ratioLine}`;
 }
