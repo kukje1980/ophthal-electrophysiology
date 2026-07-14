@@ -1,0 +1,621 @@
+<title>ISCEV ERG / VEP — Interactive Preview</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #eef2f7; --surface: #ffffff; --surface-2: #f7f9fc;
+    --ink: #14203a; --muted: #5b6b86; --line: #dde5ef;
+    --accent: #0891b2; --accent-ink: #ffffff;
+    --od: #2563eb; --os: #dc2626;
+    --good: #15803d; --good-bg: #dcfce7;
+    --warn: #b45309; --warn-bg: #fef3c7;
+    --bad: #b91c1c; --bad-bg: #fee2e2;
+    --plot-bg: #ffffff; --grid: #eef2f7; --zero: #c3cedd; --axis: #64748b;
+    --shadow: 0 1px 2px rgba(16,31,58,.06), 0 8px 24px rgba(16,31,58,.06);
+    --mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0a0f1c; --surface: #111a2c; --surface-2: #0d1524;
+      --ink: #e7eefb; --muted: #93a4bf; --line: #22304a;
+      --accent: #22d3ee; --accent-ink: #05202a;
+      --od: #60a5fa; --os: #f87171;
+      --good: #4ade80; --good-bg: #0f2f1e;
+      --warn: #fbbf24; --warn-bg: #35280a;
+      --bad: #f87171; --bad-bg: #3a1417;
+      --plot-bg: #0b1424; --grid: #17233a; --zero: #33496b; --axis: #7e90ab;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #eef2f7; --surface: #ffffff; --surface-2: #f7f9fc;
+    --ink: #14203a; --muted: #5b6b86; --line: #dde5ef;
+    --accent: #0891b2; --accent-ink: #ffffff; --od: #2563eb; --os: #dc2626;
+    --good: #15803d; --good-bg: #dcfce7; --warn: #b45309; --warn-bg: #fef3c7;
+    --bad: #b91c1c; --bad-bg: #fee2e2;
+    --plot-bg: #ffffff; --grid: #eef2f7; --zero: #c3cedd; --axis: #64748b;
+    --shadow: 0 1px 2px rgba(16,31,58,.06), 0 8px 24px rgba(16,31,58,.06);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0a0f1c; --surface: #111a2c; --surface-2: #0d1524;
+    --ink: #e7eefb; --muted: #93a4bf; --line: #22304a;
+    --accent: #22d3ee; --accent-ink: #05202a; --od: #60a5fa; --os: #f87171;
+    --good: #4ade80; --good-bg: #0f2f1e; --warn: #fbbf24; --warn-bg: #35280a;
+    --bad: #f87171; --bad-bg: #3a1417;
+    --plot-bg: #0b1424; --grid: #17233a; --zero: #33496b; --axis: #7e90ab;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 18px 72px; }
+
+  /* Topbar ---------------------------------------------------------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    background: color-mix(in srgb, var(--bg) 86%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .topbar-in { max-width: 1000px; margin: 0 auto; padding: 12px 18px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 700;
+    letter-spacing: -.01em; font-size: 17px; }
+  .brand .eye {
+    width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center;
+    background: var(--accent); color: var(--accent-ink); font-size: 15px;
+  }
+  .brand small { color: var(--accent); font-weight: 700; font-size: 10px;
+    letter-spacing: .12em; text-transform: uppercase; vertical-align: super; }
+  .pill {
+    margin-left: auto; font-family: var(--mono); font-size: 12px;
+    padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--muted); white-space: nowrap;
+  }
+  .pill b { color: var(--good); }
+  .pill .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--good); margin-right: 6px; vertical-align: middle; }
+
+  /* Tabs ------------------------------------------------------------ */
+  .tabs { display: flex; gap: 4px; margin: 22px 0 20px;
+    background: var(--surface-2); border: 1px solid var(--line);
+    padding: 4px; border-radius: 12px; width: fit-content; }
+  .tab { border: 0; background: transparent; color: var(--muted); cursor: pointer;
+    font: inherit; font-size: 14px; font-weight: 600; padding: 8px 16px;
+    border-radius: 8px; }
+  .tab[aria-selected="true"] { background: var(--surface); color: var(--ink);
+    box-shadow: var(--shadow); }
+  .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  h1 { font-size: 15px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 14px; font-weight: 700; }
+  h2 { font-size: 15px; margin: 0; font-family: var(--mono); letter-spacing: -.01em; }
+
+  .card { background: var(--surface); border: 1px solid var(--line);
+    border-radius: 14px; padding: 18px; box-shadow: var(--shadow); }
+  .stack { display: grid; gap: 16px; }
+
+  /* Controls -------------------------------------------------------- */
+  .controls { display: grid; grid-template-columns: 2fr 1fr auto; gap: 14px;
+    align-items: end; }
+  label.field { display: flex; flex-direction: column; gap: 6px;
+    font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted); font-weight: 600; }
+  select, .btn { font: inherit; }
+  select {
+    padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px;
+    background: var(--surface-2); color: var(--ink); font-size: 14px;
+  }
+  select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .btn {
+    padding: 11px 18px; border-radius: 10px; border: 1px solid var(--accent);
+    background: var(--accent); color: var(--accent-ink); font-weight: 700;
+    cursor: pointer; font-size: 14px; white-space: nowrap;
+  }
+  .btn:hover { filter: brightness(1.06); }
+  .btn:active { transform: translateY(1px); }
+  .btn.ghost { background: var(--surface); color: var(--ink); border-color: var(--line); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn[disabled] { opacity: .55; cursor: progress; }
+
+  .chips { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 14px; }
+  .chip { font-family: var(--mono); font-size: 11.5px; color: var(--muted);
+    background: var(--surface-2); border: 1px solid var(--line);
+    padding: 4px 9px; border-radius: 7px; }
+  .chip b { color: var(--ink); font-weight: 600; }
+  .chip.std { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+
+  /* Waveform card --------------------------------------------------- */
+  .wf-head { display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; margin-bottom: 6px; }
+  .legend { display: flex; gap: 12px; font-size: 12px; color: var(--muted);
+    font-family: var(--mono); }
+  .legend i { display: inline-block; width: 20px; height: 3px; border-radius: 2px;
+    vertical-align: middle; margin-right: 5px; }
+  .legend .od { background: var(--od); } .legend .os { background: var(--os); }
+  canvas { display: block; width: 100%; height: auto; border-radius: 10px;
+    background: var(--plot-bg); border: 1px solid var(--line); }
+
+  .scroll-x { overflow-x: auto; }
+  table.meas { width: 100%; border-collapse: collapse; margin-top: 12px;
+    font-size: 13.5px; min-width: 460px; }
+  .meas th { text-align: left; font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--muted); font-weight: 700;
+    padding: 6px 10px; border-bottom: 1px solid var(--line); }
+  .meas td { padding: 7px 10px; border-bottom: 1px solid var(--line);
+    font-variant-numeric: tabular-nums; font-family: var(--mono); }
+  .meas td.eye { color: var(--muted); }
+  .meas td.mk { font-weight: 700; color: var(--ink); }
+  .badge { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 6px;
+    font-family: system-ui, sans-serif; }
+  .b-good { background: var(--good-bg); color: var(--good); }
+  .b-warn { background: var(--warn-bg); color: var(--warn); }
+  .b-bad { background: var(--bad-bg); color: var(--bad); }
+  .ratio { margin: 12px 2px 0; font-size: 12.5px; color: var(--muted);
+    font-family: var(--mono); }
+  .ratio b { color: var(--ink); }
+
+  .muted { color: var(--muted); }
+  .empty { text-align: center; color: var(--muted); padding: 40px 10px; font-size: 14px; }
+
+  /* Stimulus monitor ------------------------------------------------ */
+  .stim-controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: end;
+    margin-bottom: 14px; }
+  .stim-controls label.field { min-width: 92px; }
+  .stim-controls select, .stim-controls input { width: 100%; }
+  input[type=number] { padding: 10px 12px; border: 1px solid var(--line);
+    border-radius: 9px; background: var(--surface-2); color: var(--ink);
+    font-size: 14px; font-family: var(--mono); }
+  .stage { position: relative; background: #000; border-radius: 12px; overflow: hidden; }
+  .stage canvas { border: 0; border-radius: 12px; background: #000; }
+  .readout { position: absolute; left: 12px; bottom: 11px; color: #e2e8f0;
+    background: rgba(8,15,28,.66); padding: 4px 11px; border-radius: 999px;
+    font-size: 12px; font-family: var(--mono); }
+  .note { font-size: 12px; color: var(--muted); margin-top: 12px; }
+  kbd { font-family: var(--mono); background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: 5px; padding: 1px 6px; font-size: 11px; }
+  .foot { text-align: center; color: var(--muted); font-size: 12px; margin-top: 34px; }
+  .hidden { display: none !important; }
+
+  @media (max-width: 640px) {
+    .controls { grid-template-columns: 1fr; }
+    .controls .btn { width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <span class="brand"><span class="eye">👁</span> ERG / VEP <small>ISCEV</small></span>
+    <span class="pill" id="pill"><span class="dot"></span>device: <b>simulator</b> · connected</span>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="tabs" role="tablist" aria-label="View">
+    <button class="tab" role="tab" id="tab-exam" aria-selected="true" aria-controls="view-exam">검사 · 리포트</button>
+    <button class="tab" role="tab" id="tab-stim" aria-selected="false" aria-controls="view-stim">자극기 모니터</button>
+  </div>
+
+  <!-- ============ Exam / report ============ -->
+  <section id="view-exam" role="tabpanel" aria-labelledby="tab-exam" class="stack">
+    <div class="card">
+      <h1>Acquire an ISCEV study</h1>
+      <div class="controls">
+        <label class="field">Protocol
+          <select id="protocol"></select>
+        </label>
+        <label class="field">Eyes
+          <select id="eyes">
+            <option value="OD,OS">Both (OD + OS)</option>
+            <option value="OD">OD only</option>
+            <option value="OS">OS only</option>
+          </select>
+        </label>
+        <button class="btn" id="acquire">▶ Acquire</button>
+      </div>
+      <div class="chips" id="proto-chips"></div>
+    </div>
+
+    <div id="results" class="stack"></div>
+    <p class="empty" id="empty">프로토콜을 고르고 <b>Acquire</b> 를 누르면 ISCEV 시뮬레이션 파형과 자동 마커 판독이 표시됩니다.</p>
+  </section>
+
+  <!-- ============ Stimulus monitor ============ -->
+  <section id="view-stim" role="tabpanel" aria-labelledby="tab-stim" class="hidden">
+    <div class="card">
+      <h1>Monitor stimulator</h1>
+      <div class="stim-controls">
+        <label class="field">Mode
+          <select id="mode">
+            <option value="pattern">Pattern reversal</option>
+            <option value="flash">Flash</option>
+            <option value="flicker">Flicker</option>
+            <option value="mfocal">Multifocal (mfERG)</option>
+          </select>
+        </label>
+        <label class="field">Hexagons
+          <select id="hexagons"><option>61</option><option>103</option></select>
+        </label>
+        <label class="field">Check °
+          <input id="check_deg" type="number" step="0.05" value="1.0"></label>
+        <label class="field">Contrast
+          <input id="contrast" type="number" step="0.01" min="0" max="1" value="0.97"></label>
+        <label class="field">Rate Hz
+          <input id="rate_hz" type="number" step="0.5" value="2"></label>
+        <button class="btn ghost" id="toggle">⏸ Pause</button>
+      </div>
+      <div class="stage">
+        <canvas id="stim" width="920" height="560"></canvas>
+        <div class="readout" id="readout"></div>
+      </div>
+      <p class="note">환자용 <b>모니터 자극기</b> 표시면입니다. 키: <kbd>Space</kbd> 정지 ·
+        <kbd>F</kbd> 플래시 · <kbd>P</kbd> 패턴 · <kbd>M</kbd> 멀티포컬</p>
+    </div>
+  </section>
+
+  <p class="foot">ISCEV ffERG 2022 · PERG 2024 · VEP 2025 · mfERG 2021 —
+    simulated acquisition (미리보기, 데모용)</p>
+</div>
+
+<script>
+/* ====================================================================
+   ISCEV protocol catalogue, simulator, marker detection and reference
+   ranges — a faithful client-side port of the FastAPI application, so
+   this preview needs no server.
+   ==================================================================== */
+
+const MARKERS = {
+  rod_b: ["b"], combined: ["a","b"], op: ["OP1","OP2","OP3","OP4"],
+  cone: ["a","b"], flicker: ["P1"], perg: ["N35","P50","N95"],
+  vep_pr: ["N75","P100","N145"], vep_flash: ["N2","P2"], mferg: ["N1","P1","N2"],
+};
+const S = (key,label,kind,dur,fs,stim)=>({key,label,kind,duration_ms:dur,
+  sampling_rate:fs,markers:MARKERS[kind],stimulus:stim});
+
+const PROTOCOLS = {
+  ffERG_standard: { test_type:"ffERG", label:"Full-field ERG (ISCEV standard)",
+    standard:"ISCEV ffERG 2022", steps:[
+    S("DA0.01","Dark-adapted 0.01 ERG (rod)","rod_b",250,2000,{cd_s_m2:0.01,adaptation:"dark"}),
+    S("DA3.0","Dark-adapted 3.0 ERG (combined)","combined",250,2000,{cd_s_m2:3.0,adaptation:"dark"}),
+    S("DA10.0","Dark-adapted 10.0 ERG (strong flash)","combined",250,2000,{cd_s_m2:10.0,adaptation:"dark"}),
+    S("DA3.0_OP","Dark-adapted oscillatory potentials","op",120,4000,{cd_s_m2:3.0,adaptation:"dark",filter:"75-300Hz"}),
+    S("LA3.0","Light-adapted 3.0 ERG (cone)","cone",150,2000,{cd_s_m2:3.0,adaptation:"light",background:"30 cd/m2"}),
+    S("LA3.0_30Hz","Light-adapted 30 Hz flicker","flicker",300,2000,{cd_s_m2:3.0,adaptation:"light",rate_hz:30}),
+  ]},
+  PERG_standard: { test_type:"PERG", label:"Pattern ERG (ISCEV standard)",
+    standard:"ISCEV PERG 2024", steps:[
+    S("PERG","Transient pattern ERG","perg",150,2000,{check_deg:0.8,field_deg:15,reversal_hz:4,contrast:0.98}),
+  ]},
+  VEP_pattern_reversal: { test_type:"VEP", label:"Pattern-reversal VEP",
+    standard:"ISCEV VEP 2025", steps:[
+    S("PR_1deg","Pattern reversal 1.0° (60′) checks","vep_pr",300,1000,{check_deg:1.0,field_deg:15,reversal_hz:2,contrast:0.97}),
+    S("PR_0.25deg","Pattern reversal 0.25° (15′) checks","vep_pr",300,1000,{check_deg:0.25,field_deg:15,reversal_hz:2,contrast:0.97}),
+  ]},
+  VEP_flash: { test_type:"VEP", label:"Flash VEP", standard:"ISCEV VEP 2025", steps:[
+    S("FVEP","Flash VEP","vep_flash",300,1000,{cd_s_m2:3.0,field_deg:20}),
+  ]},
+  mfERG_61: { test_type:"mfERG", label:"Multifocal ERG (61 hexagons)",
+    standard:"ISCEV mfERG 2021", steps:[
+    S("mfERG61","61-hexagon mfERG (summed)","mferg",80,2000,{hexagons:61,field_deg:50,adaptation:"light",contrast:0.98,frame_hz:75,filter:"10-300Hz"}),
+  ]},
+  mfERG_103: { test_type:"mfERG", label:"Multifocal ERG (103 hexagons)",
+    standard:"ISCEV mfERG 2021", steps:[
+    S("mfERG103","103-hexagon mfERG (summed)","mferg",80,2000,{hexagons:103,field_deg:50,adaptation:"light",contrast:0.98,frame_hz:75,filter:"10-300Hz"}),
+  ]},
+};
+
+// ---- simulator (waveform morphology) ----------------------------------
+const RECIPES = {
+  rod_b: [[280,95,22]],
+  combined: [[-260,16,4],[520,48,13],[45,20,1.6],[60,26,1.6],[40,32,1.6]],
+  op: [[70,16,1.5],[95,22,1.5],[75,28,1.5],[45,34,1.6]],
+  cone: [[-35,14,3],[130,30,6],[25,45,6]],
+  perg: [[-1.6,33,4],[5.5,52,9],[-4.2,95,22]],
+  vep_pr: [[-3.5,75,10],[11.0,100,12],[-4.5,145,22]],
+  vep_flash: [[-4.0,80,16],[8.5,122,26]],
+  mferg: [[-120,14,3],[210,30,5],[-40,55,12]],
+};
+const NSWEEPS = { rod_b:3,combined:3,op:4,cone:4,flicker:20,perg:100,vep_pr:64,vep_flash:32,mferg:1 };
+
+function hashSeed(str){ let h=2166136261>>>0; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619);} return h>>>0; }
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function gaussRng(rng){ let u=0,v=0; while(u===0)u=rng(); while(v===0)v=rng(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+const gauss=(t,amp,c,w)=>amp*Math.exp(-((t-c)*(t-c))/(2*w*w));
+
+function simulate(step, eye){
+  const {key,kind,duration_ms:dur,sampling_rate:fs,stimulus:stim}=step;
+  const n=Math.max(2,Math.round(dur*fs/1000));
+  const t=new Array(n); for(let i=0;i<n;i++) t[i]=dur*i/n;
+  const gr=mulberry32(hashSeed(key+eye+"gain"));
+  const eyeGain=1+(eye==="OD"?0.04:-0.04)+gaussRng(gr)*0.03;
+  const y=new Array(n).fill(0);
+  if(kind==="flicker"){
+    const rate=stim.rate_hz||30;
+    for(let i=0;i<n;i++) y[i]=65*Math.sin(2*Math.PI*rate*(t[i]-8)/1000)*Math.min(1,Math.max(0,t[i]/30));
+  } else {
+    for(const [a,c,w] of (RECIPES[kind]||[])) for(let i=0;i<n;i++) y[i]+=gauss(t[i],a,c,w);
+  }
+  let peak=0;
+  for(let i=0;i<n;i++){ y[i]*=eyeGain; if(t[i]<4) y[i]*=0.05; peak=Math.max(peak,Math.abs(y[i])); }
+  const nr=mulberry32(hashSeed(key+eye));
+  const sd=Math.max(0.05,0.015*(peak||1))/Math.sqrt(NSWEEPS[kind]||1);
+  for(let i=0;i<n;i++) y[i]=Math.round((y[i]+gaussRng(nr)*sd)*1000)/1000;
+  return { eye, step:key, duration_ms:dur, sampling_rate:fs, samples:y };
+}
+
+// ---- marker detection --------------------------------------------------
+const DEF = {
+  a:{win:[8,30],pol:"neg"}, b:{win:[30,90],pol:"pos",from:"a"},
+  OP1:{win:[12,22],pol:"pos"},OP2:{win:[18,28],pol:"pos"},OP3:{win:[24,34],pol:"pos"},OP4:{win:[30,45],pol:"pos"},
+  N1:{win:[8,25],pol:"neg"}, P1:{win:[25,45],pol:"pos",from:"N1"},
+  N35:{win:[25,45],pol:"neg"}, P50:{win:[40,65],pol:"pos",from:"N35"}, N95:{win:[80,110],pol:"neg",from:"P50"},
+  N75:{win:[60,90],pol:"neg"}, P100:{win:[85,125],pol:"pos",from:"N75"}, N145:{win:[120,180],pol:"neg",from:"P100"},
+  N2:{win:[60,110],pol:"neg"}, P2:{win:[90,160],pol:"pos",from:"N2"},
+};
+const OVR = {
+  "LA3.0_30Hz|P1":{win:[12,40],pol:"pos"},
+  "mfERG61|N1":{win:[8,22],pol:"neg"},"mfERG61|P1":{win:[22,45],pol:"pos",from:"N1"},"mfERG61|N2":{win:[45,75],pol:"neg",from:"P1"},
+  "mfERG103|N1":{win:[8,22],pol:"neg"},"mfERG103|P1":{win:[22,45],pol:"pos",from:"N1"},"mfERG103|N2":{win:[45,75],pol:"neg",from:"P1"},
+};
+const cfg=(sk,m)=>OVR[sk+"|"+m]||DEF[m]||null;
+
+const REF = {
+  "DA0.01|b":{amp_min:160,lat_max:110}, "DA3.0|a":{amp_min:150,lat_max:25}, "DA3.0|b":{amp_min:250,lat_max:55},
+  "DA10.0|a":{amp_min:180,lat_max:22}, "DA10.0|b":{amp_min:280,lat_max:50},
+  "LA3.0|a":{amp_min:20,lat_max:18}, "LA3.0|b":{amp_min:80,lat_max:36}, "LA3.0_30Hz|P1":{amp_min:50,lat_max:32},
+  "PERG|P50":{amp_min:2.0,lat_min:45,lat_max:60}, "PERG|N95":{amp_min:3.0,lat_min:90,lat_max:105},
+  "PR_1deg|P100":{amp_min:5.0,lat_min:90,lat_max:115}, "PR_0.25deg|P100":{amp_min:4.0,lat_min:95,lat_max:120},
+  "FVEP|P2":{amp_min:4.0,lat_min:90,lat_max:150},
+  "mfERG61|N1":{lat_max:22}, "mfERG61|P1":{amp_min:60,lat_max:40},
+  "mfERG103|N1":{lat_max:22}, "mfERG103|P1":{amp_min:40,lat_max:40},
+};
+function classify(sk,m,lat,amp){
+  const r=REF[sk+"|"+m]; if(!r) return "normal";
+  const ord={normal:0,borderline:1,abnormal:2}; let st="normal";
+  const dg=x=>{ if(ord[x]>ord[st]) st=x; };
+  amp=Math.abs(amp);
+  if("amp_min"in r){ if(amp<r.amp_min*0.9)dg("abnormal"); else if(amp<r.amp_min)dg("borderline"); }
+  if("lat_max"in r){ if(lat>r.lat_max*1.1)dg("abnormal"); else if(lat>r.lat_max)dg("borderline"); }
+  if("lat_min"in r){ if(lat<r.lat_min*0.9)dg("abnormal"); else if(lat<r.lat_min)dg("borderline"); }
+  return st;
+}
+function detect(samples, dur, sk, markers){
+  const n=samples.length; if(!n) return [];
+  const t=i=>dur*i/n;
+  const baseN=Math.max(1, Math.round(n*5/dur));
+  let base=0; for(let i=0;i<baseN;i++) base+=samples[i]; base/=baseN;
+  const order=[...markers].sort((x,y)=>(cfg(sk,x)?.win[0]??0)-(cfg(sk,y)?.win[0]??0));
+  const found={}; const out=[];
+  for(const m of order){
+    const c=cfg(sk,m); if(!c) continue;
+    let idx=-1,val=null;
+    for(let i=0;i<n;i++){ const ti=t(i); if(ti<c.win[0]||ti>c.win[1])continue;
+      if(idx<0||(c.pol==="neg"?samples[i]<val:samples[i]>val)){ idx=i; val=samples[i]; } }
+    if(idx<0) continue;
+    const lat=t(idx);
+    const amp=(c.from&&found[c.from]!=null)?Math.abs(val-found[c.from]):Math.abs(val-base);
+    found[m]=val;
+    out.push({marker:m,latency_ms:Math.round(lat*100)/100,amplitude_uv:Math.round(amp*100)/100,flag:classify(sk,m,lat,amp)});
+  }
+  out.sort((a,b)=>a.latency_ms-b.latency_ms);
+  return out;
+}
+
+/* ====================================================================
+   Rendering
+   ==================================================================== */
+const cssv=(k)=>getComputedStyle(document.documentElement).getPropertyValue(k).trim();
+function plotColors(){ return { bg:cssv("--plot-bg"),grid:cssv("--grid"),zero:cssv("--zero"),
+  axis:cssv("--axis"),ink:cssv("--ink"),od:cssv("--od"),os:cssv("--os") }; }
+
+function niceStep(range,target){ const raw=range/target; const mag=Math.pow(10,Math.floor(Math.log10(raw)));
+  const nm=raw/mag; let s; if(nm<1.5)s=1;else if(nm<3)s=2;else if(nm<7)s=5;else s=10; return s*mag; }
+
+function drawTraces(canvas, traces){
+  const C=plotColors(), ctx=canvas.getContext("2d");
+  const W=canvas.width,H=canvas.height, padL=54,padR=16,padT=14,padB=30;
+  const pw=W-padL-padR, ph=H-padT-padB;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle=C.bg; ctx.fillRect(0,0,W,H);
+  let maxT=0,ymin=Infinity,ymax=-Infinity;
+  for(const tr of traces){ maxT=Math.max(maxT,tr.duration_ms);
+    for(const v of tr.samples){ if(v<ymin)ymin=v; if(v>ymax)ymax=v; } }
+  if(!isFinite(ymin)){ymin=-1;ymax=1;} ymin=Math.min(ymin,0);ymax=Math.max(ymax,0);
+  const pad=(ymax-ymin)*0.12||1; ymin-=pad; ymax+=pad;
+  const X=t=>padL+(t/maxT)*pw, Y=v=>padT+(ymax-v)/(ymax-ymin)*ph;
+  ctx.font="11px ui-monospace, monospace"; ctx.lineWidth=1;
+  const tStep=niceStep(maxT,8); ctx.textAlign="center";
+  for(let t=0;t<=maxT+1e-6;t+=tStep){ const x=X(t);
+    ctx.strokeStyle=C.grid; ctx.beginPath();ctx.moveTo(x,padT);ctx.lineTo(x,padT+ph);ctx.stroke();
+    ctx.fillStyle=C.axis; ctx.fillText(Math.round(t),x,H-9); }
+  const vStep=niceStep(ymax-ymin,6); ctx.textAlign="right";
+  for(let v=Math.ceil(ymin/vStep)*vStep;v<=ymax;v+=vStep){ const y=Y(v);
+    ctx.strokeStyle=Math.abs(v)<1e-9?C.zero:C.grid; ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(padL+pw,y);ctx.stroke();
+    ctx.fillStyle=C.axis; ctx.fillText(v.toFixed(vStep<1?1:0),padL-6,y+3); }
+  ctx.fillStyle=C.axis; ctx.textAlign="center"; ctx.fillText("time (ms)",padL+pw/2,H-0);
+  ctx.save();ctx.translate(13,padT+ph/2);ctx.rotate(-Math.PI/2);ctx.fillText("amplitude (µV)",0,0);ctx.restore();
+  for(const tr of traces){
+    const n=tr.samples.length, dt=tr.duration_ms/n;
+    ctx.strokeStyle=tr.eye==="OD"?C.od:C.os; ctx.lineWidth=1.7; ctx.beginPath();
+    for(let i=0;i<n;i++){ const x=X(i*dt),y=Y(tr.samples[i]); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+    ctx.stroke();
+    for(const m of tr.measurements||[]){ const idx=Math.min(n-1,Math.round(m.latency_ms/dt));
+      const x=X(m.latency_ms),y=Y(tr.samples[idx]);
+      ctx.fillStyle=tr.eye==="OD"?C.od:C.os; ctx.beginPath();ctx.arc(x,y,3.2,0,2*Math.PI);ctx.fill();
+      ctx.fillStyle=C.ink; ctx.textAlign="center"; ctx.font="700 11px ui-monospace,monospace";
+      ctx.fillText(m.marker,x,y-7); ctx.font="11px ui-monospace,monospace"; }
+  }
+}
+
+function badge(f){ return f==="abnormal"?"b-bad":f==="borderline"?"b-warn":"b-good"; }
+function measTable(traces){
+  let rows="";
+  for(const tr of traces) for(const m of tr.measurements||[])
+    rows+=`<tr><td class="eye">${tr.eye}</td><td class="mk">${m.marker}</td>
+      <td>${m.latency_ms.toFixed(1)} ms</td><td>${m.amplitude_uv.toFixed(2)} µV</td>
+      <td><span class="badge ${badge(m.flag)}">${m.flag}</span></td></tr>`;
+  if(!rows) return `<p class="muted">No markers detected.</p>`;
+  let ratio="";
+  const rr=[];
+  for(const tr of traces){ const ms=tr.measurements||[];
+    const p=ms.find(x=>x.marker==="P50"), q=ms.find(x=>x.marker==="N95");
+    if(p&&q&&Math.abs(p.amplitude_uv)>0) rr.push(`${tr.eye}: <b>${(Math.abs(q.amplitude_uv)/Math.abs(p.amplitude_uv)).toFixed(2)}</b>`); }
+  if(rr.length) ratio=`<p class="ratio">N95:P50 amplitude ratio — ${rr.join(" · ")}</p>`;
+  return `<div class="scroll-x"><table class="meas"><thead><tr><th>Eye</th><th>Marker</th>
+    <th>Implicit time</th><th>Amplitude</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>${ratio}`;
+}
+
+let LAST=null;
+function renderExam(protoKey, eyes){
+  const proto=PROTOCOLS[protoKey];
+  const byStep={}, order=[];
+  for(const step of proto.steps){
+    for(const eye of eyes){
+      const wf=simulate(step,eye);
+      wf.measurements=detect(wf.samples,step.duration_ms,step.key,step.markers);
+      if(!byStep[step.key]){ byStep[step.key]={label:step.label,traces:[]}; order.push(step.key); }
+      byStep[step.key].traces.push(wf);
+    }
+  }
+  LAST={protoKey,eyes,byStep,order};
+  const box=document.getElementById("results"); box.innerHTML="";
+  document.getElementById("empty").classList.add("hidden");
+  const head=document.createElement("div"); head.className="card";
+  head.innerHTML=`<div class="wf-head"><h2>${proto.label}</h2>
+    <span class="chip std">${proto.standard}</span></div>
+    <p class="muted" style="font-size:13px;margin:6px 0 0">${eyes.join(" + ")} · ${order.length} step(s) · auto-marked & classified</p>`;
+  box.appendChild(head);
+  for(const sk of order){
+    const grp=byStep[sk];
+    const card=document.createElement("div"); card.className="card";
+    card.innerHTML=`<div class="wf-head"><h2>${grp.label} <span class="muted" style="font-weight:400">· ${sk}</span></h2>
+      <span class="legend"><span><i class="od"></i>OD</span><span><i class="os"></i>OS</span></span></div>
+      <canvas width="900" height="300"></canvas><div class="mt"></div>`;
+    box.appendChild(card);
+    drawTraces(card.querySelector("canvas"), grp.traces);
+    card.querySelector(".mt").innerHTML=measTable(grp.traces);
+  }
+}
+function redrawAll(){ if(!LAST) return;
+  const cards=document.querySelectorAll("#results .card canvas");
+  let i=0; for(const sk of LAST.order){ drawTraces(cards[i++], LAST.byStep[sk].traces); } }
+
+// ---- protocol select + chips ------------------------------------------
+const protoSel=document.getElementById("protocol");
+const groups={};
+for(const [k,p] of Object.entries(PROTOCOLS)) (groups[p.test_type]=groups[p.test_type]||[]).push([k,p.label]);
+for(const [tt,list] of Object.entries(groups)){
+  const og=document.createElement("optgroup"); og.label=tt;
+  for(const [k,label] of list){ const o=document.createElement("option"); o.value=k; o.textContent=label; og.appendChild(o); }
+  protoSel.appendChild(og);
+}
+function updChips(){
+  const p=PROTOCOLS[protoSel.value], s0=p.steps[0].stimulus, chips=[];
+  chips.push(`<span class="chip std">${p.standard}</span>`);
+  chips.push(`<span class="chip"><b>${p.steps.length}</b> step</span>`);
+  if(s0.check_deg) chips.push(`<span class="chip">check <b>${s0.check_deg}°</b></span>`);
+  if(s0.contrast) chips.push(`<span class="chip">contrast <b>${Math.round(s0.contrast*100)}%</b></span>`);
+  if(s0.reversal_hz) chips.push(`<span class="chip"><b>${s0.reversal_hz}</b> rev/s</span>`);
+  if(s0.rate_hz) chips.push(`<span class="chip"><b>${s0.rate_hz}</b> Hz</span>`);
+  if(s0.hexagons) chips.push(`<span class="chip"><b>${s0.hexagons}</b> hexagons</span>`);
+  if(s0.field_deg) chips.push(`<span class="chip">field <b>${s0.field_deg}°</b></span>`);
+  if(s0.adaptation) chips.push(`<span class="chip">${s0.adaptation}-adapted</span>`);
+  document.getElementById("proto-chips").innerHTML=chips.join("");
+}
+protoSel.addEventListener("change",updChips);
+protoSel.value="VEP_pattern_reversal"; updChips();
+
+const acqBtn=document.getElementById("acquire");
+acqBtn.addEventListener("click",()=>{
+  acqBtn.disabled=true; acqBtn.textContent="Acquiring…";
+  const eyes=document.getElementById("eyes").value.split(",");
+  setTimeout(()=>{ renderExam(protoSel.value, eyes);
+    acqBtn.disabled=false; acqBtn.textContent="▶ Acquire"; },260);
+});
+
+/* ====================================================================
+   Stimulus monitor
+   ==================================================================== */
+const scv=document.getElementById("stim"), sctx=scv.getContext("2d"), readout=document.getElementById("readout");
+const $=id=>document.getElementById(id);
+let phase=0, running=true, lastSwitch=0, flashUntil=0, mfCache=null;
+
+function checkerboard(parity){
+  const W=scv.width,H=scv.height, contrast=Math.min(1,Math.max(0,parseFloat($("contrast").value)||0.97));
+  const hi=Math.round(127.5+127.5*contrast), lo=Math.round(127.5-127.5*contrast);
+  const deg=Math.max(0.1,parseFloat($("check_deg").value)||1), size=Math.max(8,Math.round(deg*34));
+  const cols=Math.ceil(W/size), rows=Math.ceil(H/size);
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){ const on=((r+c+parity)%2)===0;
+    sctx.fillStyle=`rgb(${on?hi:lo},${on?hi:lo},${on?hi:lo})`; sctx.fillRect(c*size,r*size,size,size); }
+}
+function fixation(){ const cx=scv.width/2,cy=scv.height/2; sctx.strokeStyle="#e11d48";sctx.lineWidth=3;
+  sctx.beginPath();sctx.moveTo(cx-14,cy);sctx.lineTo(cx+14,cy);sctx.moveTo(cx,cy-14);sctx.lineTo(cx,cy+14);sctx.stroke(); }
+function buildMf(count){
+  let R=0; while(1+3*R*(R+1)<count) R++;
+  let cells=[];
+  for(let q=-R;q<=R;q++) for(let r=Math.max(-R,-q-R);r<=Math.min(R,-q+R);r++){
+    const d=(Math.abs(q)+Math.abs(r)+Math.abs(q+r))/2; cells.push({q,r,d,a:Math.atan2(r+q/2,q)}); }
+  cells.sort((x,y)=>x.d-y.d||x.a-y.a); cells=cells.slice(0,count);
+  const W=scv.width,H=scv.height,s3=Math.sqrt(3), base=Math.min(W,H)/(2*(R+1)*(1+0.12*R)*1.55);
+  for(const c of cells){ const px=base*s3*(c.q+c.r/2), py=base*1.5*c.r, st=1+0.12*c.d;
+    c.x=W/2+px*st; c.y=H/2+py*st; c.size=base*0.95*(1+0.13*c.d); }
+  return {count,cells};
+}
+function hexPath(cx,cy,size,fill){ sctx.beginPath();
+  for(let k=0;k<6;k++){ const a=Math.PI/180*(60*k-30),x=cx+size*Math.cos(a),y=cy+size*Math.sin(a); k?sctx.lineTo(x,y):sctx.moveTo(x,y); }
+  sctx.closePath(); sctx.fillStyle=fill; sctx.fill(); sctx.strokeStyle="#444";sctx.lineWidth=1;sctx.stroke(); }
+function drawMfocal(now){
+  const count=parseInt($("hexagons").value,10)||61; if(!mfCache||mfCache.count!==count) mfCache=buildMf(count);
+  sctx.fillStyle="#7f7f7f"; sctx.fillRect(0,0,scv.width,scv.height);
+  const step=running?Math.floor(now/60):0;
+  for(let i=0;i<mfCache.cells.length;i++){ const c=mfCache.cells[i];
+    const bit=(((step*73856093)^(i*19349663)^((step>>1)*83492791))>>>((i+step)%17))&1;
+    hexPath(c.x,c.y,c.size,bit?"#fff":"#000"); }
+}
+function stimFrame(now){
+  const mode=$("mode").value, rate=Math.max(0.1,parseFloat($("rate_hz").value)||2), W=scv.width,H=scv.height;
+  if(mode==="pattern"){ const iv=1000/rate; if(running&&now-lastSwitch>=iv){phase^=1;lastSwitch=now;}
+    checkerboard(phase); fixation();
+    readout.textContent=`Pattern reversal · ${rate} rev/s · ${$("check_deg").value}° · ${Math.round($("contrast").value*100)}% contrast`;
+  } else if(mode==="flicker"){ const iv=1000/(2*rate); if(running&&now-lastSwitch>=iv){phase^=1;lastSwitch=now;}
+    sctx.fillStyle=phase?"#fff":"#000"; sctx.fillRect(0,0,W,H); fixation();
+    readout.textContent=`Flicker · ${rate} Hz full-field`;
+  } else if(mode==="mfocal"){ drawMfocal(now); fixation();
+    readout.textContent=`Multifocal mfERG · ${parseInt($("hexagons").value,10)||61} hexagons · m-sequence`;
+  } else { const iv=1000/rate; if(running&&now-lastSwitch>=iv){flashUntil=now+4;lastSwitch=now;}
+    sctx.fillStyle="#000";sctx.fillRect(0,0,W,H); if(now<flashUntil){sctx.fillStyle="#fff";sctx.fillRect(0,0,W,H);} fixation();
+    readout.textContent=`Flash · ${rate}/s (Ganzfeld)`; }
+  requestAnimationFrame(stimFrame);
+}
+$("toggle").addEventListener("click",()=>{ running=!running; $("toggle").textContent=running?"⏸ Pause":"▶ Resume"; });
+document.addEventListener("keydown",e=>{
+  if(document.getElementById("view-stim").classList.contains("hidden")) return;
+  if(e.code==="Space"){ e.preventDefault(); $("toggle").click(); }
+  if(e.key==="f"||e.key==="F") $("mode").value="flash";
+  if(e.key==="p"||e.key==="P") $("mode").value="pattern";
+  if(e.key==="m"||e.key==="M") $("mode").value="mfocal";
+});
+requestAnimationFrame(stimFrame);
+
+/* ---- tabs + theme redraw ---------------------------------------------- */
+const tabE=document.getElementById("tab-exam"), tabS=document.getElementById("tab-stim");
+const viewE=document.getElementById("view-exam"), viewS=document.getElementById("view-stim");
+function selectTab(which){
+  const exam=which==="exam";
+  tabE.setAttribute("aria-selected",exam); tabS.setAttribute("aria-selected",!exam);
+  viewE.classList.toggle("hidden",!exam); viewS.classList.toggle("hidden",exam);
+}
+tabE.addEventListener("click",()=>selectTab("exam"));
+tabS.addEventListener("click",()=>selectTab("stim"));
+
+const mq=window.matchMedia("(prefers-color-scheme: dark)");
+mq.addEventListener?.("change",redrawAll);
+new MutationObserver(redrawAll).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+
+// first render
+renderExam("VEP_pattern_reversal",["OD","OS"]);
+</script>
