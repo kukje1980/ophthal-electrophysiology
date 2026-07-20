@@ -18,15 +18,28 @@ const EXAM_ID = {{ exam_id }};
   try { p = await api(`/api/patients/${exam.patient_id}`); } catch (e) {}
   let proto = {};
   try { proto = await api(`/api/protocols/${exam.protocol}`); } catch (e) {}
+  const ageSex = [p.age != null ? p.age + "y" : null,
+    ({M:"M",F:"F",O:"O"}[p.sex] || null)].filter(Boolean).join(" ");
+  // ISCEV reports should document the patient state at the time of the test.
+  const eyeLine = (label, va, ref, pupil) => {
+    const parts = [];
+    if (va) parts.push("VA " + va);
+    if (ref) parts.push(ref);
+    if (pupil) parts.push("pupil " + pupil);
+    return parts.length ? `<div><b>${label}:</b> ${parts.join(" · ")}</div>` : "";
+  };
+  const clinical = eyeLine("OD", p.va_od, p.refraction_od, p.pupil_od)
+    + eyeLine("OS", p.va_os, p.refraction_os, p.pupil_os);
   document.getElementById("report-head").innerHTML = `
     <h1>${exam.test_type} report</h1>
     <div class="report-meta card">
-      <div><b>Patient:</b> ${p.name || "-"} (#${p.mrn || exam.patient_id})</div>
+      <div><b>Patient:</b> ${p.name || "-"} (#${p.mrn || exam.patient_id})${ageSex ? " · " + ageSex : ""}</div>
       <div><b>Protocol:</b> ${proto.label || exam.protocol}</div>
       <div><b>Standard:</b> ${proto.standard || "—"}</div>
       <div><b>Performed:</b> ${new Date(exam.performed_at).toLocaleString()}</div>
       <div><b>Device:</b> ${exam.device || "-"}</div>
       <div><b>Operator:</b> ${exam.operator || "-"}</div>
+      ${clinical}
     </div>`;
   renderExam(exam, document.getElementById("waveforms"));
 })();

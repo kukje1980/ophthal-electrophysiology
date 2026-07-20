@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.crud import patient as crud
 from app.database import get_db
-from app.schemas import PatientCreate, PatientOut
+from app.schemas import PatientCreate, PatientOut, PatientUpdate
 
 router = APIRouter(prefix="/api/patients", tags=["patients"])
 
@@ -29,6 +29,19 @@ def list_patients(q: Optional[str] = None, db: Session = Depends(get_db)):
 @router.get("/{patient_id}", response_model=PatientOut)
 def get_patient(patient_id: int, db: Session = Depends(get_db)):
     obj = crud.get(db, patient_id)
+    if not obj:
+        raise HTTPException(404, "Patient not found")
+    return obj
+
+
+@router.put("/{patient_id}", response_model=PatientOut)
+def update_patient(patient_id: int, data: PatientUpdate,
+                   db: Session = Depends(get_db)):
+    try:
+        obj = crud.update(db, patient_id, data)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, f"MRN '{data.mrn}' already exists")
     if not obj:
         raise HTTPException(404, "Patient not found")
     return obj

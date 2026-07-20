@@ -1,41 +1,86 @@
 {% extends "base.html" %}
 {% block title %}{{ patient.name }} · ERG/VEP{% endblock %}
 {% block content %}
-<a class="back" href="/patients">← Patients</a>
-<h1>{{ patient.name }} <span class="muted">#{{ patient.mrn }}</span></h1>
-<p class="muted">
-  {{ patient.sex or "-" }} ·
-  {{ patient.birth_date or "DOB unknown" }}
-  {% if patient.note %} · {{ patient.note }}{% endif %}
-</p>
-
+<a class="back" href="/patients">← 환자 목록</a>
 <div class="row-between">
-  <h2>Exams</h2>
-  <a class="btn primary" href="/exam/new?patient_id={{ patient.id }}">
-    + New exam
-  </a>
+  <h1 id="p-title">{{ patient.name }} <span class="muted">#{{ patient.mrn }}</span></h1>
+  <button class="btn" id="edit-btn" type="button">정보 수정</button>
 </div>
+<p class="muted" id="p-sub"></p>
 
+<!-- read-only record -->
+<div id="p-view" class="stack-cards"></div>
+
+<!-- edit form (hidden until 수정) -->
+<section class="card hidden" id="p-edit-wrap">
+  <h2>환자 정보 수정</h2>
+  <form id="p-edit"></form>
+</section>
+
+<div class="row-between" style="margin-top:26px">
+  <h2>검사 기록 (Exams)</h2>
+  <a class="btn primary" href="/exam/new?patient_id={{ patient.id }}">+ 새 검사</a>
+</div>
 <table class="table">
-  <thead>
-    <tr><th>When</th><th>Test</th><th>Protocol</th><th></th></tr>
-  </thead>
+  <thead><tr><th>일시</th><th>검사</th><th>프로토콜</th><th></th></tr></thead>
   <tbody id="exam-rows"></tbody>
 </table>
 
 <script>
+const PID = {{ patient.id }};
+const sexLabel = (s) => ({M:"남", F:"여", O:"기타"}[s] || "-");
+let patient = null;
+
+async function loadPatient() {
+  patient = await api(`/api/patients/${PID}`);
+  document.getElementById("p-title").innerHTML =
+    `${patient.name} <span class="muted">#${patient.mrn}</span>`;
+  const bits = [sexLabel(patient.sex)];
+  if (patient.age != null) bits.push(`${patient.age}세`);
+  if (patient.birth_date) bits.push(patient.birth_date);
+  if (patient.phone) bits.push(patient.phone);
+  if (patient.insurance_type) bits.push(patient.insurance_type);
+  document.getElementById("p-sub").textContent = bits.join(" · ");
+  renderPatientView(document.getElementById("p-view"), patient);
+}
+
+document.getElementById("edit-btn").addEventListener("click", () => {
+  const wrap = document.getElementById("p-edit-wrap");
+  const show = wrap.classList.toggle("hidden") === false;
+  document.getElementById("edit-btn").textContent = show ? "수정 취소" : "정보 수정";
+  document.getElementById("p-view").classList.toggle("hidden", show);
+  if (show) {
+    const form = document.getElementById("p-edit");
+    renderPatientForm(form, patient, "수정 저장");
+    form.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const msg = form.querySelector("[data-msg]");
+      try {
+        await api(`/api/patients/${PID}`, { method: "PUT", body: collectPatientForm(form) });
+        wrap.classList.add("hidden");
+        document.getElementById("p-view").classList.remove("hidden");
+        document.getElementById("edit-btn").textContent = "정보 수정";
+        await loadPatient();
+      } catch (e) {
+        if (msg) { msg.textContent = e.message; msg.className = "msg err"; }
+      }
+    };
+  }
+});
+
 async function loadExams() {
-  const rows = await api(`/api/exams?patient_id={{ patient.id }}`);
-  const tb = document.getElementById("exam-rows");
-  tb.innerHTML = rows.map(e => `
+  const rows = await api(`/api/exams?patient_id=${PID}`);
+  document.getElementById("exam-rows").innerHTML = rows.map(e => `
     <tr>
       <td>${new Date(e.performed_at).toLocaleString()}</td>
       <td><span class="tag">${e.test_type}</span></td>
       <td>${e.protocol}</td>
-      <td><a class="btn small" href="/reports/${e.id}">Report</a></td>
+      <td><a class="btn small" href="/reports/${e.id}">리포트</a></td>
     </tr>`).join("") ||
-    `<tr><td colspan="4" class="muted">No exams yet</td></tr>`;
+    `<tr><td colspan="4" class="muted">검사 기록이 없습니다.</td></tr>`;
 }
+
+loadPatient();
 loadExams();
 </script>
 {% endblock %}

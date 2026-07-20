@@ -1,42 +1,36 @@
 {% extends "base.html" %}
 {% block title %}Patients · ERG/VEP{% endblock %}
 {% block content %}
-<h1>Patients</h1>
+<h1>환자 관리 <span class="muted" style="font-size:14px">Patients</span></h1>
 
 <section class="card">
-  <h2>New patient</h2>
-  <form id="patient-form" class="form-grid">
-    <label>MRN<input name="mrn" required></label>
-    <label>Name<input name="name" required></label>
-    <label>Birth date<input name="birth_date" type="date"></label>
-    <label>Sex
-      <select name="sex">
-        <option value="">-</option>
-        <option value="M">M</option>
-        <option value="F">F</option>
-        <option value="O">O</option>
-      </select>
-    </label>
-    <label class="span2">Note<input name="note"></label>
-    <button class="btn primary" type="submit">Add patient</button>
-  </form>
-  <p id="patient-msg" class="msg"></p>
+  <div class="row-between">
+    <h2>신규 환자 등록</h2>
+    <button class="btn small" id="toggle-form" type="button">폼 접기</button>
+  </div>
+  <form id="patient-form"></form>
 </section>
 
 <section class="card">
   <div class="row-between">
-    <h2>Patient list</h2>
-    <input id="search" placeholder="search name / MRN…" class="search">
+    <h2>환자 목록</h2>
+    <input id="search" placeholder="이름 / 등록번호 / 연락처 검색…" class="search">
   </div>
   <table class="table">
     <thead>
-      <tr><th>MRN</th><th>Name</th><th>Sex</th><th>Birth</th><th></th></tr>
+      <tr><th>등록번호</th><th>성명</th><th>성별/나이</th><th>생년월일</th>
+          <th>연락처</th><th>보험</th><th></th></tr>
     </thead>
     <tbody id="patient-rows"></tbody>
   </table>
 </section>
 
 <script>
+const form = document.getElementById("patient-form");
+renderPatientForm(form, null, "환자 등록");
+
+const sexLabel = (s) => ({M:"남", F:"여", O:"기타"}[s] || "-");
+
 async function loadPatients(q) {
   const rows = await api(`/api/patients${q ? "?q=" + encodeURIComponent(q) : ""}`);
   const tb = document.getElementById("patient-rows");
@@ -44,22 +38,33 @@ async function loadPatients(q) {
     <tr>
       <td>${p.mrn}</td>
       <td><a href="/patients/${p.id}">${p.name}</a></td>
-      <td>${p.sex || "-"}</td>
+      <td>${sexLabel(p.sex)}${p.age != null ? " / " + p.age : ""}</td>
       <td>${p.birth_date || "-"}</td>
-      <td><a class="btn small" href="/patients/${p.id}">Open</a></td>
-    </tr>`).join("") || `<tr><td colspan="5" class="muted">No patients</td></tr>`;
+      <td>${p.phone || "-"}</td>
+      <td>${p.insurance_type || "-"}</td>
+      <td><a class="btn small" href="/patients/${p.id}">열기</a></td>
+    </tr>`).join("") ||
+    `<tr><td colspan="7" class="muted">등록된 환자가 없습니다.</td></tr>`;
 }
 
-document.getElementById("patient-form").addEventListener("submit", async (ev) => {
+form.addEventListener("submit", async (ev) => {
   ev.preventDefault();
-  const data = Object.fromEntries(new FormData(ev.target).entries());
-  for (const k of ["birth_date", "sex", "note"]) if (!data[k]) delete data[k];
+  const msg = form.querySelector("[data-msg]");
   try {
+    const data = collectPatientForm(form);
     await api("/api/patients", { method: "POST", body: data });
-    ev.target.reset();
-    setMsg("patient-msg", "Patient added.", "ok");
+    renderPatientForm(form, null, "환자 등록");
+    msg.textContent = "환자가 등록되었습니다."; msg.className = "msg ok";
     loadPatients();
-  } catch (e) { setMsg("patient-msg", e.message, "err"); }
+  } catch (e) {
+    const m = form.querySelector("[data-msg]");
+    if (m) { m.textContent = e.message; m.className = "msg err"; }
+  }
+});
+
+document.getElementById("toggle-form").addEventListener("click", (e) => {
+  const hidden = form.classList.toggle("hidden");
+  e.target.textContent = hidden ? "폼 펼치기" : "폼 접기";
 });
 
 document.getElementById("search").addEventListener("input", (e) =>
