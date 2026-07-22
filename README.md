@@ -110,6 +110,28 @@ The `/api/devices` endpoints expose the registry and live device status
 acquisition layer (models, analysis, UI, reports) is unchanged whether the
 data comes from the simulator or real hardware.
 
+## Security & access control
+
+The application requires a login and enforces role-based access:
+
+| Role | Patients | Exams | Full national id (PHI) | Users / audit |
+|------|----------|-------|------------------------|---------------|
+| **admin** | view / edit / delete | run / delete | ✓ | ✓ |
+| **clinician** | view / edit / delete | run / delete | ✓ | — |
+| **technician** | view / edit | run | — (masked only) | — |
+| **viewer** | view | view reports | — | — |
+
+- **PHI at rest** — the national id (주민등록번호) is encrypted with Fernet and
+  only ever returned masked (e.g. `720815-2******`). The full value comes from
+  a separate `view_phi`-only endpoint, and every reveal is written to the
+  audit log.
+- **Passwords** are stored as PBKDF2-HMAC-SHA256 hashes; sessions are signed
+  cookies (`SessionMiddleware`).
+- **Audit log** records logins, patient/exam changes, PHI views and account
+  changes; admins review it at `/admin`.
+- On first start an **admin** account is seeded (`ADMIN_USERNAME` /
+  `ADMIN_PASSWORD`) — change the password immediately.
+
 ## Configuration
 
 | Env var | Default | Purpose |
@@ -117,7 +139,15 @@ data comes from the simulator or real hardware.
 | `DATABASE_URL` | `sqlite:///./ophthal_electrophysiology.db` | database |
 | `ACQUISITION_DRIVER` | `simulator` | active device driver |
 | `DEVICE_CONNECTION` | `sim://localhost` | driver connection string |
+| `SECRET_KEY` | `dev-insecure-change-me` | signs session cookies — **set in production** |
+| `PHI_ENCRYPTION_KEY` | derived from `SECRET_KEY` | Fernet key for PHI at rest |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | `admin` / `admin1234` | seeded initial admin |
+| `SESSION_HTTPS_ONLY` | `0` | set `1` behind HTTPS |
 
 > **Note:** reference ranges in `app/iscev/reference.py` are representative
 > demonstration values. Each laboratory must substitute its own normative
 > data before clinical use.
+>
+> **Production hardening:** set strong `SECRET_KEY` and `PHI_ENCRYPTION_KEY`,
+> serve over HTTPS with `SESSION_HTTPS_ONLY=1`, and manage the encryption key
+> with a secrets manager (rotating it requires re-encrypting stored PHI).

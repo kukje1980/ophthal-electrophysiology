@@ -83,3 +83,10 @@ class Patient(Base):
         return today.year - self.birth_date.year - (
             (today.month, today.day) < (self.birth_date.month, self.birth_date.day)
         )
+
+    @property
+    def national_id_masked(self):
+        """Masked national id (e.g. 680310-1******); PHI is stored encrypted."""
+        from app.security import mask_rrn
+
+        return mask_rrn(self.national_id)

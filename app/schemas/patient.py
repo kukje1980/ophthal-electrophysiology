@@ -70,4 +70,8 @@ class PatientOut(PatientBase):
     mrn: str
     name: str
     age: Optional[int] = None
+    # national_id is stored encrypted; never serialise the ciphertext. Only a
+    # masked form is returned, and the full value via a separate audited route.
+    national_id: Optional[str] = Field(default=None, exclude=True)
+    national_id_masked: Optional[str] = None
     created_at: datetime

@@ -18,11 +18,19 @@
     <nav>
       <a href="/">Dashboard</a>
       <a href="/patients">Patients</a>
+      {% if perms and 'manage_users' in perms %}<a href="/admin">Admin</a>{% endif %}
       <a href="/docs" target="_blank">API</a>
     </nav>
     <span class="device-pill" id="device-pill" title="Acquisition device">
       device: …
     </span>
+    {% if user %}
+    <span class="user-box" title="{{ role_label }}">
+      <b>{{ user.full_name or user.username }}</b>
+      <small>{{ role_label }}</small>
+      <a class="logout" href="/logout">로그아웃</a>
+    </span>
+    {% endif %}
   </header>
 
   <main class="container">

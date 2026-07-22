@@ -25,5 +25,24 @@ class Settings:
 
     APP_TITLE: str = "Ophthalmic Electrophysiology (ISCEV ERG/VEP)"
 
+    # Security -------------------------------------------------------------
+    # Signs the session cookie. MUST be set to a strong random value in
+    # production (e.g. `python -c "import secrets;print(secrets.token_hex(32))"`).
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "dev-insecure-change-me")
+
+    # Fernet key (urlsafe base64, 32 bytes) used to encrypt PHI such as the
+    # national id at rest. If unset, a key is derived from SECRET_KEY so the
+    # demo works out of the box; set an explicit key in production.
+    PHI_ENCRYPTION_KEY: str = os.getenv("PHI_ENCRYPTION_KEY", "")
+
+    # Password for the auto-seeded initial admin account (created only when no
+    # users exist). Change immediately after first login.
+    ADMIN_USERNAME: str = os.getenv("ADMIN_USERNAME", "admin")
+    ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "admin1234")
+
+    SESSION_COOKIE: str = os.getenv("SESSION_COOKIE", "oep_session")
+    # Set to "1" behind HTTPS so the session cookie is only sent over TLS.
+    SESSION_HTTPS_ONLY: bool = os.getenv("SESSION_HTTPS_ONLY", "0") == "1"
+
 
 settings = Settings()

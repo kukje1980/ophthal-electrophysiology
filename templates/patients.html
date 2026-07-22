@@ -3,6 +3,7 @@
 {% block content %}
 <h1>환자 관리 <span class="muted" style="font-size:14px">Patients</span></h1>
 
+{% if 'edit_patient' in perms %}
 <section class="card">
   <div class="row-between">
     <h2>신규 환자 등록</h2>
@@ -10,6 +11,7 @@
   </div>
   <form id="patient-form"></form>
 </section>
+{% endif %}
 
 <section class="card">
   <div class="row-between">
@@ -27,7 +29,7 @@
 
 <script>
 const form = document.getElementById("patient-form");
-renderPatientForm(form, null, "환자 등록");
+if (form) renderPatientForm(form, null, "환자 등록");
 
 const sexLabel = (s) => ({M:"남", F:"여", O:"기타"}[s] || "-");
 
@@ -47,7 +49,7 @@ async function loadPatients(q) {
     `<tr><td colspan="7" class="muted">등록된 환자가 없습니다.</td></tr>`;
 }
 
-form.addEventListener("submit", async (ev) => {
+if (form) form.addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const msg = form.querySelector("[data-msg]");
   try {
@@ -62,7 +64,8 @@ form.addEventListener("submit", async (ev) => {
   }
 });
 
-document.getElementById("toggle-form").addEventListener("click", (e) => {
+const toggleBtn = document.getElementById("toggle-form");
+if (toggleBtn) toggleBtn.addEventListener("click", (e) => {
   const hidden = form.classList.toggle("hidden");
   e.target.textContent = hidden ? "폼 펼치기" : "폼 접기";
 });

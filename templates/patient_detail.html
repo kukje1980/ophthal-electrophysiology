@@ -4,7 +4,14 @@
 <a class="back" href="/patients">← 환자 목록</a>
 <div class="row-between">
   <h1 id="p-title">{{ patient.name }} <span class="muted">#{{ patient.mrn }}</span></h1>
-  <button class="btn" id="edit-btn" type="button">정보 수정</button>
+  <div style="display:flex;gap:8px">
+    {% if 'view_phi' in perms %}
+    <button class="btn" id="phi-btn" type="button">주민번호 전체 보기</button>
+    {% endif %}
+    {% if 'edit_patient' in perms %}
+    <button class="btn" id="edit-btn" type="button">정보 수정</button>
+    {% endif %}
+  </div>
 </div>
 <p class="muted" id="p-sub"></p>
 
@@ -19,7 +26,9 @@
 
 <div class="row-between" style="margin-top:26px">
   <h2>검사 기록 (Exams)</h2>
+  {% if 'run_exam' in perms %}
   <a class="btn primary" href="/exam/new?patient_id={{ patient.id }}">+ 새 검사</a>
+  {% endif %}
 </div>
 <table class="table">
   <thead><tr><th>일시</th><th>검사</th><th>프로토콜</th><th></th></tr></thead>
@@ -30,6 +39,15 @@
 const PID = {{ patient.id }};
 const sexLabel = (s) => ({M:"남", F:"여", O:"기타"}[s] || "-");
 let patient = null;
+
+const phiBtn = document.getElementById("phi-btn");
+if (phiBtn) phiBtn.addEventListener("click", async () => {
+  try {
+    const r = await api(`/api/patients/${PID}/national-id`);
+    phiBtn.textContent = `주민번호: ${r.national_id || "-"}`;
+    phiBtn.disabled = true;
+  } catch (e) { alert(e.message); }
+});
 
 async function loadPatient() {
   patient = await api(`/api/patients/${PID}`);
@@ -44,7 +62,8 @@ async function loadPatient() {
   renderPatientView(document.getElementById("p-view"), patient);
 }
 
-document.getElementById("edit-btn").addEventListener("click", () => {
+const editBtn = document.getElementById("edit-btn");
+if (editBtn) editBtn.addEventListener("click", () => {
   const wrap = document.getElementById("p-edit-wrap");
   const show = wrap.classList.toggle("hidden") === false;
   document.getElementById("edit-btn").textContent = show ? "수정 취소" : "정보 수정";

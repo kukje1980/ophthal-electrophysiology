@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}관리자 · ERG/VEP{% endblock %}
+{% block content %}
+<h1>관리자 <span class="muted" style="font-size:14px">Users &amp; Audit</span></h1>
+
+<section class="card">
+  <h2>사용자 계정</h2>
+  <form id="user-form" class="form-grid">
+    <label>아이디<input name="username" required></label>
+    <label>이름<input name="full_name"></label>
+    <label>비밀번호<input name="password" type="password" required minlength="6"></label>
+    <label>역할
+      <select name="role">
+        {% for value, label in roles %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    <button class="btn primary" type="submit">계정 생성</button>
+  </form>
+  <p id="user-msg" class="msg"></p>
+  <table class="table compact">
+    <thead><tr><th>아이디</th><th>이름</th><th>역할</th><th>상태</th>
+      <th>마지막 로그인</th><th></th></tr></thead>
+    <tbody id="user-rows"></tbody>
+  </table>
+</section>
+
+<section class="card">
+  <h2>감사 로그 (Audit log)</h2>
+  <table class="table compact">
+    <thead><tr><th>시각</th><th>사용자</th><th>행위</th><th>대상</th>
+      <th>상세</th><th>IP</th></tr></thead>
+    <tbody id="audit-rows"></tbody>
+  </table>
+</section>
+
+<script>
+const ROLE_LABEL = {{ roles | tojson }}.reduce((m,[v,l])=>(m[v]=l,m), {});
+
+async function loadUsers() {
+  const rows = await api("/api/users");
+  document.getElementById("user-rows").innerHTML = rows.map(u => `
+    <tr>
+      <td><b>${u.username}</b></td>
+      <td>${u.full_name || "-"}</td>
+      <td>${ROLE_LABEL[u.role] || u.role}</td>
+      <td>${u.is_active ? "활성" : "<span class='muted'>비활성</span>"}</td>
+      <td>${u.last_login ? new Date(u.last_login).toLocaleString() : "-"}</td>
+      <td>
+        <button class="btn small" data-toggle="${u.id}" data-active="${u.is_active}">
+          ${u.is_active ? "비활성화" : "활성화"}</button>
+      </td>
+    </tr>`).join("");
+  document.querySelectorAll("[data-toggle]").forEach(b =>
+    b.addEventListener("click", async () => {
+      await api(`/api/users/${b.dataset.toggle}`, { method: "PUT",
+        body: { is_active: b.dataset.active !== "true" } });
+      loadUsers();
+    }));
+}
+
+async function loadAudit() {
+  const rows = await api("/api/audit?limit=100");
+  document.getElementById("audit-rows").innerHTML = rows.map(a => `
+    <tr>
+      <td>${new Date(a.at).toLocaleString()}</td>
+      <td>${a.username || "-"}</td>
+      <td><span class="tag">${a.action}</span></td>
+      <td>${a.entity ? a.entity + (a.entity_id ? " #" + a.entity_id : "") : "-"}</td>
+      <td>${a.detail || "-"}</td>
+      <td>${a.ip || "-"}</td>
+    </tr>`).join("") || `<tr><td colspan="6" class="muted">기록 없음</td></tr>`;
+}
+
+document.getElementById("user-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const data = Object.fromEntries(new FormData(ev.target).entries());
+  try {
+    await api("/api/users", { method: "POST", body: data });
+    ev.target.reset();
+    setMsg("user-msg", "계정이 생성되었습니다.", "ok");
+    loadUsers(); loadAudit();
+  } catch (e) { setMsg("user-msg", e.message, "err"); }
+});
+
+loadUsers();
+loadAudit();
+</script>
+{% endblock %}

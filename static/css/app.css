@@ -33,6 +33,28 @@ body {
   background: #1e293b; border-radius: 999px; color: #fca5a5;
 }
 .device-pill.ok { color: #86efac; }
+.user-box { display: flex; align-items: center; gap: 8px; margin-left: 14px;
+  font-size: 13px; color: #e2e8f0; }
+.user-box small { color: #93a4bf; font-size: 11px; }
+.user-box .logout { color: #fca5a5; text-decoration: none; font-size: 12px;
+  border: 1px solid #334155; border-radius: 6px; padding: 3px 8px; }
+.user-box .logout:hover { background: #1e293b; }
+
+/* Login page --------------------------------------------------------- */
+.login-body { display: flex; min-height: 100vh; align-items: center;
+  justify-content: center; background: #0f172a; }
+.login-card { background: #fff; border-radius: 14px; padding: 30px 28px;
+  width: 340px; display: flex; flex-direction: column; gap: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+.login-brand { font-weight: 700; font-size: 18px; }
+.login-brand span { color: #0891b2; font-size: 11px; vertical-align: super; }
+.login-card h1 { margin: 6px 0 0; }
+.login-card label { display: flex; flex-direction: column; gap: 5px;
+  font-size: 13px; color: var(--muted); }
+.login-card .btn { margin-top: 4px; text-align: center; }
+.login-hint { font-size: 11px; margin: 2px 0 0; }
+.login-hint code, .login-card code { background: #f1f5f9; border-radius: 4px;
+  padding: 1px 5px; font-size: 12px; }
 
 /* Layout ------------------------------------------------------------- */
 .container { max-width: 960px; margin: 0 auto; padding: 24px 20px 60px; }

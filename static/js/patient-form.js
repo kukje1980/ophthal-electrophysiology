@@ -68,8 +68,9 @@ const YN = [["true","있음"],["false","없음"]];
 const _esc = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")
   .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 
-function _field(f, val) {
+function _field(f, val, phOverride) {
   val = (val == null) ? "" : val;
+  const ph = phOverride != null ? phOverride : (f.ph || "");
   const span = f.span === 2 ? " span2" : "";
   let ctrl;
   if (f.t === "select" || f.t === "bool") {
@@ -82,16 +83,25 @@ function _field(f, val) {
   } else {
     const type = f.t === "date" ? "date" : f.t === "number" ? "number" : "text";
     ctrl = `<input name="${f.n}" type="${type}"${f.t==="number"?' step="any"':''} ` +
-      `value="${_esc(val)}" placeholder="${_esc(f.ph||"")}"${f.req?" required":""}>`;
+      `value="${_esc(val)}" placeholder="${_esc(ph)}"${f.req?" required":""}>`;
   }
   return `<label class="pfield${span}"><span>${f.l}${f.req?' <em>*</em>':''}</span>${ctrl}</label>`;
 }
 
-/* Build a create/edit form into `formEl`; `values` prefills (edit mode). */
+/* Build a create/edit form into `formEl`; `values` prefills (edit mode).
+   The encrypted national id is never prefilled: in edit mode the field is
+   left blank with the masked value shown as a placeholder, so submitting it
+   empty leaves the stored value unchanged. */
 function renderPatientForm(formEl, values, submitLabel) {
   formEl.innerHTML = PATIENT_GROUPS.map(g =>
     `<fieldset class="pfs"><legend>${g.title}</legend>
-       <div class="pgrid">${g.fields.map(f => _field(f, values && values[f.n])).join("")}</div>
+       <div class="pgrid">${g.fields.map(f => {
+         if (f.n === "national_id" && values) {
+           const m = values.national_id_masked;
+           return _field(f, "", m ? `현재 ${m} · 변경 시에만 입력` : f.ph);
+         }
+         return _field(f, values && values[f.n]);
+       }).join("")}</div>
      </fieldset>`).join("") +
     `<div class="pactions">
        <button class="btn primary" type="submit">${submitLabel || "환자 등록"}</button>
@@ -114,11 +124,20 @@ function collectPatientForm(formEl) {
   return out;
 }
 
+/* The displayed value for a field (national id shows only the masked form). */
+function _viewValue(f, p) {
+  if (f.n === "national_id") return p.national_id_masked || "";
+  return p[f.n];
+}
+
 /* Render a read-only grouped view; hides empty fields and empty groups. */
 function renderPatientView(containerEl, p) {
   containerEl.innerHTML = PATIENT_GROUPS.map(g => {
-    const rows = g.fields.filter(f => p[f.n] != null && p[f.n] !== "").map(f => {
-      let v = p[f.n];
+    const rows = g.fields.filter(f => {
+      const v = _viewValue(f, p);
+      return v != null && v !== "";
+    }).map(f => {
+      let v = _viewValue(f, p);
       if (f.t === "bool") v = v ? "있음" : "없음";
       else if (f.t === "select") {
         const o = f.opt.find(x => x[0] === String(v));

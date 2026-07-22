@@ -5,10 +5,14 @@ from sqlalchemy.orm import Session
 
 from app.models import Patient
 from app.schemas import PatientCreate, PatientUpdate
+from app.security import encrypt_phi
 
 
 def create(db: Session, data: PatientCreate) -> Patient:
-    obj = Patient(**data.model_dump())
+    fields = data.model_dump()
+    if fields.get("national_id"):
+        fields["national_id"] = encrypt_phi(fields["national_id"])
+    obj = Patient(**fields)
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -19,7 +23,10 @@ def update(db: Session, patient_id: int, data: PatientUpdate) -> Optional[Patien
     obj = db.get(Patient, patient_id)
     if not obj:
         return None
-    for field, value in data.model_dump(exclude_unset=True).items():
+    fields = data.model_dump(exclude_unset=True)
+    if "national_id" in fields:
+        fields["national_id"] = encrypt_phi(fields["national_id"])
+    for field, value in fields.items():
         setattr(obj, field, value)
     db.commit()
     db.refresh(obj)
