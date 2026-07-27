@@ -9,7 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import settings
 from app.database import SessionLocal, init_db
 from app.routers import (
-    audit, auth, devices, exams, pages, patients, protocols, users,
+    account, audit, auth, devices, exams, pages, patients, protocols, users,
 )
 
 # Paths reachable without a login session.
@@ -76,6 +76,7 @@ def create_app() -> FastAPI:
     app.include_router(devices.router)
     app.include_router(users.router)
     app.include_router(audit.router)
+    app.include_router(account.router)
     # Auth + HTML pages
     app.include_router(auth.router)
     app.include_router(pages.router)

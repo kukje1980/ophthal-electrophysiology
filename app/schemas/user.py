@@ -36,6 +36,19 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=6, max_length=128)
+
+
+class TotpEnable(BaseModel):
+    code: str = Field(..., min_length=6, max_length=8)
+
+
+class TotpDisable(BaseModel):
+    current_password: str
+
+
 class AuditOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}내 계정 · ERG/VEP{% endblock %}
+{% block content %}
+<h1>내 계정 <span class="muted" style="font-size:14px">{{ user.username }} · {{ role_label }}</span></h1>
+
+<section class="card" style="max-width:520px">
+  <h2>비밀번호 변경</h2>
+  <form id="pw-form" class="form-grid">
+    <label class="span2">현재 비밀번호
+      <input name="current_password" type="password" autocomplete="current-password" required></label>
+    <label class="span2">새 비밀번호
+      <input name="new_password" type="password" minlength="6" autocomplete="new-password" required></label>
+    <label class="span2">새 비밀번호 확인
+      <input name="confirm" type="password" minlength="6" autocomplete="new-password" required></label>
+    <button class="btn primary" type="submit">비밀번호 변경</button>
+  </form>
+  <p id="pw-msg" class="msg"></p>
+</section>
+
+<section class="card" style="max-width:520px">
+  <div class="row-between">
+    <h2>2단계 인증 (2FA)</h2>
+    <span id="tfa-state" class="tag">{% if user.totp_enabled %}사용 중{% else %}미사용{% endif %}</span>
+  </div>
+
+  <div id="tfa-off" class="{% if user.totp_enabled %}hidden{% endif %}">
+    <p class="muted">Google Authenticator·Authy 등 인증 앱과 연동해 로그인 보안을 강화합니다.</p>
+    <button class="btn" id="tfa-init">2단계 인증 설정 시작</button>
+    <div id="tfa-setup" class="hidden" style="margin-top:14px">
+      <div id="tfa-qr" class="tfa-qr"></div>
+      <p class="muted" style="font-size:12px">인증 앱에 위 QR을 스캔하거나 아래 키를 입력하세요:</p>
+      <p><code id="tfa-secret" class="tfa-secret"></code></p>
+      <form id="tfa-enable-form" class="form-grid">
+        <label>인증 코드 (6자리)
+          <input name="code" inputmode="numeric" maxlength="6" placeholder="000000" required></label>
+        <button class="btn primary" type="submit">활성화</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="tfa-on" class="{% if not user.totp_enabled %}hidden{% endif %}">
+    <p class="muted">이 계정은 2단계 인증이 켜져 있습니다.</p>
+    <form id="tfa-disable-form" class="form-grid">
+      <label class="span2">현재 비밀번호 (해제 확인)
+        <input name="current_password" type="password" autocomplete="current-password" required></label>
+      <button class="btn" type="submit">2단계 인증 해제</button>
+    </form>
+  </div>
+  <p id="tfa-msg" class="msg"></p>
+</section>
+
+<script>
+document.getElementById("pw-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  if (f.new_password.value !== f.confirm.value) {
+    return setMsg("pw-msg", "새 비밀번호가 일치하지 않습니다.", "err");
+  }
+  try {
+    await api("/api/account/password", { method: "POST", body: {
+      current_password: f.current_password.value,
+      new_password: f.new_password.value } });
+    f.reset();
+    setMsg("pw-msg", "비밀번호가 변경되었습니다.", "ok");
+  } catch (e) { setMsg("pw-msg", e.message, "err"); }
+});
+
+document.getElementById("tfa-init").addEventListener("click", async () => {
+  try {
+    const r = await api("/api/account/2fa/init", { method: "POST" });
+    document.getElementById("tfa-setup").classList.remove("hidden");
+    document.getElementById("tfa-secret").textContent = r.secret;
+    document.getElementById("tfa-qr").innerHTML = r.qr_svg ||
+      `<span class="muted">QR 생성 불가 — 위 키를 수동 입력하세요.</span>`;
+  } catch (e) { setMsg("tfa-msg", e.message, "err"); }
+});
+
+document.getElementById("tfa-enable-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  try {
+    await api("/api/account/2fa/enable", { method: "POST",
+      body: { code: ev.target.code.value } });
+    setMsg("tfa-msg", "2단계 인증이 활성화되었습니다.", "ok");
+    document.getElementById("tfa-off").classList.add("hidden");
+    document.getElementById("tfa-on").classList.remove("hidden");
+    document.getElementById("tfa-state").textContent = "사용 중";
+  } catch (e) { setMsg("tfa-msg", e.message, "err"); }
+});
+
+document.getElementById("tfa-disable-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  try {
+    await api("/api/account/2fa/disable", { method: "POST",
+      body: { current_password: ev.target.current_password.value } });
+    ev.target.reset();
+    setMsg("tfa-msg", "2단계 인증이 해제되었습니다.", "ok");
+    document.getElementById("tfa-on").classList.add("hidden");
+    document.getElementById("tfa-off").classList.remove("hidden");
+    document.getElementById("tfa-setup").classList.add("hidden");
+    document.getElementById("tfa-state").textContent = "미사용";
+  } catch (e) { setMsg("tfa-msg", e.message, "err"); }
+});
+</script>
+{% endblock %}

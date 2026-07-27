@@ -17,3 +17,11 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
+
+    # brute-force lockout
+    failed_attempts = Column(Integer, default=0, nullable=False)
+    locked_until = Column(DateTime, nullable=True)
+
+    # two-factor authentication (TOTP); secret stored encrypted
+    totp_secret = Column(String(256), nullable=True)
+    totp_enabled = Column(Boolean, default=False, nullable=False)

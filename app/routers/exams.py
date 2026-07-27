@@ -38,11 +38,13 @@ def list_exams(patient_id: int, db: Session = Depends(get_db),
 
 
 @router.get("/{exam_id}", response_model=ExamOut)
-def get_exam(exam_id: int, db: Session = Depends(get_db),
-             _=Depends(require_permission("view_report"))):
+def get_exam(exam_id: int, request: Request, db: Session = Depends(get_db),
+             user=Depends(require_permission("view_report"))):
     obj = crud.get(db, exam_id)
     if not obj:
         raise HTTPException(404, "Exam not found")
+    audit_crud.audit(db, user=user, action="exam.view", entity="exam",
+                     entity_id=exam_id, request=request)
     return obj
 
 

@@ -36,11 +36,13 @@ def list_patients(q: Optional[str] = None, db: Session = Depends(get_db),
 
 
 @router.get("/{patient_id}", response_model=PatientOut)
-def get_patient(patient_id: int, db: Session = Depends(get_db),
-                _=Depends(require_permission("view_patient"))):
+def get_patient(patient_id: int, request: Request, db: Session = Depends(get_db),
+                user=Depends(require_permission("view_patient"))):
     obj = crud.get(db, patient_id)
     if not obj:
         raise HTTPException(404, "Patient not found")
+    audit_crud.audit(db, user=user, action="patient.view", entity="patient",
+                     entity_id=patient_id, request=request)
     return obj
 
 

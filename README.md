@@ -126,9 +126,15 @@ The application requires a login and enforces role-based access:
   a separate `view_phi`-only endpoint, and every reveal is written to the
   audit log.
 - **Passwords** are stored as PBKDF2-HMAC-SHA256 hashes; sessions are signed
-  cookies (`SessionMiddleware`).
-- **Audit log** records logins, patient/exam changes, PHI views and account
-  changes; admins review it at `/admin`.
+  cookies (`SessionMiddleware`). Users change their own password at `/account`.
+- **Brute-force lockout** — an account is locked for 15 minutes after 5
+  consecutive failed logins.
+- **Two-factor authentication (TOTP)** — optional per user; enrol at
+  `/account` (QR for Google Authenticator / Authy). Login then requires the
+  6-digit code.
+- **Audit log** records logins (incl. lockouts and 2FA failures), record
+  *views* (`patient.view` / `exam.view`), patient/exam changes, PHI views and
+  account changes; admins review it at `/admin` and export it to CSV.
 - On first start an **admin** account is seeded (`ADMIN_USERNAME` /
   `ADMIN_PASSWORD`) — change the password immediately.
 

@@ -84,6 +84,11 @@ def report_view(exam_id: int, request: Request,
     ))
 
 
+@router.get("/account", response_class=HTMLResponse)
+def account_page(request: Request, user=Depends(current_user)):
+    return templates.TemplateResponse("account.html", _ctx(request, user))
+
+
 @router.get("/admin", response_class=HTMLResponse)
 def admin_page(request: Request, user=Depends(current_user)):
     if not has_permission(user, "manage_users"):

@@ -26,7 +26,7 @@
     </span>
     {% if user %}
     <span class="user-box" title="{{ role_label }}">
-      <b>{{ user.full_name or user.username }}</b>
+      <a class="acct" href="/account"><b>{{ user.full_name or user.username }}</b></a>
       <small>{{ role_label }}</small>
       <a class="logout" href="/logout">로그아웃</a>
     </span>

@@ -1,4 +1,5 @@
 """User CRUD and the audit-log helper."""
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 from fastapi import Request
@@ -6,7 +7,11 @@ from sqlalchemy.orm import Session
 
 from app.models import AuditLog, User
 from app.schemas.user import UserCreate, UserUpdate
-from app.security import hash_password
+from app.security import encrypt_phi, hash_password
+
+# Brute-force lockout policy.
+LOCK_THRESHOLD = 5
+LOCK_MINUTES = 15
 
 
 def get_by_username(db: Session, username: str) -> Optional[User]:
@@ -52,6 +57,43 @@ def update(db: Session, user_id: int, data: UserUpdate) -> Optional[User]:
     db.commit()
     db.refresh(obj)
     return obj
+
+
+def is_locked(user: User) -> bool:
+    return bool(user and user.locked_until
+                and user.locked_until > datetime.utcnow())
+
+
+def record_failed_login(db: Session, user: User) -> bool:
+    """Increment the failure counter; lock the account past the threshold.
+    Returns True if this failure triggered a lock."""
+    if not user:
+        return False
+    user.failed_attempts = (user.failed_attempts or 0) + 1
+    locked = False
+    if user.failed_attempts >= LOCK_THRESHOLD:
+        user.locked_until = datetime.utcnow() + timedelta(minutes=LOCK_MINUTES)
+        locked = True
+    db.commit()
+    return locked
+
+
+def reset_failed_login(db: Session, user: User) -> None:
+    user.failed_attempts = 0
+    user.locked_until = None
+    db.commit()
+
+
+def set_password(db: Session, user: User, new_password: str) -> None:
+    user.password_hash = hash_password(new_password)
+    db.commit()
+
+
+def set_totp(db: Session, user: User, secret: Optional[str],
+             enabled: bool) -> None:
+    user.totp_secret = encrypt_phi(secret) if secret else None
+    user.totp_enabled = enabled
+    db.commit()
 
 
 def audit(db: Session, *, user=None, action: str, entity: str = None,

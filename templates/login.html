@@ -16,6 +16,11 @@
     <label>비밀번호
       <input name="password" type="password" autocomplete="current-password" required>
     </label>
+    <label{% if not need_otp %} style="display:none"{% endif %} id="otp-field">
+      인증 코드 (2단계 인증)
+      <input name="otp" inputmode="numeric" autocomplete="one-time-code"
+             maxlength="6" placeholder="6자리"{% if need_otp %} autofocus{% endif %}>
+    </label>
     {% if error %}<p class="msg err">{{ error }}</p>{% endif %}
     <button class="btn primary" type="submit">로그인</button>
     <p class="login-hint muted">최초 관리자 계정: <code>admin</code> · 로그인 후 비밀번호를 변경하세요.</p>

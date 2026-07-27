@@ -39,6 +39,15 @@ body {
 .user-box .logout { color: #fca5a5; text-decoration: none; font-size: 12px;
   border: 1px solid #334155; border-radius: 6px; padding: 3px 8px; }
 .user-box .logout:hover { background: #1e293b; }
+.user-box .acct { color: #e2e8f0; text-decoration: none; }
+.user-box .acct:hover { color: #fff; text-decoration: underline; }
+
+/* Two-factor setup --------------------------------------------------- */
+.tfa-qr { display: inline-block; background: #fff; padding: 8px; border-radius: 8px;
+  border: 1px solid var(--line); }
+.tfa-qr svg { width: 180px; height: 180px; display: block; }
+.tfa-secret { font-family: ui-monospace, monospace; background: #f1f5f9;
+  padding: 4px 10px; border-radius: 6px; letter-spacing: .08em; }
 
 /* Login page --------------------------------------------------------- */
 .login-body { display: flex; min-height: 100vh; align-items: center;
