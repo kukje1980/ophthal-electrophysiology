@@ -42,6 +42,11 @@ from app.acquisition.stimulator import (
     StimulusCommand,
     TriggerEvent,
 )
+from app.acquisition.streaming import (
+    SampleStream,
+    SimulatedStream,
+    get_live_stream,
+)
 
 __all__ = [
     "AcquiredTrace",
@@ -56,6 +61,9 @@ __all__ = [
     "StimulatorState",
     "StimulusCommand",
     "TriggerEvent",
+    "SampleStream",
+    "SimulatedStream",
+    "get_live_stream",
     "get_active_device",
     "get_device",
     "list_drivers",

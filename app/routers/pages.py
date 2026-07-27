@@ -84,6 +84,12 @@ def report_view(exam_id: int, request: Request,
     ))
 
 
+@router.get("/live", response_class=HTMLResponse)
+def live_page(request: Request, user=Depends(current_user)):
+    """Live streaming oscilloscope (real-time amplifier link)."""
+    return templates.TemplateResponse("live.html", _ctx(request, user))
+
+
 @router.get("/account", response_class=HTMLResponse)
 def account_page(request: Request, user=Depends(current_user)):
     return templates.TemplateResponse("account.html", _ctx(request, user))

@@ -110,6 +110,18 @@ The `/api/devices` endpoints expose the registry and live device status
 acquisition layer (models, analysis, UI, reports) is unchanged whether the
 data comes from the simulator or real hardware.
 
+### Real-time streaming (the continuous amplifier link)
+
+The sweep contract models *averaged* acquisition; real recorders also stream
+samples continuously. `app/acquisition/streaming.py` defines the `SampleStream`
+contract (`open` / `read` / `close`) for that continuous link, with a
+wall-clock-paced `SimulatedStream` so it works without hardware. A WebSocket
+(`/ws/live`) polls the stream and pushes samples to the **Live** page, which
+renders a scrolling oscilloscope. To connect real hardware, implement the
+transport `read` loop — serial, TCP or LSL — in the `SerialSampleStream` /
+`TcpSampleStream` skeletons (`app/acquisition/hardware.py`); the host side
+(ring buffer, trigger epoching, averaging, live view) is already provided.
+
 ## Security & access control
 
 The application requires a login and enforces role-based access:

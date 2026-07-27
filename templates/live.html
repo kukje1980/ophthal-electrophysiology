@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}실시간 스트림 · ERG/VEP{% endblock %}
+{% block content %}
+<div class="row-between">
+  <h1>실시간 스트림 <span class="muted" style="font-size:14px">Live amplifier link</span></h1>
+  <span class="pill-live" id="status">연결 중…</span>
+</div>
+
+<section class="card">
+  <div class="row-between">
+    <h3 id="meta" class="muted">device: – · fs: – Hz</h3>
+    <button class="btn small" id="pause">⏸ 일시정지</button>
+  </div>
+  <canvas id="scope" width="900" height="320"></canvas>
+  <p class="muted" style="font-size:12px">
+    WebSocket(<code>/ws/live</code>)으로 앰프의 연속 표본을 받아 롤링 버퍼에 쌓아
+    표시합니다. 실장비 연동 시 <code>SampleStream</code> 드라이버(serial/TCP/SDK/LSL)만
+    교체하면 동일하게 동작합니다.
+  </p>
+</section>
+
+<style>
+  .pill-live { font-size:12px; padding:4px 12px; border-radius:999px;
+    background:#fee2e2; color:#991b1b; font-weight:600; }
+  .pill-live.on { background:#dcfce7; color:#166534; }
+  #scope { width:100%; height:auto; background:#0b1424; border-radius:10px;
+    border:1px solid var(--line); }
+</style>
+
+<script>
+const canvas = document.getElementById("scope");
+const ctx = canvas.getContext("2d");
+const FS = 1000, SECONDS = 4, CAP = FS * SECONDS;
+const buf = new Float32Array(CAP).fill(0);
+let head = 0, filled = 0, paused = false, fsMeta = FS;
+
+function push(samples) {
+  for (const v of samples) { buf[head] = v; head = (head + 1) % CAP;
+    if (filled < CAP) filled++; }
+}
+
+function draw() {
+  const W = canvas.width, H = canvas.height, padL = 46, padB = 20;
+  const pw = W - padL - 10, ph = H - 24 - padB;
+  ctx.clearRect(0, 0, W, H);
+  // dynamic y-range
+  let ymin = Infinity, ymax = -Infinity;
+  for (let i = 0; i < filled; i++) { const v = buf[i]; if (v<ymin)ymin=v; if (v>ymax)ymax=v; }
+  if (!isFinite(ymin)) { ymin=-1; ymax=1; }
+  ymin = Math.min(ymin, 0); ymax = Math.max(ymax, 0);
+  const pad = (ymax-ymin)*0.1 || 1; ymin-=pad; ymax+=pad;
+  const Y = v => 12 + (ymax - v)/(ymax - ymin) * ph;
+  // grid + zero
+  ctx.strokeStyle = "#17233a"; ctx.lineWidth = 1;
+  for (let k=0;k<=4;k++){ const x=padL+pw*k/4; ctx.beginPath();ctx.moveTo(x,12);ctx.lineTo(x,12+ph);ctx.stroke();
+    ctx.fillStyle="#7e90ab"; ctx.font="10px ui-monospace,monospace"; ctx.textAlign="center";
+    ctx.fillText((SECONDS*(1-k/4)).toFixed(1)+"s", x, H-6); }
+  ctx.strokeStyle="#33496b"; ctx.beginPath(); ctx.moveTo(padL,Y(0)); ctx.lineTo(padL+pw,Y(0)); ctx.stroke();
+  ctx.fillStyle="#7e90ab"; ctx.textAlign="right"; ctx.fillText(ymax.toFixed(0), padL-4, Y(ymax)+8);
+  ctx.fillText(ymin.toFixed(0), padL-4, Y(ymin));
+  ctx.save(); ctx.translate(12, 12+ph/2); ctx.rotate(-Math.PI/2);
+  ctx.textAlign="center"; ctx.fillText("µV", 0, 0); ctx.restore();
+  // trace (oldest -> newest)
+  ctx.strokeStyle="#22d3ee"; ctx.lineWidth=1.4; ctx.beginPath();
+  for (let i=0;i<filled;i++){ const idx=(head - filled + i + CAP*2) % CAP;
+    const x = padL + pw * i/(CAP-1), y = Y(buf[idx]); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+  ctx.stroke();
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+function connect() {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const ws = new WebSocket(`${proto}://${location.host}/ws/live`);
+  const st = document.getElementById("status");
+  ws.onopen = () => { st.textContent = "● 스트리밍"; st.classList.add("on"); };
+  ws.onclose = () => { st.textContent = "연결 끊김 — 재연결…"; st.classList.remove("on");
+    setTimeout(connect, 1500); };
+  ws.onmessage = (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.type === "meta") { fsMeta = m.fs;
+      document.getElementById("meta").textContent = `device: ${m.device} · fs: ${m.fs} Hz`; }
+    else if (m.type === "data" && !paused) push(m.samples);
+  };
+}
+connect();
+
+document.getElementById("pause").addEventListener("click", (e) => {
+  paused = !paused; e.target.textContent = paused ? "▶ 재개" : "⏸ 일시정지";
+});
+</script>
+{% endblock %}
