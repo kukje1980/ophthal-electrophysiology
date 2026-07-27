@@ -23,6 +23,11 @@ class Settings:
     # (e.g. a serial port "/dev/ttyUSB0", a TCP "192.168.0.10:5025", ...).
     DEVICE_CONNECTION: str = os.getenv("DEVICE_CONNECTION", "sim://localhost")
 
+    # Real-time streaming (live monitor). Driver names: simulator "sim-stream",
+    # "lsl", "biosemi-tcp", "serial-csv", "gtec", "ced".
+    LIVE_STREAM_DRIVER: str = os.getenv("LIVE_STREAM_DRIVER", "sim-stream")
+    STREAM_CONNECTION: str = os.getenv("STREAM_CONNECTION", "")
+
     APP_TITLE: str = "Ophthalmic Electrophysiology (ISCEV ERG/VEP)"
 
     # Security -------------------------------------------------------------

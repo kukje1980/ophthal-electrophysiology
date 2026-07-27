@@ -7,86 +7,174 @@
 </div>
 
 <section class="card">
-  <div class="row-between">
-    <h3 id="meta" class="muted">device: – · fs: – Hz</h3>
-    <button class="btn small" id="pause">⏸ 일시정지</button>
+  <div class="live-controls">
+    <label class="field">드라이버
+      <select id="driver"></select>
+    </label>
+    <label class="field" style="flex:1">연결 문자열
+      <input id="connection" placeholder="예: 192.168.0.10:8888:32  또는  /dev/ttyUSB0:115200">
+    </label>
+    <button class="btn" id="reconnect">연결</button>
+    <button class="btn ghost" id="pause">⏸ 일시정지</button>
   </div>
-  <canvas id="scope" width="900" height="320"></canvas>
-  <p class="muted" style="font-size:12px">
-    WebSocket(<code>/ws/live</code>)으로 앰프의 연속 표본을 받아 롤링 버퍼에 쌓아
-    표시합니다. 실장비 연동 시 <code>SampleStream</code> 드라이버(serial/TCP/SDK/LSL)만
-    교체하면 동일하게 동작합니다.
-  </p>
+  <p id="err" class="msg err"></p>
+</section>
+
+<div class="live-grid">
+  <section class="card">
+    <h3 class="muted" id="meta">device: – · fs: – Hz</h3>
+    <canvas id="scope" width="520" height="260"></canvas>
+    <p class="muted cap">앰프의 연속 표본 (롤링 4초)</p>
+  </section>
+  <section class="card">
+    <div class="row-between">
+      <h3 class="muted">트리거 동기 평균 <span id="avgn" class="tag">0 sweeps</span></h3>
+      <button class="btn small" id="avg-reset">평균 초기화</button>
+    </div>
+    <canvas id="avg" width="520" height="260"></canvas>
+    <p class="muted cap">매 트리거마다 epoch을 잘라 누적 평균 — 잡음이 √N로 감소</p>
+  </section>
+</div>
+
+<section class="card">
+  <h3 class="muted">전극 임피던스 <span class="muted" style="font-size:12px">(ISCEV 권고 &lt; 5 kΩ)</span></h3>
+  <div id="imp" class="imp-grid"><span class="muted">–</span></div>
 </section>
 
 <style>
   .pill-live { font-size:12px; padding:4px 12px; border-radius:999px;
     background:#fee2e2; color:#991b1b; font-weight:600; }
   .pill-live.on { background:#dcfce7; color:#166534; }
-  #scope { width:100%; height:auto; background:#0b1424; border-radius:10px;
+  .live-controls { display:flex; gap:12px; align-items:end; flex-wrap:wrap; }
+  .live-controls .field { display:flex; flex-direction:column; gap:5px;
+    font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+  .live-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:760px){ .live-grid{ grid-template-columns:1fr; } }
+  #scope, #avg { width:100%; height:auto; background:#0b1424; border-radius:10px;
     border:1px solid var(--line); }
+  .cap { font-size:12px; margin:8px 0 0; }
+  .imp-grid { display:flex; gap:10px; flex-wrap:wrap; }
+  .imp-chip { display:flex; flex-direction:column; align-items:center; gap:2px;
+    min-width:96px; padding:10px; border-radius:10px; border:1px solid var(--line);
+    font-family:ui-monospace,monospace; }
+  .imp-chip b { font-size:18px; } .imp-chip small { color:var(--muted); font-size:11px; }
+  .imp-good { background:#dcfce7; color:#166534; } .imp-good b{ color:#166534; }
+  .imp-warn { background:#fef9c3; color:#854d0e; } .imp-warn b{ color:#854d0e; }
+  .imp-bad  { background:#fee2e2; color:#991b1b; } .imp-bad b{ color:#991b1b; }
 </style>
 
 <script>
-const canvas = document.getElementById("scope");
-const ctx = canvas.getContext("2d");
-const FS = 1000, SECONDS = 4, CAP = FS * SECONDS;
-const buf = new Float32Array(CAP).fill(0);
-let head = 0, filled = 0, paused = false, fsMeta = FS;
+const S = (id) => document.getElementById(id);
+const scope = S("scope").getContext("2d");
+const avgc = S("avg").getContext("2d");
 
-function push(samples) {
-  for (const v of samples) { buf[head] = v; head = (head + 1) % CAP;
+let fs = 1000, periodMs = 500, epochLen = 500;
+const SECONDS = 4; let CAP = fs * SECONDS;
+let buf = new Float32Array(CAP).fill(0), head = 0, filled = 0;
+let sumEpoch = new Float32Array(epochLen), avgCount = 0;
+let curEpoch = new Float32Array(epochLen), curFill = 0;
+let paused = false, ws = null, driversLoaded = false;
+
+function resetAverage() {
+  sumEpoch = new Float32Array(epochLen); avgCount = 0;
+  curEpoch = new Float32Array(epochLen); curFill = 0;
+  S("avgn").textContent = "0 sweeps";
+}
+
+function setEpoch(ms) {
+  periodMs = ms || 500; epochLen = Math.max(2, Math.round(periodMs/1000*fs));
+  resetAverage();
+}
+
+function pushLive(samples) {
+  for (const v of samples) { buf[head] = v; head = (head+1) % CAP;
     if (filled < CAP) filled++; }
 }
-
-function draw() {
-  const W = canvas.width, H = canvas.height, padL = 46, padB = 20;
-  const pw = W - padL - 10, ph = H - 24 - padB;
-  ctx.clearRect(0, 0, W, H);
-  // dynamic y-range
-  let ymin = Infinity, ymax = -Infinity;
-  for (let i = 0; i < filled; i++) { const v = buf[i]; if (v<ymin)ymin=v; if (v>ymax)ymax=v; }
-  if (!isFinite(ymin)) { ymin=-1; ymax=1; }
-  ymin = Math.min(ymin, 0); ymax = Math.max(ymax, 0);
-  const pad = (ymax-ymin)*0.1 || 1; ymin-=pad; ymax+=pad;
-  const Y = v => 12 + (ymax - v)/(ymax - ymin) * ph;
-  // grid + zero
-  ctx.strokeStyle = "#17233a"; ctx.lineWidth = 1;
-  for (let k=0;k<=4;k++){ const x=padL+pw*k/4; ctx.beginPath();ctx.moveTo(x,12);ctx.lineTo(x,12+ph);ctx.stroke();
-    ctx.fillStyle="#7e90ab"; ctx.font="10px ui-monospace,monospace"; ctx.textAlign="center";
-    ctx.fillText((SECONDS*(1-k/4)).toFixed(1)+"s", x, H-6); }
-  ctx.strokeStyle="#33496b"; ctx.beginPath(); ctx.moveTo(padL,Y(0)); ctx.lineTo(padL+pw,Y(0)); ctx.stroke();
-  ctx.fillStyle="#7e90ab"; ctx.textAlign="right"; ctx.fillText(ymax.toFixed(0), padL-4, Y(ymax)+8);
-  ctx.fillText(ymin.toFixed(0), padL-4, Y(ymin));
-  ctx.save(); ctx.translate(12, 12+ph/2); ctx.rotate(-Math.PI/2);
-  ctx.textAlign="center"; ctx.fillText("µV", 0, 0); ctx.restore();
-  // trace (oldest -> newest)
-  ctx.strokeStyle="#22d3ee"; ctx.lineWidth=1.4; ctx.beginPath();
-  for (let i=0;i<filled;i++){ const idx=(head - filled + i + CAP*2) % CAP;
-    const x = padL + pw * i/(CAP-1), y = Y(buf[idx]); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
-  ctx.stroke();
-  requestAnimationFrame(draw);
+function feedAverage(samples, triggers) {
+  const trig = new Set(triggers || []);
+  for (let i=0;i<samples.length;i++){
+    if (trig.has(i)) curFill = 0;                 // phase-lock to the trigger
+    if (curFill < epochLen) curEpoch[curFill++] = samples[i];
+    if (curFill === epochLen){
+      for (let j=0;j<epochLen;j++) sumEpoch[j] += curEpoch[j];
+      avgCount++; curFill = 0;
+      S("avgn").textContent = avgCount + " sweeps";
+    }
+  }
 }
-requestAnimationFrame(draw);
+
+function drawScope(g, W, H, series, n, xmaxLabel) {
+  g.clearRect(0,0,W,H);
+  const padL=44, padB=18, pw=W-padL-8, ph=H-16-padB;
+  let ymin=Infinity, ymax=-Infinity;
+  for (let i=0;i<n;i++){ const v=series(i); if(v<ymin)ymin=v; if(v>ymax)ymax=v; }
+  if(!isFinite(ymin)){ymin=-1;ymax=1;} ymin=Math.min(ymin,0); ymax=Math.max(ymax,0);
+  const pad=(ymax-ymin)*0.1||1; ymin-=pad; ymax+=pad;
+  const Y=v=>10+(ymax-v)/(ymax-ymin)*ph;
+  g.strokeStyle="#17233a"; g.lineWidth=1;
+  for(let k=0;k<=4;k++){ const x=padL+pw*k/4; g.beginPath();g.moveTo(x,10);g.lineTo(x,10+ph);g.stroke(); }
+  g.strokeStyle="#33496b"; g.beginPath(); g.moveTo(padL,Y(0)); g.lineTo(padL+pw,Y(0)); g.stroke();
+  g.fillStyle="#7e90ab"; g.font="10px ui-monospace,monospace"; g.textAlign="right";
+  g.fillText(ymax.toFixed(0), padL-4, Y(ymax)+8); g.fillText(ymin.toFixed(0), padL-4, Y(ymin));
+  g.textAlign="center"; g.fillText(xmaxLabel, W-24, H-4);
+  g.strokeStyle="#22d3ee"; g.lineWidth=1.4; g.beginPath();
+  for(let i=0;i<n;i++){ const x=padL+pw*i/(n-1||1), y=Y(series(i)); i?g.lineTo(x,y):g.moveTo(x,y); }
+  g.stroke();
+}
+
+function render() {
+  drawScope(scope, 520, 260, i => { const idx=(head-filled+i+CAP*2)%CAP; return buf[idx]; },
+            filled||1, SECONDS+"s →");
+  if (avgCount>0) drawScope(avgc, 520, 260, i => sumEpoch[i]/avgCount, epochLen, periodMs+"ms");
+  else { avgc.clearRect(0,0,520,260); avgc.fillStyle="#7e90ab"; avgc.font="13px system-ui";
+    avgc.textAlign="center"; avgc.fillText("트리거 대기 중…", 260, 130); }
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+
+function renderImp(values) {
+  S("imp").innerHTML = Object.entries(values).map(([k,v]) => {
+    const cls = v <= 5 ? "imp-good" : v <= 10 ? "imp-warn" : "imp-bad";
+    return `<div class="imp-chip ${cls}"><b>${v.toFixed(1)}</b><small>kΩ · ${k}</small></div>`;
+  }).join("");
+}
 
 function connect() {
+  if (ws) { try { ws.close(); } catch(e){} }
   const proto = location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${proto}://${location.host}/ws/live`);
-  const st = document.getElementById("status");
-  ws.onopen = () => { st.textContent = "● 스트리밍"; st.classList.add("on"); };
-  ws.onclose = () => { st.textContent = "연결 끊김 — 재연결…"; st.classList.remove("on");
-    setTimeout(connect, 1500); };
+  const d = S("driver").value, c = S("connection").value;
+  const qs = new URLSearchParams(); if (d) qs.set("driver", d); if (c) qs.set("connection", c);
+  ws = new WebSocket(`${proto}://${location.host}/ws/live?${qs}`);
+  const st = S("status");
+  ws.onopen = () => { st.textContent="● 스트리밍"; st.classList.add("on"); S("err").textContent=""; };
+  ws.onclose = () => { st.textContent="연결 끊김"; st.classList.remove("on"); };
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
-    if (m.type === "meta") { fsMeta = m.fs;
-      document.getElementById("meta").textContent = `device: ${m.device} · fs: ${m.fs} Hz`; }
-    else if (m.type === "data" && !paused) push(m.samples);
+    if (m.type === "error") {
+      S("err").textContent = "드라이버 연결 실패: " + m.message;
+      if (m.drivers && !driversLoaded) fillDrivers(m.drivers, S("driver").value);
+      st.textContent="오류"; st.classList.remove("on"); return;
+    }
+    if (m.type === "meta") {
+      fs = m.fs; CAP = fs*SECONDS; buf = new Float32Array(CAP).fill(0); head=0; filled=0;
+      setEpoch(m.period_ms);
+      S("meta").textContent = `device: ${m.device} · fs: ${m.fs} Hz · ${m.channels.length}ch`;
+      if (!driversLoaded) fillDrivers(m.drivers, m.active);
+    } else if (m.type === "data" && !paused) {
+      pushLive(m.samples); feedAverage(m.samples, m.triggers);
+    } else if (m.type === "imp") { renderImp(m.values); }
   };
 }
-connect();
+function fillDrivers(drivers, active) {
+  S("driver").innerHTML = drivers.map(d =>
+    `<option value="${d}"${d===active?" selected":""}>${d}</option>`).join("");
+  driversLoaded = true;
+}
 
-document.getElementById("pause").addEventListener("click", (e) => {
-  paused = !paused; e.target.textContent = paused ? "▶ 재개" : "⏸ 일시정지";
-});
+S("reconnect").addEventListener("click", () => { driversLoaded=false; resetAverage(); connect(); });
+S("avg-reset").addEventListener("click", resetAverage);
+S("pause").addEventListener("click", (e) => { paused=!paused;
+  e.target.textContent = paused ? "▶ 재개" : "⏸ 일시정지"; });
+connect();
 </script>
 {% endblock %}

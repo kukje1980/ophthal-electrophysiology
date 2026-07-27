@@ -106,55 +106,5 @@ class HardwareDevice(CompositeDevice):
             connection=connection,
         )
 
-
-# ---------------------------------------------------------------------------
-# Real-time streaming transport skeletons
-#
-# These implement the continuous SampleStream contract (see
-# app.acquisition.streaming). Fill in the transport read loop for your device;
-# the host side (ring buffer, trigger epoching, averaging, live view) is
-# already provided.
-# ---------------------------------------------------------------------------
-import numpy as np  # noqa: E402
-
-from app.acquisition.streaming import SampleStream  # noqa: E402
-
-
-class SerialSampleStream(SampleStream):
-    """Continuous samples over a serial / USB-CDC link (e.g. /dev/ttyUSB0)."""
-
-    name = "serial-stream"
-
-    def open(self) -> None:
-        # TODO: import serial; self._port = serial.Serial(self.connection,
-        #       baudrate=..., timeout=0)  then start streaming; running = True
-        raise NotImplementedError("Open the serial port and start streaming.")
-
-    def read(self) -> np.ndarray:
-        # TODO: read whatever bytes are available, parse the device's frame
-        # format into microvolt samples, and return them as a 1-D float array.
-        raise NotImplementedError("Read + parse the serial sample frames.")
-
-    def close(self) -> None:
-        # TODO: self._port.close(); running = False
-        raise NotImplementedError("Close the serial port.")
-
-
-class TcpSampleStream(SampleStream):
-    """Continuous samples over a TCP socket (e.g. 192.168.0.10:5025)."""
-
-    name = "tcp-stream"
-
-    def open(self) -> None:
-        # TODO: host, port = self.connection.split(":"); open socket,
-        #       send the start-streaming command; running = True
-        raise NotImplementedError("Connect the socket and start streaming.")
-
-    def read(self) -> np.ndarray:
-        # TODO: recv available bytes, de-frame the binary sample blocks into
-        # a microvolt float array (mind endianness and partial frames).
-        raise NotImplementedError("Receive + de-frame the TCP sample blocks.")
-
-    def close(self) -> None:
-        # TODO: send stop command; close the socket; running = False
-        raise NotImplementedError("Close the socket.")
+# Real-time streaming transport drivers (LSL / BioSemi TCP / serial / vendor
+# SDK) live in app/acquisition/hw_streams.py and register themselves.

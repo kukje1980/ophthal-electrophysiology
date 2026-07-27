@@ -114,13 +114,24 @@ data comes from the simulator or real hardware.
 
 The sweep contract models *averaged* acquisition; real recorders also stream
 samples continuously. `app/acquisition/streaming.py` defines the `SampleStream`
-contract (`open` / `read` / `close`) for that continuous link, with a
-wall-clock-paced `SimulatedStream` so it works without hardware. A WebSocket
-(`/ws/live`) polls the stream and pushes samples to the **Live** page, which
-renders a scrolling oscilloscope. To connect real hardware, implement the
-transport `read` loop — serial, TCP or LSL — in the `SerialSampleStream` /
-`TcpSampleStream` skeletons (`app/acquisition/hardware.py`); the host side
-(ring buffer, trigger epoching, averaging, live view) is already provided.
+contract (`open` / `read` / `close`, optional `impedances()`) for that
+continuous link, with a registry of drivers selectable at runtime
+(`LIVE_STREAM_DRIVER` / `STREAM_CONNECTION`):
+
+| Driver | Status | Transport |
+|--------|--------|-----------|
+| `sim-stream` | built-in | wall-clock-paced ERG signal (no hardware) |
+| `lsl` | functional | Lab Streaming Layer — BioSemi / g.tec / Brain Products / OpenBCI (needs `pylsl`) |
+| `biosemi-tcp` | functional | BioSemi ActiveTwo raw TCP stream |
+| `serial-csv` | functional | generic serial ASCII samples (needs `pyserial`) |
+| `gtec` / `ced` | skeleton | vendor SDK required |
+
+A WebSocket (`/ws/live`) streams samples, marks trigger positions and reports
+live impedance to the **Live** page, which shows a scrolling oscilloscope,
+**trigger-synchronised running average** (noise falls as √N) and a per-electrode
+**impedance monitor** (ISCEV < 5 kΩ). Selecting a real driver only requires its
+transport `read` loop; the host side (ring buffer, epoching, averaging, live
+view) is already provided.
 
 ## Security & access control
 

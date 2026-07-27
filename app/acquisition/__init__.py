@@ -46,6 +46,9 @@ from app.acquisition.streaming import (
     SampleStream,
     SimulatedStream,
     get_live_stream,
+    get_stream,
+    list_stream_drivers,
+    register_stream,
 )
 
 __all__ = [
@@ -64,6 +67,9 @@ __all__ = [
     "SampleStream",
     "SimulatedStream",
     "get_live_stream",
+    "get_stream",
+    "list_stream_drivers",
+    "register_stream",
     "get_active_device",
     "get_device",
     "list_drivers",
