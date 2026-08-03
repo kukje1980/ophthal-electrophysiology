@@ -48,11 +48,13 @@ async def live_stream(ws: WebSocket):
             chunk = stream.read()
             if chunk.size:
                 triggers = []
-                if period:
+                if period:  # periodic trigger (simulator)
                     k = math.ceil(total / period) * period
                     while k < total + chunk.size:
                         triggers.append(int(k - total))
                         k += period
+                else:       # event-based triggers detected by the driver
+                    triggers = list(getattr(stream, "last_triggers", []))
                 total += int(chunk.size)
                 await ws.send_json({
                     "type": "data",

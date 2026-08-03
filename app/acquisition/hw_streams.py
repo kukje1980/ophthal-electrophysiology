@@ -152,6 +152,92 @@ class SerialCsvStream(SampleStream):
             self.running = False
 
 
+def _parse_daq(conn: str):
+    """Parse 'Dev1/ai0,Dev1/ai1@2000;gain=10000;trig=Dev1/ai2;thr=1.0'."""
+    parts = [p for p in conn.split(";") if p.strip()]
+    head = parts[0] if parts else "Dev1/ai0@2000"
+    chans, _, rate = head.partition("@")
+    channels = [c.strip() for c in chans.split(",") if c.strip()] or ["Dev1/ai0"]
+    rate = float(rate) if rate else 2000.0
+    opts = {}
+    for p in parts[1:]:
+        if "=" in p:
+            k, v = p.split("=", 1)
+            opts[k.strip()] = v.strip()
+    return channels, rate, opts
+
+
+class NiDaqSampleStream(SampleStream):
+    """National Instruments DAQ analog input — the digitiser for an analog
+    preamplifier such as a Grass (P511 / CP511 / Model 15). Wire the Grass BNC
+    outputs to the DAQ analog inputs; optionally feed the stimulator TTL into a
+    spare analog input as the trigger.
+
+    connection: ``<sig chans>@<rate>[;gain=G][;trig=<chan>][;thr=<volts>]``
+      e.g. ``Dev1/ai0,Dev1/ai1@2000;gain=10000;trig=Dev1/ai7;thr=1.0``
+
+    ``gain`` is the Grass amplifier gain, used to refer samples back to input
+    microvolts (µV = DAQ_volts / gain × 1e6). Requires ``nidaqmx`` + NI-DAQmx.
+    """
+
+    name = "nidaq"
+
+    def open(self) -> None:
+        import nidaqmx  # lazy
+        from nidaqmx.constants import AcquisitionType, TerminalConfiguration
+
+        sig, rate, opts = _parse_daq(self.connection)
+        self._gain = float(opts.get("gain", 1.0))
+        self.sampling_rate = rate
+        trig = opts.get("trig")
+        self._thr = float(opts.get("thr", 1.0))
+
+        chans = list(sig)
+        self._trig_index = None
+        if trig:
+            self._trig_index = len(chans)
+            chans.append(trig)
+
+        self._task = nidaqmx.Task()
+        for ch in chans:
+            self._task.ai_channels.add_ai_voltage_chan(
+                ch, terminal_config=TerminalConfiguration.RSE,
+                min_val=-5.0, max_val=5.0)
+        self._task.timing.cfg_samp_clk_timing(
+            rate, sample_mode=AcquisitionType.CONTINUOUS,
+            samps_per_chan=int(rate))
+        self._nsig = len(sig)
+        self.channels = [c.split("/")[-1] for c in sig]  # e.g. ai0, ai1
+        self._task.start()
+        self.running = True
+
+    def read(self) -> np.ndarray:
+        n = self._task.in_stream.avail_samp_per_chan
+        if n <= 0:
+            self.last_triggers = []
+            return np.empty(0)
+        data = self._task.read(number_of_samples_per_channel=int(n))
+        arr = np.asarray(data, dtype=float)
+        if arr.ndim == 1:  # single channel
+            sig, trig_row = arr, None
+        else:
+            sig = arr[0]  # first signal channel (e.g. OD) for display
+            trig_row = arr[self._trig_index] if self._trig_index is not None else None
+        if trig_row is not None and trig_row.size > 1:
+            rising = np.where((trig_row[:-1] < self._thr) &
+                              (trig_row[1:] >= self._thr))[0] + 1
+            self.last_triggers = [int(i) for i in rising]
+        else:
+            self.last_triggers = []
+        return sig / self._gain * 1e6  # volts -> input-referred µV
+
+    def close(self) -> None:
+        try:
+            self._task.close()
+        finally:
+            self.running = False
+
+
 class GtecStream(SampleStream):
     """g.tec g.USBamp / g.HIamp — via the vendor C/Python API (skeleton)."""
 
@@ -186,5 +272,5 @@ class CedStream(SampleStream):
 
 
 for _cls in (LSLSampleStream, BioSemiTcpStream, SerialCsvStream,
-             GtecStream, CedStream):
+             NiDaqSampleStream, GtecStream, CedStream):
     register_stream(_cls.name, _cls)

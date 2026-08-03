@@ -124,7 +124,15 @@ continuous link, with a registry of drivers selectable at runtime
 | `lsl` | functional | Lab Streaming Layer — BioSemi / g.tec / Brain Products / OpenBCI (needs `pylsl`) |
 | `biosemi-tcp` | functional | BioSemi ActiveTwo raw TCP stream |
 | `serial-csv` | functional | generic serial ASCII samples (needs `pyserial`) |
+| `nidaq` | functional | NI-DAQmx analog input — digitiser for an **analog preamplifier (e.g. Grass P511 / CP511 / Model 15)**; optional trigger channel + gain→µV (needs `nidaqmx`) |
 | `gtec` / `ced` | skeleton | vendor SDK required |
+
+**Analog preamplifier (Grass, etc.) via a DAQ:** wire the amplifier's BNC
+outputs to the DAQ analog inputs (ch0 = OD, ch1 = OS) and, optionally, the
+stimulator TTL into a spare input as the trigger. Select the `nidaq` driver
+with e.g. `Dev1/ai0,Dev1/ai1@2000;gain=10000;trig=Dev1/ai7;thr=1.0`
+(`gain` = the preamp gain, used to refer samples back to input µV). The RS-232
+link on the preamp stays for setting gain/filters.
 
 A WebSocket (`/ws/live`) streams samples, marks trigger positions and reports
 live impedance to the **Live** page, which shows a scrolling oscilloscope,

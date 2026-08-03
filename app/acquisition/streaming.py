@@ -39,6 +39,9 @@ class SampleStream(ABC):
         self.channels: List[str] = ["active"]
         #: samples between hardware triggers (None if no periodic trigger)
         self.trigger_period_samples: Optional[int] = None
+        #: local sample indices of external triggers found in the last read()
+        #: (used by drivers whose triggers are event-based, e.g. a DAQ line)
+        self.last_triggers: List[int] = []
 
     @abstractmethod
     def open(self) -> None:
