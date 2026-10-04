@@ -19,6 +19,7 @@
       <a href="/">Dashboard</a>
       <a href="/patients">Patients</a>
       <a href="/live">Live</a>
+      {% if perms and 'manage_reference' in perms %}<a href="/reference">정상범위</a>{% endif %}
       {% if perms and 'manage_users' in perms %}<a href="/admin">Admin</a>{% endif %}
       <a href="/docs" target="_blank">API</a>
     </nav>

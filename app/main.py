@@ -10,7 +10,7 @@ from app.config import settings
 from app.database import SessionLocal, init_db
 from app.routers import (
     account, audit, auth, devices, exams, live, pages, patients, protocols,
-    users,
+    reference, users,
 )
 
 # Paths reachable without a login session.
@@ -38,6 +38,20 @@ def _seed_admin():
         db.close()
 
 
+def _seed_reference():
+    """Load the demonstration reference ranges when the lab has none yet."""
+    from app.crud import reference as reference_crud
+
+    db = SessionLocal()
+    try:
+        if reference_crud.count(db) == 0:
+            n = reference_crud.seed_demo(db)
+            print(f"[seed] loaded {n} demonstration reference ranges "
+                  f"— replace with laboratory norms at /reference.")
+    finally:
+        db.close()
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.APP_TITLE, version="0.1.0")
 
@@ -45,6 +59,7 @@ def create_app() -> FastAPI:
     def _startup():
         init_db()
         _seed_admin()
+        _seed_reference()
 
     @app.middleware("http")
     async def _auth_gate(request: Request, call_next):
@@ -79,6 +94,7 @@ def create_app() -> FastAPI:
     app.include_router(audit.router)
     app.include_router(account.router)
     app.include_router(live.router)  # WebSocket live stream
+    app.include_router(reference.router)
     # Auth + HTML pages
     app.include_router(auth.router)
     app.include_router(pages.router)

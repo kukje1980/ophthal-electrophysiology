@@ -174,10 +174,14 @@ class NiDaqSampleStream(SampleStream):
     spare analog input as the trigger.
 
     connection: ``<sig chans>@<rate>[;gain=G][;trig=<chan>][;thr=<volts>]``
-      e.g. ``Dev1/ai0,Dev1/ai1@2000;gain=10000;trig=Dev1/ai7;thr=1.0``
+                ``[;diff=1][;notch=60][;hp=0.3]``
+      e.g. ``Dev1/ai0,Dev1/ai1@2000;gain=10000;trig=Dev1/ai7;thr=1.0;diff=1;notch=60``
 
     ``gain`` is the Grass amplifier gain, used to refer samples back to input
-    microvolts (µV = DAQ_volts / gain × 1e6). Requires ``nidaqmx`` + NI-DAQmx.
+    microvolts (µV = DAQ_volts / gain × 1e6). ``diff=1`` selects differential
+    inputs (common-mode noise rejection; wire +/- pairs). ``notch`` adds a
+    stateful mains notch (Hz) and ``hp`` a DC-blocking high-pass (Hz) to the
+    streamed signal. Requires ``nidaqmx`` + NI-DAQmx.
     """
 
     name = "nidaq"
@@ -186,11 +190,21 @@ class NiDaqSampleStream(SampleStream):
         import nidaqmx  # lazy
         from nidaqmx.constants import AcquisitionType, TerminalConfiguration
 
+        from app.acquisition.filters import DCBlock, FilterChain, Notch
+
         sig, rate, opts = _parse_daq(self.connection)
         self._gain = float(opts.get("gain", 1.0))
         self.sampling_rate = rate
         trig = opts.get("trig")
         self._thr = float(opts.get("thr", 1.0))
+        term = (TerminalConfiguration.DIFF if opts.get("diff") in ("1", "true")
+                else TerminalConfiguration.RSE)
+        notch = float(opts["notch"]) if opts.get("notch") else None
+        hp = float(opts["hp"]) if opts.get("hp") else None
+        self._filters = FilterChain(
+            DCBlock(rate, hp) if hp else None,
+            Notch(rate, notch) if notch else None,
+        )
 
         chans = list(sig)
         self._trig_index = None
@@ -201,8 +215,7 @@ class NiDaqSampleStream(SampleStream):
         self._task = nidaqmx.Task()
         for ch in chans:
             self._task.ai_channels.add_ai_voltage_chan(
-                ch, terminal_config=TerminalConfiguration.RSE,
-                min_val=-5.0, max_val=5.0)
+                ch, terminal_config=term, min_val=-5.0, max_val=5.0)
         self._task.timing.cfg_samp_clk_timing(
             rate, sample_mode=AcquisitionType.CONTINUOUS,
             samps_per_chan=int(rate))
@@ -229,7 +242,7 @@ class NiDaqSampleStream(SampleStream):
             self.last_triggers = [int(i) for i in rising]
         else:
             self.last_triggers = []
-        return sig / self._gain * 1e6  # volts -> input-referred µV
+        return self._filters.process(sig / self._gain * 1e6)  # volts -> µV
 
     def close(self) -> None:
         try:

@@ -90,6 +90,14 @@ def live_page(request: Request, user=Depends(current_user)):
     return templates.TemplateResponse("live.html", _ctx(request, user))
 
 
+@router.get("/reference", response_class=HTMLResponse)
+def reference_page(request: Request, user=Depends(current_user)):
+    """Laboratory normative reference-range management."""
+    if not has_permission(user, "manage_reference"):
+        return RedirectResponse("/", status_code=303)
+    return templates.TemplateResponse("reference.html", _ctx(request, user))
+
+
 @router.get("/account", response_class=HTMLResponse)
 def account_page(request: Request, user=Depends(current_user)):
     return templates.TemplateResponse("account.html", _ctx(request, user))

@@ -131,8 +131,28 @@ continuous link, with a registry of drivers selectable at runtime
 outputs to the DAQ analog inputs (ch0 = OD, ch1 = OS) and, optionally, the
 stimulator TTL into a spare input as the trigger. Select the `nidaq` driver
 with e.g. `Dev1/ai0,Dev1/ai1@2000;gain=10000;trig=Dev1/ai7;thr=1.0`
-(`gain` = the preamp gain, used to refer samples back to input µV). The RS-232
-link on the preamp stays for setting gain/filters.
+(`gain` = the preamp gain, used to refer samples back to input µV). Add
+`;diff=1` for differential inputs (common-mode rejection), `;notch=60` for a
+stateful mains notch and `;hp=0.3` for DC/baseline removal
+(`app/acquisition/filters.py`). The RS-232 link on the preamp stays for
+setting gain/filters.
+
+**Recording from the live stream.** The Live page's *검사로 저장* panel stores
+the trigger-synchronised running average as a protocol step of an exam
+(`POST /api/exams/record`): the epoch is resampled onto the step's sampling
+rate/duration, so the standard marker detection, laboratory reference ranges
+and report apply unchanged. Further steps/eyes can be appended to the same exam.
+
+### Laboratory normative data
+
+ISCEV requires each laboratory to establish its own reference ranges. They
+live in the database (`reference_ranges`, optionally per age band) and are
+managed at **/reference** (role `manage_reference`: admin, clinician): edit
+rows, import a CSV of ranges, or upload normal-subject measurements
+(`step_key,marker,latency_ms,amplitude_uv`) and compute limits as mean ± 2 SD
+or 5–95th percentiles. Judgement uses the row matching the patient's age;
+the built-in demonstration values are seeded on first start (source `demo`)
+and should be replaced before clinical use.
 
 A WebSocket (`/ws/live`) streams samples, marks trigger positions and reports
 live impedance to the **Live** page, which shows a scrolling oscilloscope,

@@ -5,5 +5,7 @@ from app.models.waveform import Waveform
 from app.models.measurement import Measurement
 from app.models.user import User
 from app.models.audit import AuditLog
+from app.models.reference import ReferenceRange
 
-__all__ = ["Patient", "Exam", "Waveform", "Measurement", "User", "AuditLog"]
+__all__ = ["Patient", "Exam", "Waveform", "Measurement", "User", "AuditLog",
+           "ReferenceRange"]

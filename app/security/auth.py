@@ -19,6 +19,7 @@ PERMISSIONS = {
     "view_phi",         # decrypt/reveal the full national id
     "manage_users",     # create/disable accounts
     "view_audit",       # read the audit log
+    "manage_reference", # edit laboratory normative reference ranges
 }
 
 # Role -> granted permissions.
@@ -27,6 +28,7 @@ ROLES = {
     "clinician": {
         "view_patient", "edit_patient", "delete_patient",
         "run_exam", "delete_exam", "view_report", "view_phi",
+        "manage_reference",
     },
     "technician": {
         "view_patient", "edit_patient", "run_exam", "view_report",

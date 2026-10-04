@@ -36,6 +36,28 @@
   </section>
 </div>
 
+{% if 'run_exam' in perms %}
+<section class="card" id="rec-card">
+  <div class="row-between">
+    <h3 class="muted">검사로 저장 <span class="muted" style="font-size:12px">트리거 동기 평균 파형 → 검사 기록 → 리포트</span></h3>
+    <span id="rec-exam" class="tag">새 검사</span>
+  </div>
+  <div class="live-controls">
+    <label class="field" style="min-width:220px">환자 (이름/등록번호 검색)
+      <input id="rec-patient-q" list="rec-patients" placeholder="검색…" autocomplete="off">
+      <datalist id="rec-patients"></datalist>
+    </label>
+    <label class="field">프로토콜<select id="rec-protocol"></select></label>
+    <label class="field">Step<select id="rec-step"></select></label>
+    <label class="field">눈<select id="rec-eye"><option value="OD">OD (우)</option><option value="OS">OS (좌)</option></select></label>
+    <label class="field">목표 sweeps<input id="rec-target" type="number" min="1" value="50" style="width:90px"></label>
+    <button class="btn primary" id="rec-save">저장</button>
+    <button class="btn ghost" id="rec-new">새 검사 시작</button>
+  </div>
+  <p id="rec-msg" class="msg"></p>
+</section>
+{% endif %}
+
 <section class="card">
   <h3 class="muted">전극 임피던스 <span class="muted" style="font-size:12px">(ISCEV 권고 &lt; 5 kΩ)</span></h3>
   <div id="imp" class="imp-grid"><span class="muted">–</span></div>
@@ -158,6 +180,7 @@ function connect() {
     if (m.type === "meta") {
       fs = m.fs; CAP = fs*SECONDS; buf = new Float32Array(CAP).fill(0); head=0; filled=0;
       setEpoch(m.period_ms);
+      activeDevice = m.device;
       S("meta").textContent = `device: ${m.device} · fs: ${m.fs} Hz · ${m.channels.length}ch`;
       if (!driversLoaded) fillDrivers(m.drivers, m.active);
     } else if (m.type === "data" && !paused) {
@@ -176,5 +199,64 @@ S("avg-reset").addEventListener("click", resetAverage);
 S("pause").addEventListener("click", (e) => { paused=!paused;
   e.target.textContent = paused ? "▶ 재개" : "⏸ 일시정지"; });
 connect();
+
+/* ---- Save the trigger-averaged epoch as an exam step ---------------- */
+let activeDevice = "live-stream", recExamId = null, recPatients = [];
+const recCard = S("rec-card");
+if (recCard) {
+  const qInput = S("rec-patient-q"), protoSel = S("rec-protocol"), stepSel = S("rec-step");
+  let protocols = {};
+
+  async function loadProtocols() {
+    protocols = await api("/api/protocols/all");
+    protoSel.innerHTML = Object.entries(protocols).map(([k, p]) =>
+      `<option value="${k}">${p.label}</option>`).join("");
+    fillSteps();
+  }
+  function fillSteps() {
+    const p = protocols[protoSel.value]; if (!p) return;
+    stepSel.innerHTML = p.steps.map(s => `<option value="${s.key}">${s.key} · ${s.label}</option>`).join("");
+  }
+  protoSel.addEventListener("change", fillSteps);
+
+  qInput.addEventListener("input", async () => {
+    // a datalist pick fills "이름 (#MRN)" — search on the name part only
+    const q = qInput.value.split(" (#")[0].trim(); if (!q) return;
+    recPatients = await api(`/api/patients?q=${encodeURIComponent(q)}`);
+    S("rec-patients").innerHTML = recPatients.map(p =>
+      `<option value="${p.name} (#${p.mrn})"></option>`).join("");
+  });
+  function selectedPatient() {
+    const v = qInput.value.trim();
+    return recPatients.find(p => `${p.name} (#${p.mrn})` === v) ||
+           recPatients.find(p => p.mrn === v || p.name === v) || null;
+  }
+
+  S("rec-new").addEventListener("click", () => { recExamId = null;
+    S("rec-exam").textContent = "새 검사"; setMsg("rec-msg", "", ""); });
+
+  S("rec-save").addEventListener("click", async () => {
+    const p = selectedPatient();
+    if (!p) return setMsg("rec-msg", "환자를 검색해 선택하세요.", "err");
+    if (avgCount < 1) return setMsg("rec-msg", "아직 평균된 sweep이 없습니다. 트리거를 기다리세요.", "err");
+    const target = parseInt(S("rec-target").value) || 1;
+    if (avgCount < target && !confirm(`목표 ${target} sweeps 중 ${avgCount}개만 평균됐습니다. 그래도 저장할까요?`)) return;
+    const samples = Array.from(sumEpoch, v => +(v / avgCount).toFixed(3));
+    try {
+      const exam = await api("/api/exams/record", { method: "POST", body: {
+        patient_id: p.id, protocol: protoSel.value, step_key: stepSel.value,
+        eye: S("rec-eye").value, samples, sampling_rate: fs, duration_ms: periodMs,
+        n_sweeps: avgCount, exam_id: recExamId, device: activeDevice } });
+      recExamId = exam.id;
+      S("rec-exam").textContent = `검사 #${exam.id} (${exam.waveforms.length} trace)`;
+      setMsg("rec-msg", `저장됨: ${stepSel.value} ${S("rec-eye").value}, ${avgCount} sweeps → `, "ok");
+      S("rec-msg").insertAdjacentHTML("beforeend",
+        `<a href="/reports/${exam.id}" target="_blank">리포트 열기</a> · 다음 step/눈을 이어서 저장할 수 있습니다.`);
+      resetAverage();
+    } catch (e) { setMsg("rec-msg", e.message, "err"); }
+  });
+
+  loadProtocols();
+}
 </script>
 {% endblock %}

@@ -60,8 +60,12 @@ def _config(step_key: str, marker: str) -> dict:
 
 
 def detect_markers(samples: List[float], duration_ms: float,
-                   step_key: str, markers: List[str]) -> List[dict]:
+                   step_key: str, markers: List[str],
+                   ref_lookup=None) -> List[dict]:
     """Detect the requested markers on a single trace.
+
+    ``ref_lookup(step_key, marker)`` may return a laboratory limits dict (or
+    None to fall back to the built-in demonstration ranges).
 
     Returns a list of dicts: {marker, latency_ms, amplitude_uv, flag}.
     """
@@ -107,11 +111,12 @@ def detect_markers(samples: List[float], duration_ms: float,
             amplitude = abs(value - baseline)
 
         found[marker] = (idx, value)
+        ref = ref_lookup(step_key, marker) if ref_lookup else None
         results.append({
             "marker": marker,
             "latency_ms": round(latency, 2),
             "amplitude_uv": round(amplitude, 2),
-            "flag": classify(step_key, marker, latency, amplitude),
+            "flag": classify(step_key, marker, latency, amplitude, ref=ref),
         })
 
     # Keep chronological order in the output for display.

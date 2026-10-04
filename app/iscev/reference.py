@@ -39,13 +39,18 @@ REFERENCE_RANGES = {
 
 
 def classify(step_key: str, marker: str, latency_ms: float,
-             amplitude_uv: float) -> str:
+             amplitude_uv: float, ref: dict | None = None) -> str:
     """Return 'normal', 'borderline' or 'abnormal' for a measurement.
+
+    ``ref`` is a limits dict (amp_min/amp_max/lat_min/lat_max). When None the
+    built-in demonstration ranges are used; callers with laboratory norms
+    (see app.crud.reference.lookup) pass their own.
 
     A value within limits is normal; within 10% past a limit is borderline;
     beyond that is abnormal. Markers without a reference return 'normal'.
     """
-    ref = REFERENCE_RANGES.get((step_key, marker))
+    if ref is None:
+        ref = REFERENCE_RANGES.get((step_key, marker))
     if not ref:
         return "normal"
 
@@ -58,17 +63,22 @@ def classify(step_key: str, marker: str, latency_ms: float,
         if order[new] > order[status]:
             status = new
 
-    if "amp_min" in ref:
+    if ref.get("amp_min") is not None:
         if amp < ref["amp_min"] * 0.9:
             degrade("abnormal")
         elif amp < ref["amp_min"]:
             degrade("borderline")
-    if "lat_max" in ref:
+    if ref.get("amp_max") is not None:
+        if amp > ref["amp_max"] * 1.1:
+            degrade("abnormal")
+        elif amp > ref["amp_max"]:
+            degrade("borderline")
+    if ref.get("lat_max") is not None:
         if latency_ms > ref["lat_max"] * 1.1:
             degrade("abnormal")
         elif latency_ms > ref["lat_max"]:
             degrade("borderline")
-    if "lat_min" in ref:
+    if ref.get("lat_min") is not None:
         if latency_ms < ref["lat_min"] * 0.9:
             degrade("abnormal")
         elif latency_ms < ref["lat_min"]:
