@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.waveform import WaveformOut
 
@@ -33,6 +33,13 @@ class ExamRecord(BaseModel):
     note: Optional[str] = None
 
 
+class ExamInterpretation(BaseModel):
+    """Clinician's reading of the study."""
+
+    interpretation: Optional[str] = Field(None, max_length=8000)
+    impression: Optional[str] = Field(None, max_length=512)
+
+
 class ExamSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -44,8 +51,14 @@ class ExamSummary(BaseModel):
     operator: Optional[str] = None
     status: str
     performed_at: datetime
+    signed_by: Optional[str] = None
+    signed_at: Optional[datetime] = None
+    impression: Optional[str] = None
 
 
 class ExamOut(ExamSummary):
     note: Optional[str] = None
+    interpretation: Optional[str] = None
+    interpreted_by: Optional[str] = None
+    interpreted_at: Optional[datetime] = None
     waveforms: List[WaveformOut] = []

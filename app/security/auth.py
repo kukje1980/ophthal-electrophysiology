@@ -20,6 +20,9 @@ PERMISSIONS = {
     "manage_users",     # create/disable accounts
     "view_audit",       # read the audit log
     "manage_reference", # edit laboratory normative reference ranges
+    "edit_markers",     # move / add / remove waveform cursors
+    "interpret_exam",   # write the findings / impression of a study
+    "sign_report",      # sign off (lock) or re-open a report
 }
 
 # Role -> granted permissions.
@@ -28,11 +31,12 @@ ROLES = {
     "clinician": {
         "view_patient", "edit_patient", "delete_patient",
         "run_exam", "delete_exam", "view_report", "view_phi",
-        "manage_reference",
+        "manage_reference", "edit_markers", "interpret_exam", "sign_report",
     },
     "technician": {
         "view_patient", "edit_patient", "run_exam", "view_report",
-    },  # note: no view_phi
+        "edit_markers",
+    },  # note: no view_phi, cannot interpret or sign
     "viewer": {"view_patient", "view_report"},
 }
 

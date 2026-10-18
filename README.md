@@ -28,7 +28,9 @@ python run.py
 Open <http://localhost:8000>. Interactive API docs at `/docs`.
 
 Typical flow: **Patients → add patient → New exam → pick protocol → Acquire →
-Report**.
+Report → (check cursors) → Interpretation → Sign**.
+
+Run the test-suite with `pip install -r requirements-dev.txt && pytest`.
 
 ## Architecture
 
@@ -40,8 +42,9 @@ app/
   models/            Patient, Exam, Waveform, Measurement
   schemas/           Pydantic I/O
   crud/              DB access + acquire→store→auto-mark pipeline
-  routers/           patients, exams, protocols, devices, pages (HTML)
-  iscev/             protocol catalogue, reference ranges, marker detection
+  routers/           patients, exams, measurements, protocols, devices, pages
+  iscev/             protocol catalogue, reference ranges, marker detection,
+                     interocular (OD/OS) comparison + exam analysis summary
   acquisition/       device abstraction (the hardware seam)
     amplifier.py     biopotential amplifier contract
     stimulator.py    visual stimulator contract
@@ -50,7 +53,25 @@ app/
     hardware.py      ready-to-fill skeleton for a real rig
     registry.py      driver registry + active-device selection
 templates/  static/  Jinja2 pages + Canvas plotting
+tests/               pytest suite (analysis layer + reading-workflow API)
 ```
+
+## Reading & reporting workflow
+
+An acquired study is **completed** (= awaiting interpretation) until a
+clinician signs it; the dashboard lists these in a *판독 대기* worklist.
+The report page (`/reports/{id}`) is the reading station:
+
+| Stage | Who (role) | What |
+|-------|------------|------|
+| **Cursor check** | technician, clinician, admin (`edit_markers`) | Click a marker name (or the dot on the trace) and click the waveform to move it; or type the implicit time; add a marker by hand; delete; *↺ 자동검출* re-runs the detector for one trace. Every edit re-measures the trace with the same rules as the detector (peak-to-trough from the referenced component, else from baseline), so dependent components (e.g. P100 after N75 moves) are updated too. Hand-placed cursors are drawn as hollow diamonds and tagged *수동*; `is_auto` is stored per measurement. |
+| **Automatic analysis** | everyone with `view_report` | `GET /api/exams/{id}/analysis` — per-eye flags, **interocular comparison** (latency difference in ms, amplitude ratio smaller/larger, flagged against per-marker limits such as P100 Δ > 10 ms), PERG N95:P50 ratio and a plain-language summary. Shown as a card on top of the report and as a *양안 비교* table under each step. |
+| **Interpretation** | clinician, admin (`interpret_exam`) | Findings (free text) + one-line impression. *↙ 요약 가져오기* pastes the analysis summary as a starting point. Author and time are recorded. |
+| **Sign-off** | clinician, admin (`sign_report`) | `POST /api/exams/{id}/sign` locks the study: cursors, interpretation, deletion and appending live traces all return **409**. The report shows the signature stamp. `POST …/reopen` (same permission) clears the signature for amendment; both are audited (`exam.sign`, `exam.reopen`). |
+| **Export** | `view_report` | `GET /api/exams/{id}/export.csv` — every measurement with flag and auto/manual origin; print via the browser. |
+
+> The interocular limits in `app/iscev/asymmetry.py` are demonstration values,
+> like the reference ranges — replace them with laboratory data.
 
 ## Real-device integration (amplifier + stimulator)
 
@@ -165,12 +186,12 @@ view) is already provided.
 
 The application requires a login and enforces role-based access:
 
-| Role | Patients | Exams | Full national id (PHI) | Users / audit |
-|------|----------|-------|------------------------|---------------|
-| **admin** | view / edit / delete | run / delete | ✓ | ✓ |
-| **clinician** | view / edit / delete | run / delete | ✓ | — |
-| **technician** | view / edit | run | — (masked only) | — |
-| **viewer** | view | view reports | — | — |
+| Role | Patients | Exams | Cursors | Interpret / sign | Full national id (PHI) | Users / audit |
+|------|----------|-------|---------|------------------|------------------------|---------------|
+| **admin** | view / edit / delete | run / delete | edit | ✓ | ✓ | ✓ |
+| **clinician** | view / edit / delete | run / delete | edit | ✓ | ✓ | — |
+| **technician** | view / edit | run | edit | — | — (masked only) | — |
+| **viewer** | view | view reports | — | — | — | — |
 
 - **PHI at rest** — the national id (주민등록번호) is encrypted with Fernet and
   only ever returned masked (e.g. `720815-2******`). The full value comes from
@@ -184,8 +205,10 @@ The application requires a login and enforces role-based access:
   `/account` (QR for Google Authenticator / Authy). Login then requires the
   6-digit code.
 - **Audit log** records logins (incl. lockouts and 2FA failures), record
-  *views* (`patient.view` / `exam.view`), patient/exam changes, PHI views and
-  account changes; admins review it at `/admin` and export it to CSV.
+  *views* (`patient.view` / `exam.view`), patient/exam changes, cursor edits
+  (`marker.move/add/delete/redetect`), interpretation, sign-off / re-open,
+  CSV export, PHI views and account changes; admins review it at `/admin`
+  and export it to CSV.
 - On first start an **admin** account is seeded (`ADMIN_USERNAME` /
   `ADMIN_PASSWORD`) — change the password immediately.
 

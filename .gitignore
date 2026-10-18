@@ -18,3 +18,6 @@ env/
 
 # Env
 .env
+
+# Tests
+.pytest_cache/

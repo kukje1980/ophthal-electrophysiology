@@ -12,7 +12,13 @@ function _niceStep(range, target) {
   return step * mag;
 }
 
-function drawTraces(canvas, traces) {
+/* Draw traces (+ their markers) on a canvas.
+
+   opts.armed  = {traceIndex, marker} highlights the cursor that is being
+                 repositioned (click-to-place editing).
+   Returns the plot geometry so callers can map pointer positions back to
+   time (also stored on canvas._plot). */
+function drawTraces(canvas, traces, opts = {}) {
   const ctx = canvas.getContext("2d");
   const W = canvas.width, H = canvas.height;
   const padL = 52, padR = 16, padT = 16, padB = 30;
@@ -35,6 +41,7 @@ function drawTraces(canvas, traces) {
 
   const X = (t) => padL + (t / maxT) * plotW;
   const Y = (v) => padT + (ymax - v) / (ymax - ymin) * plotH;
+  const toTime = (x) => Math.min(maxT, Math.max(0, (x - padL) / plotW * maxT));
 
   // Grid -----------------------------------------------------------------
   ctx.font = "11px system-ui, sans-serif";
@@ -71,7 +78,8 @@ function drawTraces(canvas, traces) {
   ctx.restore();
 
   // Traces + markers -----------------------------------------------------
-  for (const tr of traces) {
+  const armed = opts.armed || null;
+  traces.forEach((tr, ti) => {
     const n = tr.samples.length;
     const dt = tr.duration_ms / n;
     ctx.strokeStyle = tr.color;
@@ -86,11 +94,59 @@ function drawTraces(canvas, traces) {
     for (const m of tr.measurements || []) {
       const idx = Math.min(n - 1, Math.round(m.latency_ms / dt));
       const x = X(m.latency_ms), y = Y(tr.samples[idx]);
+      const isArmed = armed && armed.traceIndex === ti && armed.marker === m.marker;
+      if (isArmed) {
+        // vertical guide for the cursor being repositioned
+        ctx.save();
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH); ctx.stroke();
+        ctx.restore();
+      }
       ctx.fillStyle = tr.color;
-      ctx.beginPath(); ctx.arc(x, y, 3.2, 0, 2 * Math.PI); ctx.fill();
-      ctx.fillStyle = "#334155";
+      ctx.strokeStyle = tr.color;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      if (m.is_auto === false) {
+        // hand-placed cursor: hollow diamond
+        ctx.moveTo(x, y - 5); ctx.lineTo(x + 5, y); ctx.lineTo(x, y + 5); ctx.lineTo(x - 5, y);
+        ctx.closePath(); ctx.stroke();
+      } else {
+        ctx.arc(x, y, isArmed ? 4.5 : 3.2, 0, 2 * Math.PI); ctx.fill();
+      }
+      ctx.fillStyle = isArmed ? "#b45309" : "#334155";
       ctx.textAlign = "center";
-      ctx.fillText(m.marker, x, y - 7);
+      ctx.fillText(m.marker + (m.is_auto === false ? "*" : ""), x, y - 8);
     }
-  }
+  });
+
+  const geom = { X, Y, toTime, maxT, padL, padT, plotW, plotH };
+  canvas._plot = geom;
+  return geom;
+}
+
+/* Map a pointer event on a (CSS-scaled) canvas to plot coordinates. */
+function canvasPoint(canvas, ev) {
+  const r = canvas.getBoundingClientRect();
+  return {
+    x: (ev.clientX - r.left) * canvas.width / r.width,
+    y: (ev.clientY - r.top) * canvas.height / r.height,
+  };
+}
+
+/* Nearest marker (within `tol` canvas px horizontally) to a plot x. */
+function nearestMarker(canvas, traces, px, py, tol = 14) {
+  const g = canvas._plot;
+  if (!g) return null;
+  let best = null, bestD = Infinity;
+  traces.forEach((tr, ti) => {
+    const n = tr.samples.length, dt = tr.duration_ms / n;
+    for (const m of tr.measurements || []) {
+      const idx = Math.min(n - 1, Math.round(m.latency_ms / dt));
+      const dx = g.X(m.latency_ms) - px, dy = g.Y(tr.samples[idx]) - py;
+      const d = Math.hypot(dx, dy * 0.6); // tolerate vertical offset more
+      if (d < bestD && Math.abs(dx) <= tol) { bestD = d; best = { traceIndex: ti, marker: m.marker, measurement: m }; }
+    }
+  });
+  return best;
 }

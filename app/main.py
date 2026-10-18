@@ -9,8 +9,8 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import settings
 from app.database import SessionLocal, init_db
 from app.routers import (
-    account, audit, auth, devices, exams, live, pages, patients, protocols,
-    reference, users,
+    account, audit, auth, devices, exams, live, measurements, pages, patients,
+    protocols, reference, users,
 )
 
 # Paths reachable without a login session.
@@ -53,7 +53,7 @@ def _seed_reference():
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title=settings.APP_TITLE, version="0.1.0")
+    app = FastAPI(title=settings.APP_TITLE, version="0.2.0")
 
     @app.on_event("startup")
     def _startup():
@@ -88,6 +88,7 @@ def create_app() -> FastAPI:
     # JSON API
     app.include_router(patients.router)
     app.include_router(exams.router)
+    app.include_router(measurements.router)
     app.include_router(protocols.router)
     app.include_router(devices.router)
     app.include_router(users.router)
