@@ -1,7 +1,7 @@
 """ISCEV standard protocol definitions, reference ranges and marker detection."""
 from app.iscev.protocols import PROTOCOLS, TEST_TYPES, get_protocol
 from app.iscev.reference import REFERENCE_RANGES, classify
-from app.iscev.markers import detect_markers
+from app.iscev.markers import detect_markers, remeasure, snap_latency
 
 __all__ = [
     "PROTOCOLS",
@@ -10,4 +10,6 @@ __all__ = [
     "REFERENCE_RANGES",
     "classify",
     "detect_markers",
+    "remeasure",
+    "snap_latency",
 ]

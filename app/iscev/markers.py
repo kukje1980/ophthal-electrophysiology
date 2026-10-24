@@ -45,6 +45,9 @@ _DEFAULT = {
 # The mfERG components N1/P1/N2 peak much earlier (~15/30/55 ms) than the
 # flash-VEP N1/P1/N2, so they get their own short windows per step.
 _OVERRIDE = {
+    # The rod (DA 0.01) b-wave is slower (implicit time up to ~110 ms) than
+    # the combined-response b-wave, and there is no a-wave to measure from.
+    ("DA0.01", "b"): {"win": (40, 130), "pol": "pos"},
     ("LA3.0_30Hz", "P1"): {"win": (12, 40), "pol": "pos"},
     ("mfERG61", "N1"): {"win": (8, 22), "pol": "neg"},
     ("mfERG61", "P1"): {"win": (22, 45), "pol": "pos", "from": "N1"},
@@ -120,5 +123,67 @@ def detect_markers(samples: List[float], duration_ms: float,
         })
 
     # Keep chronological order in the output for display.
+    results.sort(key=lambda r: r["latency_ms"])
+    return results
+
+
+def _grid(samples: List[float], duration_ms: float):
+    y = np.asarray(samples, dtype=float)
+    t = np.linspace(0, duration_ms, len(y), endpoint=False)
+    base_n = max(1, int(len(y) * 5.0 / duration_ms)) if duration_ms else 1
+    return y, t, float(np.mean(y[:base_n]))
+
+
+def snap_latency(samples: List[float], duration_ms: float, step_key: str,
+                 marker: str, latency_ms: float, window_ms: float = 4.0) -> float:
+    """Move a manually placed cursor onto the nearest local extremum of the
+    marker's polarity within ±``window_ms`` (how clinicians "click near" a
+    peak). Markers without a known polarity are returned unchanged."""
+    cfg = _config(step_key, marker)
+    y, t, _ = _grid(samples, duration_ms)
+    if not cfg or len(y) == 0 or window_ms <= 0:
+        return float(latency_ms)
+    idxs = np.where(np.abs(t - latency_ms) <= window_ms)[0]
+    if not len(idxs):
+        return float(latency_ms)
+    seg = y[idxs]
+    local = int(np.argmin(seg) if cfg["pol"] == "neg" else np.argmax(seg))
+    return round(float(t[idxs[local]]), 2)
+
+
+def remeasure(samples: List[float], duration_ms: float, step_key: str,
+              latencies: dict, ref_lookup=None) -> List[dict]:
+    """Recompute amplitude and flag for markers at given latencies.
+
+    Used after a manual edit: ``latencies`` maps marker -> implicit time (ms).
+    Amplitudes follow the same conventions as :func:`detect_markers`, so
+    moving a trough (e.g. the a-wave) also updates the peak measured from it
+    (the b-wave).
+    """
+    y, t, baseline = _grid(samples, duration_ms)
+    n = len(y)
+    if n == 0:
+        return []
+    dt = duration_ms / n
+
+    def value_at(lat):
+        return float(y[min(n - 1, max(0, int(round(lat / dt))))])
+
+    results: List[dict] = []
+    for marker, lat in latencies.items():
+        cfg = _config(step_key, marker)
+        value = value_at(lat)
+        ref_marker = cfg.get("from")
+        if ref_marker and ref_marker in latencies:
+            amplitude = abs(value - value_at(latencies[ref_marker]))
+        else:
+            amplitude = abs(value - baseline)
+        ref = ref_lookup(step_key, marker) if ref_lookup else None
+        results.append({
+            "marker": marker,
+            "latency_ms": round(float(lat), 2),
+            "amplitude_uv": round(amplitude, 2),
+            "flag": classify(step_key, marker, lat, amplitude, ref=ref),
+        })
     results.sort(key=lambda r: r["latency_ms"])
     return results

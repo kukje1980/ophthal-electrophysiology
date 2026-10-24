@@ -31,7 +31,7 @@
   {% endif %}
 </div>
 <table class="table">
-  <thead><tr><th>일시</th><th>검사</th><th>프로토콜</th><th></th></tr></thead>
+  <thead><tr><th>일시</th><th>검사</th><th>프로토콜</th><th>판독</th><th></th></tr></thead>
   <tbody id="exam-rows"></tbody>
 </table>
 
@@ -94,9 +94,11 @@ async function loadExams() {
       <td>${new Date(e.performed_at).toLocaleString()}</td>
       <td><span class="tag">${e.test_type}</span></td>
       <td>${e.protocol}</td>
+      <td>${e.signed_at ? '<span class="badge signed">서명완료</span>'
+                         : '<span class="badge flag-bord">미서명</span>'}</td>
       <td><a class="btn small" href="/reports/${e.id}">리포트</a></td>
     </tr>`).join("") ||
-    `<tr><td colspan="4" class="muted">검사 기록이 없습니다.</td></tr>`;
+    `<tr><td colspan="5" class="muted">검사 기록이 없습니다.</td></tr>`;
 }
 
 loadPatient();

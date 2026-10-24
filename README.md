@@ -18,6 +18,30 @@ oscillatory potentials, P50, N95, P100, …), measures implicit time and
 amplitude, classifies them against reference ranges, and renders printable
 reports.
 
+## Marker review and report sign-off
+
+Automatic markers can be corrected on the report page (role `run_exam`):
+choose *eye · marker*, click the waveform to place the cursor (optionally
+snapped to the nearest peak/trough of that component's polarity), remove a
+non-recordable component with ×, or *Re-detect* to restore automatic
+detection. Amplitudes are re-measured with the same conventions, so moving a
+trough also updates the peak measured from it (e.g. a → b), and flags are
+re-judged against the laboratory ranges. Manually edited markers are shown
+with ✎ and every edit is audited.
+
+Clinicians (`sign_report`: admin, clinician) write the **interpretation** and
+**sign** the report; a signed report is locked (no marker edits, no appended
+live steps) until it is explicitly *reopened for amendment*, which is also
+audited.
+
+| Endpoint | Purpose |
+|----------|---------|
+| `PUT /api/exams/{id}/waveforms/{wf}/markers/{marker}` | place a marker (`latency_ms`, `snap`) |
+| `DELETE /api/exams/{id}/waveforms/{wf}/markers/{marker}` | remove a marker |
+| `POST /api/exams/{id}/waveforms/{wf}/markers/reset` | re-run automatic detection |
+| `PUT /api/exams/{id}/interpretation` | save the interpretation draft |
+| `POST /api/exams/{id}/sign` · `POST /api/exams/{id}/reopen` | sign / reopen |
+
 ## Quick start
 
 ```bash
@@ -26,6 +50,8 @@ python run.py
 ```
 
 Open <http://localhost:8000>. Interactive API docs at `/docs`.
+
+Run the tests with `pip install pytest httpx && python -m pytest tests`.
 
 Typical flow: **Patients → add patient → New exam → pick protocol → Acquire →
 Report**.

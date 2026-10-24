@@ -1,4 +1,5 @@
 """Exam CRUD plus the acquire -> store -> auto-mark pipeline."""
+from datetime import datetime
 from typing import List, Optional
 
 import numpy as np
@@ -6,9 +7,13 @@ from sqlalchemy.orm import Session
 
 from app.acquisition import get_active_device
 from app.crud import reference as reference_crud
-from app.iscev import detect_markers, get_protocol
+from app.iscev import detect_markers, get_protocol, remeasure, snap_latency
 from app.models import Exam, Measurement, Patient, Waveform
 from app.schemas import ExamCreate, ExamRecord
+
+
+class ExamLocked(Exception):
+    """Raised when modifying a signed report without reopening it first."""
 
 
 def get(db: Session, exam_id: int) -> Optional[Exam]:
@@ -106,6 +111,8 @@ def record_step(db: Session, data: ExamRecord) -> Exam:
         exam = db.get(Exam, data.exam_id)
         if exam is None or exam.patient_id != data.patient_id:
             raise KeyError("Exam not found for this patient")
+        if exam.signed_at:
+            raise ExamLocked("Exam is signed; reopen it before adding steps")
     else:
         exam = Exam(
             patient_id=data.patient_id, test_type=protocol["test_type"],
@@ -127,6 +134,118 @@ def record_step(db: Session, data: ExamRecord) -> Exam:
                  _ref_lookup(db, data.patient_id))
     note = f"n={data.n_sweeps} sweeps (live)"
     exam.note = f"{exam.note}; {note}" if exam.note and note not in exam.note else (exam.note or note)
+    db.commit()
+    db.refresh(exam)
+    return exam
+
+
+# -- manual marker review ---------------------------------------------------
+
+def _step_markers(exam: Exam, step_key: str) -> List[str]:
+    try:
+        protocol = get_protocol(exam.protocol)
+    except KeyError:
+        return []
+    step = next((s for s in protocol["steps"] if s["key"] == step_key), None)
+    return list(step["markers"]) if step else []
+
+
+def get_waveform(db: Session, exam_id: int, waveform_id: int) -> Optional[Waveform]:
+    wf = db.get(Waveform, waveform_id)
+    return wf if wf is not None and wf.exam_id == exam_id else None
+
+
+def _apply(db: Session, wf: Waveform, latencies: dict, manual: set) -> Waveform:
+    """Replace a waveform's measurements by re-measuring at ``latencies``."""
+    ref_lookup = _ref_lookup(db, wf.exam.patient_id)
+    was_manual = {m.marker for m in wf.measurements if not m.is_auto}
+    wf.measurements.clear()
+    for m in remeasure(wf.samples, wf.duration_ms, wf.step, latencies, ref_lookup):
+        wf.measurements.append(Measurement(
+            marker=m["marker"], latency_ms=m["latency_ms"],
+            amplitude_uv=m["amplitude_uv"], flag=m["flag"],
+            is_auto=m["marker"] not in (manual | was_manual),
+        ))
+    db.commit()
+    db.refresh(wf)
+    return wf
+
+
+def edit_marker(db: Session, wf: Waveform, marker: str, latency_ms: float,
+                snap: bool = True) -> Waveform:
+    """Move (or add) one marker to a manually chosen implicit time. Dependent
+    amplitudes (e.g. b measured from a) are recomputed."""
+    if wf.exam.signed_at:
+        raise ExamLocked("Exam is signed; reopen it before editing markers")
+    if marker not in _step_markers(wf.exam, wf.step):
+        raise KeyError(f"Marker '{marker}' is not defined for step '{wf.step}'")
+    if not 0 <= latency_ms <= wf.duration_ms:
+        raise ValueError("latency_ms is outside the recorded epoch")
+    if snap:
+        latency_ms = snap_latency(wf.samples, wf.duration_ms, wf.step,
+                                  marker, latency_ms)
+    latencies = {m.marker: m.latency_ms for m in wf.measurements}
+    latencies[marker] = latency_ms
+    return _apply(db, wf, latencies, {marker})
+
+
+def remove_marker(db: Session, wf: Waveform, marker: str) -> Waveform:
+    """Drop a marker, e.g. a non-recordable (extinguished) component."""
+    if wf.exam.signed_at:
+        raise ExamLocked("Exam is signed; reopen it before editing markers")
+    latencies = {m.marker: m.latency_ms for m in wf.measurements
+                 if m.marker != marker}
+    return _apply(db, wf, latencies, set())
+
+
+def reset_markers(db: Session, wf: Waveform) -> Waveform:
+    """Discard manual edits and re-run automatic detection."""
+    if wf.exam.signed_at:
+        raise ExamLocked("Exam is signed; reopen it before editing markers")
+    ref_lookup = _ref_lookup(db, wf.exam.patient_id)
+    wf.measurements.clear()
+    for m in detect_markers(wf.samples, wf.duration_ms, wf.step,
+                            _step_markers(wf.exam, wf.step), ref_lookup=ref_lookup):
+        wf.measurements.append(Measurement(
+            marker=m["marker"], latency_ms=m["latency_ms"],
+            amplitude_uv=m["amplitude_uv"], is_auto=True, flag=m["flag"],
+        ))
+    db.commit()
+    db.refresh(wf)
+    return wf
+
+
+# -- interpretation and sign-off ---------------------------------------------
+
+def set_interpretation(db: Session, exam: Exam, text: Optional[str]) -> Exam:
+    if exam.signed_at:
+        raise ExamLocked("Exam is signed; reopen it before editing the interpretation")
+    exam.interpretation = (text or "").strip() or None
+    db.commit()
+    db.refresh(exam)
+    return exam
+
+
+def sign(db: Session, exam: Exam, signer: str, text: Optional[str] = None) -> Exam:
+    if exam.signed_at:
+        raise ExamLocked("Exam is already signed")
+    if text is not None:
+        exam.interpretation = text.strip() or None
+    if not exam.interpretation:
+        raise ValueError("An interpretation is required before signing")
+    exam.signed_by = signer
+    exam.signed_at = datetime.utcnow()
+    exam.status = "signed"
+    db.commit()
+    db.refresh(exam)
+    return exam
+
+
+def reopen(db: Session, exam: Exam) -> Exam:
+    """Unlock a signed report for amendment (the caller audits who/why)."""
+    exam.signed_by = None
+    exam.signed_at = None
+    exam.status = "completed"
     db.commit()
     db.refresh(exam)
     return exam

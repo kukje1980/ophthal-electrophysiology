@@ -20,6 +20,7 @@ PERMISSIONS = {
     "manage_users",     # create/disable accounts
     "view_audit",       # read the audit log
     "manage_reference", # edit laboratory normative reference ranges
+    "sign_report",      # write the interpretation and sign / amend a report
 }
 
 # Role -> granted permissions.
@@ -28,7 +29,7 @@ ROLES = {
     "clinician": {
         "view_patient", "edit_patient", "delete_patient",
         "run_exam", "delete_exam", "view_report", "view_phi",
-        "manage_reference",
+        "manage_reference", "sign_report",
     },
     "technician": {
         "view_patient", "edit_patient", "run_exam", "view_report",

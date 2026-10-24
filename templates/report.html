@@ -7,10 +7,89 @@
 </div>
 
 <div id="report-head"></div>
+<p id="edit-msg" class="msg no-print"></p>
 <div id="waveforms"></div>
+<section id="interp" class="card interp"></section>
 
 <script>
 const EXAM_ID = {{ exam_id }};
+const PERMS = {{ perms | tojson }};
+const can = (p) => PERMS.includes(p);
+const esc = (v) => String(v ?? "").replace(/[&<>"]/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+let EXAM = null, PROTO = {};
+
+function renderWaveforms() {
+  const stepMarkers = {};
+  for (const s of PROTO.steps || []) stepMarkers[s.key] = s.markers;
+  renderExam(EXAM, document.getElementById("waveforms"), {
+    editable: can("run_exam") && !EXAM.signed_at,
+    stepMarkers,
+    onMessage: (text, cls) => setMsg("edit-msg", text, cls),
+  });
+}
+
+/* Interpretation + sign-off. A signed report is locked until reopened. */
+function renderInterp() {
+  const box = document.getElementById("interp");
+  const text = EXAM.interpretation || "";
+  const signedLine = EXAM.signed_at
+    ? `<div class="signature">Signed by <b>${esc(EXAM.signed_by)}</b> ·
+         ${new Date(EXAM.signed_at + "Z").toLocaleString()}</div>` : "";
+  const head = `<div class="row-between"><h2>Interpretation</h2>
+    <span class="badge ${EXAM.signed_at ? "signed" : "flag-bord"}">
+      ${EXAM.signed_at ? "signed" : "not signed"}</span></div>`;
+
+  if (EXAM.signed_at || !can("sign_report")) {
+    box.innerHTML = head + (text
+      ? `<p class="interp-text">${esc(text)}</p>`
+      : `<p class="muted">No interpretation yet.</p>`) + signedLine +
+      (EXAM.signed_at && can("sign_report")
+        ? `<p class="no-print"><button class="btn small" id="reopen-btn">Reopen for amendment</button></p>`
+        : "") + `<p id="interp-msg" class="msg no-print"></p>`;
+    const rb = document.getElementById("reopen-btn");
+    if (rb) rb.addEventListener("click", async () => {
+      if (!confirm("Reopen this signed report? The signature will be removed.")) return;
+      try { setExam(await api(`/api/exams/${EXAM_ID}/reopen`, { method: "POST" })); }
+      catch (e) { setMsg("interp-msg", e.message, "err"); }
+    });
+    return;
+  }
+
+  box.innerHTML = head + `
+    <textarea id="interp-text" class="no-print"
+      placeholder="e.g. Rod and cone responses within normal limits for age.">${esc(text)}</textarea>
+    <p class="interp-text print-only">${esc(text)}</p>
+    <div class="row-between no-print" style="margin-top:8px">
+      <p id="interp-msg" class="msg"></p>
+      <span>
+        <button class="btn" id="save-btn">Save draft</button>
+        <button class="btn primary" id="sign-btn">✔ Sign report</button>
+      </span>
+    </div>`;
+  const val = () => document.getElementById("interp-text").value;
+  document.getElementById("save-btn").addEventListener("click", async () => {
+    try {
+      setExam(await api(`/api/exams/${EXAM_ID}/interpretation`,
+                        { method: "PUT", body: { interpretation: val() } }));
+      setMsg("interp-msg", "Saved.", "ok");
+    } catch (e) { setMsg("interp-msg", e.message, "err"); }
+  });
+  document.getElementById("sign-btn").addEventListener("click", async () => {
+    if (!confirm("Sign this report? Markers and interpretation will be locked.")) return;
+    try {
+      setExam(await api(`/api/exams/${EXAM_ID}/sign`,
+                        { method: "POST", body: { interpretation: val() } }));
+    } catch (e) { setMsg("interp-msg", e.message, "err"); }
+  });
+}
+
+function setExam(exam) {
+  EXAM = exam;
+  renderWaveforms();
+  renderInterp();
+}
 
 (async function () {
   const exam = await api(`/api/exams/${EXAM_ID}`);
@@ -18,6 +97,7 @@ const EXAM_ID = {{ exam_id }};
   try { p = await api(`/api/patients/${exam.patient_id}`); } catch (e) {}
   let proto = {};
   try { proto = await api(`/api/protocols/${exam.protocol}`); } catch (e) {}
+  PROTO = proto;
   const ageSex = [p.age != null ? p.age + "y" : null,
     ({M:"M",F:"F",O:"O"}[p.sex] || null)].filter(Boolean).join(" ");
   // ISCEV reports should document the patient state at the time of the test.
@@ -41,7 +121,7 @@ const EXAM_ID = {{ exam_id }};
       <div><b>Operator:</b> ${exam.operator || "-"}</div>
       ${clinical}
     </div>`;
-  renderExam(exam, document.getElementById("waveforms"));
+  setExam(exam);
 })();
 </script>
 {% endblock %}

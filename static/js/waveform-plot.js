@@ -12,6 +12,8 @@ function _niceStep(range, target) {
   return step * mag;
 }
 
+/* Draws the traces and returns the plot geometry, so callers can map a click
+   back to a time (see renderExam's marker editing). */
 function drawTraces(canvas, traces) {
   const ctx = canvas.getContext("2d");
   const W = canvas.width, H = canvas.height;
@@ -93,4 +95,5 @@ function drawTraces(canvas, traces) {
       ctx.fillText(m.marker, x, y - 7);
     }
   }
+  return { padL, plotW, maxT };
 }

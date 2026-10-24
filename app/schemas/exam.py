@@ -33,6 +33,17 @@ class ExamRecord(BaseModel):
     note: Optional[str] = None
 
 
+class MarkerEdit(BaseModel):
+    """Manually place a marker cursor (implicit time in ms)."""
+
+    latency_ms: float
+    snap: bool = True  # snap onto the nearest peak/trough of the marker's polarity
+
+
+class ExamInterpretation(BaseModel):
+    interpretation: Optional[str] = None
+
+
 class ExamSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -44,8 +55,11 @@ class ExamSummary(BaseModel):
     operator: Optional[str] = None
     status: str
     performed_at: datetime
+    signed_by: Optional[str] = None
+    signed_at: Optional[datetime] = None
 
 
 class ExamOut(ExamSummary):
     note: Optional[str] = None
+    interpretation: Optional[str] = None
     waveforms: List[WaveformOut] = []

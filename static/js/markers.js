@@ -22,17 +22,21 @@ function n95p50Ratios(traces) {
   return out;
 }
 
-function markerTable(traces) {
+/* opts.editable adds a remove (×) button per marker; manual edits get ✎. */
+function markerTable(traces, opts = {}) {
   const rows = [];
   for (const tr of traces) {
     for (const m of tr.measurements || []) {
       rows.push(`
         <tr>
           <td>${tr.label}</td>
-          <td><b>${m.marker}</b></td>
+          <td><b>${m.marker}</b>${m.is_auto === false
+            ? ' <span class="manual" title="manually edited">✎</span>' : ""}</td>
           <td>${m.latency_ms.toFixed(1)} ms</td>
           <td>${m.amplitude_uv.toFixed(2)} µV</td>
           <td><span class="badge ${flagClass(m.flag)}">${m.flag || "-"}</span></td>
+          ${opts.editable ? `<td class="no-print"><button class="btn-x" title="remove marker"
+            data-wf="${tr.id}" data-marker="${m.marker}">×</button></td>` : ""}
         </tr>`);
     }
   }
@@ -45,7 +49,7 @@ function markerTable(traces) {
     <table class="table compact">
       <thead><tr>
         <th>Eye</th><th>Marker</th><th>Implicit time</th>
-        <th>Amplitude</th><th>Status</th>
+        <th>Amplitude</th><th>Status</th>${opts.editable ? '<th class="no-print"></th>' : ""}
       </tr></thead>
       <tbody>${rows.join("")}</tbody>
     </table>${ratioLine}`;

@@ -1,7 +1,7 @@
 """Exam ORM model - one electrophysiology study for a patient."""
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -22,9 +22,15 @@ class Exam(Base):
 
     device = Column(String(64), nullable=True)
     operator = Column(String(64), nullable=True)
-    status = Column(String(16), default="completed")  # completed / draft
+    status = Column(String(16), default="completed")  # completed / signed
     performed_at = Column(DateTime, default=datetime.utcnow)
     note = Column(String(512), nullable=True)
+
+    # Clinical interpretation and sign-off. A signed report is locked: marker
+    # edits and appended steps require it to be reopened (amended) first.
+    interpretation = Column(Text, nullable=True)
+    signed_by = Column(String(64), nullable=True)
+    signed_at = Column(DateTime, nullable=True)
 
     patient = relationship("Patient", back_populates="exams")
     waveforms = relationship(

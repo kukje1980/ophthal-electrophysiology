@@ -22,7 +22,7 @@
 <table class="table">
   <thead>
     <tr><th>When</th><th>Test</th><th>Protocol</th>
-        <th>Device</th><th></th></tr>
+        <th>Device</th><th>Status</th><th></th></tr>
   </thead>
   <tbody>
     {% for e in recent %}
@@ -31,6 +31,7 @@
       <td><span class="tag">{{ e.test_type }}</span></td>
       <td>{{ e.protocol }}</td>
       <td>{{ e.device }}</td>
+      <td>{% if e.signed_at %}<span class="badge signed">signed</span>{% else %}<span class="badge flag-bord">unsigned</span>{% endif %}</td>
       <td><a class="btn small" href="/reports/{{ e.id }}">Report</a></td>
     </tr>
     {% endfor %}
