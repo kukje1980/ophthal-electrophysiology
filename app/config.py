@@ -24,7 +24,7 @@ class Settings:
     DEVICE_CONNECTION: str = os.getenv("DEVICE_CONNECTION", "sim://localhost")
 
     # Real-time streaming (live monitor). Driver names: simulator "sim-stream",
-    # "lsl", "biosemi-tcp", "serial-csv", "gtec", "ced".
+    # "lsl", "biosemi-tcp", "serial-csv", "nidaq", "gtec", "ced".
     LIVE_STREAM_DRIVER: str = os.getenv("LIVE_STREAM_DRIVER", "sim-stream")
     STREAM_CONNECTION: str = os.getenv("STREAM_CONNECTION", "")
 

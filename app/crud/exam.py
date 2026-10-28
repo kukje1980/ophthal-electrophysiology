@@ -125,7 +125,8 @@ def record_step(db: Session, data: ExamRecord) -> Exam:
     _store_trace(db, exam.id, data.eye, step, y.round(3).tolist(),
                  step["sampling_rate"], step["duration_ms"],
                  _ref_lookup(db, data.patient_id))
-    note = f"n={data.n_sweeps} sweeps (live)"
+    rejected = f", {data.n_rejected} rejected" if data.n_rejected else ""
+    note = f"n={data.n_sweeps} sweeps{rejected} (live)"
     exam.note = f"{exam.note}; {note}" if exam.note and note not in exam.note else (exam.note or note)
     db.commit()
     db.refresh(exam)

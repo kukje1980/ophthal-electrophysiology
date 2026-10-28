@@ -27,6 +27,7 @@ class ExamRecord(BaseModel):
     sampling_rate: float        # Hz of the provided samples
     duration_ms: float          # length of the provided epoch
     n_sweeps: int = 1
+    n_rejected: int = 0         # epochs dropped by artifact rejection
     exam_id: Optional[int] = None
     device: Optional[str] = None
     operator: Optional[str] = None

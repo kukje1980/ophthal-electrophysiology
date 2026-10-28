@@ -120,28 +120,53 @@ continuous link, with a registry of drivers selectable at runtime
 
 | Driver | Status | Transport |
 |--------|--------|-----------|
-| `sim-stream` | built-in | wall-clock-paced ERG signal (no hardware) |
+| `sim-stream` | built-in | wall-clock-paced two-eye (OD/OS) ERG signal (no hardware); `;hum=<µV>`, `;blink=1`, `;cal=<µV>` simulate mains hum, blinks and a CAL pulse |
 | `lsl` | functional | Lab Streaming Layer — BioSemi / g.tec / Brain Products / OpenBCI (needs `pylsl`) |
 | `biosemi-tcp` | functional | BioSemi ActiveTwo raw TCP stream |
 | `serial-csv` | functional | generic serial ASCII samples (needs `pyserial`) |
-| `nidaq` | functional | NI-DAQmx analog input — digitiser for an **analog preamplifier (e.g. Grass P511 / CP511 / Model 15)**; optional trigger channel + gain→µV (needs `nidaqmx`) |
+| `nidaq` | functional | NI-DAQmx analog input — digitiser for an **analog preamplifier (e.g. Grass P511 / CP511 / Model 15)**; OD + OS channels, optional trigger channel, gain→µV (needs `nidaqmx`) |
 | `gtec` / `ced` | skeleton | vendor SDK required |
 
 **Analog preamplifier (Grass, etc.) via a DAQ:** wire the amplifier's BNC
 outputs to the DAQ analog inputs (ch0 = OD, ch1 = OS) and, optionally, the
 stimulator TTL into a spare input as the trigger. Select the `nidaq` driver
 with e.g. `Dev1/ai0,Dev1/ai1@2000;gain=10000;trig=Dev1/ai7;thr=1.0`
-(`gain` = the preamp gain, used to refer samples back to input µV). Add
-`;diff=1` for differential inputs (common-mode rejection), `;notch=60` for a
-stateful mains notch and `;hp=0.3` for DC/baseline removal
-(`app/acquisition/filters.py`). The RS-232 link on the preamp stays for
+(`gain` = the preamp gain, used to refer samples back to input µV; one value
+or one per channel, e.g. `gain=10000,20000`). Both channels are streamed and
+averaged together, so both eyes are recorded at once. Add `;diff=1` for
+differential signal inputs (common-mode rejection; the trigger stays
+single-ended), `;notch=60` for a stateful mains notch and `;hp=0.3` for
+DC/baseline removal (`app/acquisition/filters.py`); `;range=<V>` sets the DAQ
+input range (default ±5 V), `;edge=fall` accepts an active-low trigger and
+`;eyes=OS` relabels the channels. The RS-232 link on the preamp stays for
 setting gain/filters.
+
+You don't have to write the string by hand: on the Live page, pick `nidaq`
+and open **DAQ 연결 도우미**. *장치 찾기* lists the NI devices attached to the
+PC (`GET /api/live/daq` — name, model, serial, AI channels, ranges, max rate);
+choose the OD/OS/trigger channels, gain and filters, and it builds and
+applies the connection string (warning on channel clashes or a rate above the
+device's limit). The last driver/connection is remembered per PC.
+
+**Bench check (장비 점검).** The Live page commissions a new rig without
+extra tools: per-channel RMS / peak-to-peak noise and the mains (60/50 Hz)
+component; trigger rate and interval jitter (is the stimulator TTL wired?);
+and **CAL-pulse gain calibration** — press the amplifier's CAL button, enter
+the CAL amplitude and *CAL 측정* measures the pulse on each channel; if the
+reading is off, *게인 보정 적용* writes the corrected per-channel gain
+(`gain × measured / expected`) into the connection string and reconnects. If
+the gain is unknown, start with `gain=1`; the CAL step finds it.
 
 **Recording from the live stream.** The Live page's *검사로 저장* panel stores
 the trigger-synchronised running average as a protocol step of an exam
 (`POST /api/exams/record`): the epoch is resampled onto the step's sampling
 rate/duration, so the standard marker detection, laboratory reference ranges
-and report apply unchanged. Further steps/eyes can be appended to the same exam.
+and report apply unchanged. With OD and OS channels, *OU (양안 동시)* stores both
+eyes from the same sweeps. Further steps/eyes can be appended to the same exam.
+Epochs start only on a trigger; choosing a step sets the epoch length to the
+step's duration and the artifact limit to the step's default (120 µV p-p for
+PERG/VEP), and sweeps exceeding it (blinks, movement) are rejected and counted
+in the exam note.
 
 ### Laboratory normative data
 
@@ -154,8 +179,8 @@ or 5–95th percentiles. Judgement uses the row matching the patient's age;
 the built-in demonstration values are seeded on first start (source `demo`)
 and should be replaced before clinical use.
 
-A WebSocket (`/ws/live`) streams samples, marks trigger positions and reports
-live impedance to the **Live** page, which shows a scrolling oscilloscope,
+A WebSocket (`/ws/live`) streams samples (one row per channel), marks trigger
+positions and reports live impedance to the **Live** page, which shows a scrolling oscilloscope,
 **trigger-synchronised running average** (noise falls as √N) and a per-electrode
 **impedance monitor** (ISCEV < 5 kΩ). Selecting a real driver only requires its
 transport `read` loop; the host side (ring buffer, epoching, averaging, live

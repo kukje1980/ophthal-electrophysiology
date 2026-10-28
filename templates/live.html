@@ -12,19 +12,55 @@
       <select id="driver"></select>
     </label>
     <label class="field" style="flex:1">연결 문자열
-      <input id="connection" placeholder="예: 192.168.0.10:8888:32  또는  /dev/ttyUSB0:115200">
+      <input id="connection" placeholder="예: Dev1/ai0,Dev1/ai1@2000;gain=10000;trig=Dev1/ai7  또는  sim://localhost;hum=20;blink=1">
     </label>
     <button class="btn" id="reconnect">연결</button>
     <button class="btn ghost" id="pause">⏸ 일시정지</button>
+    <button class="btn ghost" id="daq-toggle" hidden>🔧 DAQ 연결 도우미</button>
   </div>
   <p id="err" class="msg err"></p>
+
+  <div id="daq-panel" class="daq-panel" hidden>
+    <div class="row-between">
+      <h3 class="muted">DAQ 연결 도우미 <span class="muted" style="font-size:12px">NI-DAQmx · Grass 등 아날로그 앰프 출력 → DAQ</span></h3>
+      <button class="btn small" id="daq-scan">장치 찾기</button>
+    </div>
+    <p id="daq-info" class="muted cap" style="margin-bottom:12px">‘장치 찾기’를 누르면 이 PC에 연결된 DAQ의 이름·모델·채널을 자동으로 읽어옵니다.</p>
+    <div class="live-controls">
+      <label class="field" style="min-width:220px">장치
+        <select id="daq-dev"></select>
+        <input id="daq-dev-manual" placeholder="장치 이름 (예: Dev1)" hidden>
+      </label>
+      <label class="field">OD 채널 (우안)<select id="daq-od"></select></label>
+      <label class="field">OS 채널 (좌안)<select id="daq-os"></select></label>
+      <label class="field">트리거 채널<select id="daq-trig"></select></label>
+      <label class="field"><span>샘플링 <span class="unit">(Hz)</span></span><input id="daq-rate" type="number" min="100" step="100" value="2000" style="width:90px"></label>
+      <label class="field">앰프 게인<input id="daq-gain" type="number" min="1" value="10000" style="width:100px"></label>
+      <label class="field">입력 범위 (±V)<select id="daq-range"></select></label>
+    </div>
+    <div class="live-controls" style="margin-top:10px">
+      <label class="check"><input type="checkbox" id="daq-diff"> 차동(differential) 입력</label>
+      <label class="field">전원 노치<select id="daq-notch"><option value="">끔</option><option value="60">60 Hz</option><option value="50">50 Hz</option></select></label>
+      <label class="field"><span>기준선 HP <span class="unit">(Hz)</span></span><input id="daq-hp" type="number" min="0" step="0.1" placeholder="끔" style="width:80px"></label>
+      <label class="field">트리거 임계 (V)<input id="daq-thr" type="number" step="0.1" value="1.0" style="width:80px"></label>
+      <label class="field">트리거 극성<select id="daq-edge"><option value="rise">상승(↑)</option><option value="fall">하강(↓)</option></select></label>
+    </div>
+    <p class="muted cap">게인을 모르면 1로 두고 아래 ‘장비 점검’의 CAL 측정으로 실제 게인을 구하세요.
+      차동 입력은 채널마다 +/− 두 단자를 씁니다(짝 단자는 DAQ 핀 배치도 참고).
+      노치는 파형을 조금 왜곡할 수 있어 전원 잡음이 클 때만 켜세요.</p>
+    <div class="row-between daq-out">
+      <code id="daq-preview">–</code>
+      <button class="btn primary small" id="daq-apply">연결 문자열에 넣고 연결</button>
+    </div>
+    <p id="daq-warn" class="msg err"></p>
+  </div>
 </section>
 
 <div class="live-grid">
   <section class="card">
     <h3 class="muted" id="meta">device: – · fs: – Hz</h3>
     <canvas id="scope" width="520" height="260"></canvas>
-    <p class="muted cap">앰프의 연속 표본 (롤링 4초)</p>
+    <p class="muted cap">앰프의 연속 표본 (롤링 4초, 채널별)</p>
   </section>
   <section class="card">
     <div class="row-between">
@@ -32,7 +68,11 @@
       <button class="btn small" id="avg-reset">평균 초기화</button>
     </div>
     <canvas id="avg" width="520" height="260"></canvas>
-    <p class="muted cap">매 트리거마다 epoch을 잘라 누적 평균 — 잡음이 √N로 감소</p>
+    <div class="live-controls avg-opts">
+      <label class="field"><span>Epoch <span class="unit">(ms)</span></span><input id="epoch-ms" type="number" min="10" step="10" value="500" style="width:80px"></label>
+      <label class="field"><span>아티팩트 제거 <span class="unit">(µV p-p)</span></span><input id="reject-uv" type="number" min="0" step="10" value="0" placeholder="0 = 끔" style="width:90px"></label>
+    </div>
+    <p class="muted cap">트리거마다 epoch을 잘라 누적 평균 — 잡음이 √N로 감소. 진폭이 제거 기준을 넘는 sweep(깜빡임 등)은 버립니다.</p>
   </section>
 </div>
 
@@ -54,9 +94,42 @@
     <button class="btn primary" id="rec-save">저장</button>
     <button class="btn ghost" id="rec-new">새 검사 시작</button>
   </div>
+  <p class="muted cap">Step을 고르면 epoch 길이와 아티팩트 기준이 그 Step에 맞춰집니다 (평균이 비어 있을 때).</p>
   <p id="rec-msg" class="msg"></p>
 </section>
 {% endif %}
+
+<section class="card">
+  <div class="row-between">
+    <h3 class="muted">장비 점검 <span class="muted" style="font-size:12px">실제 앰프·DAQ 연결 확인 (bench check)</span></h3>
+    <label class="field inline">전원 주파수<select id="mains"><option value="60">60 Hz</option><option value="50">50 Hz</option></select></label>
+  </div>
+  <ol class="steps muted">
+    <li><b>잡음</b> — 전극을 붙이기 전에 값이 작고 안정적인지 봅니다. 전원 성분이 크면 접지(한 곳)·차폐 케이블을 점검하고, 필요하면 차동 입력·노치를 켭니다.</li>
+    <li><b>게인</b> — 앰프의 CAL 버튼으로 교정 펄스를 넣고 <i>CAL 측정</i>을 누릅니다. 오차가 크면 <i>게인 보정 적용</i>으로 µV 환산을 맞춥니다.</li>
+    <li><b>트리거</b> — 자극기를 켜고 트리거 속도가 자극기 설정(예: 2 Hz)과 같은지 확인합니다.</li>
+    <li><b>전극</b> — 부착 후 임피던스가 5 kΩ 미만인지 확인하고 기록을 시작합니다.</li>
+  </ol>
+  <div class="bench-grid">
+    <div class="bench">
+      <h4>잡음 <small class="muted">최근 1초</small></h4>
+      <div id="bench-noise" class="muted">–</div>
+    </div>
+    <div class="bench">
+      <h4>트리거 <small class="muted">최근 32개</small></h4>
+      <div id="bench-trig" class="muted">–</div>
+    </div>
+    <div class="bench">
+      <h4>CAL 게인 <small class="muted">최근 4초</small></h4>
+      <div class="live-controls">
+        <label class="field"><span>CAL 진폭 <span class="unit">(µV)</span></span><input id="cal-uv" type="number" min="1" value="100" style="width:90px"></label>
+        <button class="btn small" id="cal-measure">CAL 측정</button>
+        <button class="btn small primary" id="cal-apply" disabled>게인 보정 적용</button>
+      </div>
+      <div id="bench-cal" class="muted cap">앰프 CAL 버튼을 누른 상태에서 측정하세요.</div>
+    </div>
+  </div>
+</section>
 
 <section class="card">
   <h3 class="muted">전극 임피던스 <span class="muted" style="font-size:12px">(ISCEV 권고 &lt; 5 kΩ)</span></h3>
@@ -64,17 +137,37 @@
 </section>
 
 <style>
+  [hidden] { display:none !important; }
+  .unit { text-transform:none; letter-spacing:0; }
   .pill-live { font-size:12px; padding:4px 12px; border-radius:999px;
     background:#fee2e2; color:#991b1b; font-weight:600; }
   .pill-live.on { background:#dcfce7; color:#166534; }
   .live-controls { display:flex; gap:12px; align-items:end; flex-wrap:wrap; }
-  .live-controls .field { display:flex; flex-direction:column; gap:5px;
+  .live-controls .field, .field.inline { display:flex; flex-direction:column; gap:5px;
     font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+  .field.inline { flex-direction:row; align-items:center; }
+  .check { display:flex; align-items:center; gap:6px; font-size:13px; padding-bottom:9px; }
   .live-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-  @media (max-width:760px){ .live-grid{ grid-template-columns:1fr; } }
+  @media (max-width:760px){ .live-grid, .bench-grid{ grid-template-columns:1fr; } }
   #scope, #avg { width:100%; height:auto; background:#0b1424; border-radius:10px;
     border:1px solid var(--line); }
+  .avg-opts { margin-top:10px; }
   .cap { font-size:12px; margin:8px 0 0; }
+  .daq-panel { margin-top:14px; padding-top:14px; border-top:1px dashed var(--line); }
+  .daq-out { margin-top:12px; gap:12px; }
+  .daq-out code { flex:1; padding:8px 10px; background:#f1f5f9; border-radius:8px;
+    font-size:12px; overflow-wrap:anywhere; }
+  .steps { font-size:13px; margin:6px 0 14px; padding-left:20px; line-height:1.6; }
+  .bench-grid { display:grid; grid-template-columns:1fr 1fr 1.3fr; gap:14px; }
+  .bench { border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .bench h4 { margin:0 0 8px; font-size:14px; }
+  .bench table { width:100%; font-size:13px; border-collapse:collapse; }
+  .bench td, .bench th { padding:3px 4px; font-family:ui-monospace,monospace; white-space:nowrap; }
+  .bench th { font:11px system-ui; color:var(--muted); text-align:left; }
+  .bench td:first-child { font-family:inherit; color:var(--muted); }
+  .chip { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600; }
+  .chip.good { background:#dcfce7; color:#166534; } .chip.warn { background:#fef9c3; color:#854d0e; }
+  .chip.bad { background:#fee2e2; color:#991b1b; }
   .imp-grid { display:flex; gap:10px; flex-wrap:wrap; }
   .imp-chip { display:flex; flex-direction:column; align-items:center; gap:2px;
     min-width:96px; padding:10px; border-radius:10px; border:1px solid var(--line);
@@ -85,123 +178,291 @@
   .imp-bad  { background:#fee2e2; color:#991b1b; } .imp-bad b{ color:#991b1b; }
 </style>
 
+<script src="/static/js/live-tools.js"></script>
 <script>
 const S = (id) => document.getElementById(id);
+const T = window.LiveTools;
 const scope = S("scope").getContext("2d");
 const avgc = S("avg").getContext("2d");
+const COLORS = { OD: "#60a5fa", OS: "#f87171" };
+const colorOf = (label, c) => COLORS[label] || ["#22d3ee", "#a3e635", "#fbbf24"][c % 3];
+// Per-step artifact limits, mirroring _ARTIFACT in app/acquisition/base.py.
+const STEP_REJECT = { perg: 120, vep_pr: 120, vep_flash: 120 };
+const SAVED_KEY = "oep.live.connection";
 
-let fs = 1000, periodMs = 500, epochLen = 500;
-const SECONDS = 4; let CAP = fs * SECONDS;
-let buf = new Float32Array(CAP).fill(0), head = 0, filled = 0;
-let sumEpoch = new Float32Array(epochLen), avgCount = 0;
-let curEpoch = new Float32Array(epochLen), curFill = 0;
-let paused = false, ws = null, driversLoaded = false;
+const SECONDS = 4;
+let fs = 1000, periodMs = 500, CAP = fs * SECONDS;
+let signals = ["ch1"], bufs = [new Float32Array(CAP)], head = 0, filled = 0;
+let avg = new T.EpochAverager(1, 500);
+let total = 0, trigIdx = [];               // absolute sample indices of triggers
+let paused = false, ws = null, driversLoaded = false, activeDevice = "live-stream";
 
 function resetAverage() {
-  sumEpoch = new Float32Array(epochLen); avgCount = 0;
-  curEpoch = new Float32Array(epochLen); curFill = 0;
-  S("avgn").textContent = "0 sweeps";
+  const ms = parseFloat(S("epoch-ms").value) || periodMs || 500;
+  avg = new T.EpochAverager(signals.length, Math.round(ms / 1000 * fs),
+                            parseFloat(S("reject-uv").value) || 0);
+  updateAvgTag();
 }
+function updateAvgTag() {
+  S("avgn").textContent = `${avg.count} sweeps` + (avg.rejected ? ` · ${avg.rejected} 제거` : "");
+}
+function setEpochMs(ms) { if (ms) S("epoch-ms").value = Math.round(ms); resetAverage(); }
 
-function setEpoch(ms) {
-  periodMs = ms || 500; epochLen = Math.max(2, Math.round(periodMs/1000*fs));
-  resetAverage();
-}
-
-function pushLive(samples) {
-  for (const v of samples) { buf[head] = v; head = (head+1) % CAP;
-    if (filled < CAP) filled++; }
-}
-function feedAverage(samples, triggers) {
-  const trig = new Set(triggers || []);
-  for (let i=0;i<samples.length;i++){
-    if (trig.has(i)) curFill = 0;                 // phase-lock to the trigger
-    if (curFill < epochLen) curEpoch[curFill++] = samples[i];
-    if (curFill === epochLen){
-      for (let j=0;j<epochLen;j++) sumEpoch[j] += curEpoch[j];
-      avgCount++; curFill = 0;
-      S("avgn").textContent = avgCount + " sweeps";
-    }
+function pushLive(rows) {
+  const n = rows[0].length;
+  for (let i = 0; i < n; i++) {
+    for (let c = 0; c < bufs.length; c++) bufs[c][head] = rows[c] ? rows[c][i] : 0;
+    head = (head + 1) % CAP; if (filled < CAP) filled++;
   }
 }
+function lastN(c, n) {  // most recent n samples of channel c, oldest first
+  n = Math.min(n, filled); const out = new Array(n);
+  for (let i = 0; i < n; i++) out[i] = bufs[c][(head - n + i + CAP) % CAP];
+  return out;
+}
 
-function drawScope(g, W, H, series, n, xmaxLabel) {
-  g.clearRect(0,0,W,H);
-  const padL=44, padB=18, pw=W-padL-8, ph=H-16-padB;
-  let ymin=Infinity, ymax=-Infinity;
-  for (let i=0;i<n;i++){ const v=series(i); if(v<ymin)ymin=v; if(v>ymax)ymax=v; }
-  if(!isFinite(ymin)){ymin=-1;ymax=1;} ymin=Math.min(ymin,0); ymax=Math.max(ymax,0);
-  const pad=(ymax-ymin)*0.1||1; ymin-=pad; ymax+=pad;
-  const Y=v=>10+(ymax-v)/(ymax-ymin)*ph;
-  g.strokeStyle="#17233a"; g.lineWidth=1;
-  for(let k=0;k<=4;k++){ const x=padL+pw*k/4; g.beginPath();g.moveTo(x,10);g.lineTo(x,10+ph);g.stroke(); }
-  g.strokeStyle="#33496b"; g.beginPath(); g.moveTo(padL,Y(0)); g.lineTo(padL+pw,Y(0)); g.stroke();
-  g.fillStyle="#7e90ab"; g.font="10px ui-monospace,monospace"; g.textAlign="right";
-  g.fillText(ymax.toFixed(0), padL-4, Y(ymax)+8); g.fillText(ymin.toFixed(0), padL-4, Y(ymin));
-  g.textAlign="center"; g.fillText(xmaxLabel, W-24, H-4);
-  g.strokeStyle="#22d3ee"; g.lineWidth=1.4; g.beginPath();
-  for(let i=0;i<n;i++){ const x=padL+pw*i/(n-1||1), y=Y(series(i)); i?g.lineTo(x,y):g.moveTo(x,y); }
+function drawLane(g, top, H, W, series, n, color, label, xLabel) {
+  const padL = 44, pw = W - padL - 8, ph = H - 26;
+  let ymin = Infinity, ymax = -Infinity;
+  for (let i = 0; i < n; i++) { const v = series(i); if (v < ymin) ymin = v; if (v > ymax) ymax = v; }
+  if (!isFinite(ymin)) { ymin = -1; ymax = 1; }
+  const pad = (ymax - ymin) * 0.1 || 1; ymin -= pad; ymax += pad;
+  const Y = v => top + 8 + (ymax - v) / (ymax - ymin) * ph;
+  g.strokeStyle = "#17233a"; g.lineWidth = 1;
+  for (let k = 0; k <= 4; k++) { const x = padL + pw * k / 4; g.beginPath(); g.moveTo(x, top + 8); g.lineTo(x, top + 8 + ph); g.stroke(); }
+  if (ymin < 0 && ymax > 0) { g.strokeStyle = "#33496b"; g.beginPath(); g.moveTo(padL, Y(0)); g.lineTo(padL + pw, Y(0)); g.stroke(); }
+  g.fillStyle = "#7e90ab"; g.font = "10px ui-monospace,monospace"; g.textAlign = "right";
+  g.fillText(ymax.toFixed(0), padL - 4, Y(ymax) + 8); g.fillText(ymin.toFixed(0), padL - 4, Y(ymin));
+  g.fillStyle = color; g.font = "bold 11px system-ui"; g.textAlign = "left";
+  g.fillText(label, padL + 6, top + 20);
+  if (xLabel) { g.fillStyle = "#7e90ab"; g.font = "10px ui-monospace,monospace"; g.textAlign = "center";
+    g.fillText(xLabel, W - 24, top + H - 4); }
+  g.strokeStyle = color; g.lineWidth = 1.4; g.beginPath();
+  for (let i = 0; i < n; i++) { const x = padL + pw * i / (n - 1 || 1), y = Y(series(i)); i ? g.lineTo(x, y) : g.moveTo(x, y); }
   g.stroke();
 }
 
 function render() {
-  drawScope(scope, 520, 260, i => { const idx=(head-filled+i+CAP*2)%CAP; return buf[idx]; },
-            filled||1, SECONDS+"s →");
-  if (avgCount>0) drawScope(avgc, 520, 260, i => sumEpoch[i]/avgCount, epochLen, periodMs+"ms");
-  else { avgc.clearRect(0,0,520,260); avgc.fillStyle="#7e90ab"; avgc.font="13px system-ui";
-    avgc.textAlign="center"; avgc.fillText("트리거 대기 중…", 260, 130); }
+  const W = 520, H = 260, lanes = signals.length, lh = H / lanes;
+  scope.clearRect(0, 0, W, H);
+  signals.forEach((lab, c) => drawLane(scope, c * lh, lh, W,
+    i => bufs[c][(head - filled + i + CAP * 2) % CAP], filled || 1, colorOf(lab, c), lab,
+    c === lanes - 1 ? SECONDS + "s →" : ""));
+  avgc.clearRect(0, 0, W, H);
+  if (avg.count > 0) {
+    signals.forEach((lab, c) => { const m = avg.mean(c);
+      drawLane(avgc, c * lh, lh, W, i => m[i], m.length, colorOf(lab, c), lab,
+               c === lanes - 1 ? Math.round(avg.len / fs * 1000) + "ms" : ""); });
+  } else {
+    avgc.fillStyle = "#7e90ab"; avgc.font = "13px system-ui"; avgc.textAlign = "center";
+    avgc.fillText("트리거 대기 중…", W / 2, H / 2);
+  }
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
 
 function renderImp(values) {
-  S("imp").innerHTML = Object.entries(values).map(([k,v]) => {
+  S("imp").innerHTML = Object.entries(values).map(([k, v]) => {
     const cls = v <= 5 ? "imp-good" : v <= 10 ? "imp-warn" : "imp-bad";
     return `<div class="imp-chip ${cls}"><b>${v.toFixed(1)}</b><small>kΩ · ${k}</small></div>`;
   }).join("");
 }
 
+function setSignals(list) {
+  signals = (list && list.length) ? list : ["ch1"];
+  bufs = signals.map(() => new Float32Array(CAP)); head = 0; filled = 0;
+  const eye = S("rec-eye");
+  if (eye) {
+    const both = signals.includes("OD") && signals.includes("OS"), prev = eye.value;
+    eye.innerHTML = (both ? `<option value="OU">OU (양안 동시)</option>` : "") +
+      `<option value="OD">OD (우)</option><option value="OS">OS (좌)</option>`;
+    const keep = eye.dataset.touched && [...eye.options].some(o => o.value === prev);
+    eye.value = keep ? prev : eye.options[0].value;
+  }
+}
+
 function connect() {
-  if (ws) { try { ws.close(); } catch(e){} }
+  if (ws) { try { ws.close(); } catch (e) {} }
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const d = S("driver").value, c = S("connection").value;
   const qs = new URLSearchParams(); if (d) qs.set("driver", d); if (c) qs.set("connection", c);
+  try { localStorage.setItem(SAVED_KEY, JSON.stringify({ driver: d, connection: c })); } catch (e) {}
   ws = new WebSocket(`${proto}://${location.host}/ws/live?${qs}`);
   const st = S("status");
-  ws.onopen = () => { st.textContent="● 스트리밍"; st.classList.add("on"); S("err").textContent=""; };
-  ws.onclose = () => { st.textContent="연결 끊김"; st.classList.remove("on"); };
+  ws.onopen = () => { st.textContent = "● 스트리밍"; st.classList.add("on"); S("err").textContent = ""; };
+  ws.onclose = () => { st.textContent = "연결 끊김"; st.classList.remove("on"); };
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     if (m.type === "error") {
       S("err").textContent = "드라이버 연결 실패: " + m.message;
       if (m.drivers && !driversLoaded) fillDrivers(m.drivers, S("driver").value);
-      st.textContent="오류"; st.classList.remove("on"); return;
+      st.textContent = "오류"; st.classList.remove("on"); return;
     }
     if (m.type === "meta") {
-      fs = m.fs; CAP = fs*SECONDS; buf = new Float32Array(CAP).fill(0); head=0; filled=0;
-      setEpoch(m.period_ms);
+      fs = m.fs; CAP = fs * SECONDS; total = 0; trigIdx = [];
+      setSignals(m.signals);
+      periodMs = m.period_ms || periodMs;
       activeDevice = m.device;
-      S("meta").textContent = `device: ${m.device} · fs: ${m.fs} Hz · ${m.channels.length}ch`;
+      S("meta").textContent = `device: ${m.device} · fs: ${m.fs} Hz · ${signals.join("/")}`;
       if (!driversLoaded) fillDrivers(m.drivers, m.active);
-    } else if (m.type === "data" && !paused) {
-      pushLive(m.samples); feedAverage(m.samples, m.triggers);
+      if (!stepEpochApplied) setEpochMs(m.period_ms); else resetAverage();
+    } else if (m.type === "data") {
+      const rows = Array.isArray(m.samples[0]) ? m.samples : [m.samples];
+      for (const t of m.triggers) trigIdx.push(total + t);
+      if (trigIdx.length > 32) trigIdx.splice(0, trigIdx.length - 32);
+      total += rows[0].length;
+      if (!paused) { pushLive(rows); avg.feed(rows, m.triggers); updateAvgTag(); }
     } else if (m.type === "imp") { renderImp(m.values); }
   };
 }
 function fillDrivers(drivers, active) {
   S("driver").innerHTML = drivers.map(d =>
-    `<option value="${d}"${d===active?" selected":""}>${d}</option>`).join("");
-  driversLoaded = true;
+    `<option value="${d}"${d === active ? " selected" : ""}>${d}</option>`).join("");
+  driversLoaded = true; syncDaqToggle();
 }
 
-S("reconnect").addEventListener("click", () => { driversLoaded=false; resetAverage(); connect(); });
+S("reconnect").addEventListener("click", () => { driversLoaded = false; connect(); });
 S("avg-reset").addEventListener("click", resetAverage);
-S("pause").addEventListener("click", (e) => { paused=!paused;
+S("epoch-ms").addEventListener("change", resetAverage);
+S("reject-uv").addEventListener("change", resetAverage);
+S("pause").addEventListener("click", (e) => { paused = !paused;
   e.target.textContent = paused ? "▶ 재개" : "⏸ 일시정지"; });
-connect();
+
+/* ---- DAQ connection builder (NI-DAQmx) ------------------------------- */
+let daqDevices = [];
+function syncDaqToggle() {
+  const isDaq = S("driver").value === "nidaq";
+  S("daq-toggle").hidden = !isDaq;
+  if (!isDaq) S("daq-panel").hidden = true;
+}
+S("driver").addEventListener("change", syncDaqToggle);
+S("daq-toggle").addEventListener("click", () => {
+  S("daq-panel").hidden = !S("daq-panel").hidden;
+  if (!S("daq-panel").hidden && !S("daq-dev").options.length) fillDaqDevice();
+});
+
+function daqChannels() {
+  const dev = daqDevices[S("daq-dev").selectedIndex];
+  if (dev) return dev.ai_channels;
+  const name = S("daq-dev-manual").value.trim() || "Dev1";
+  return Array.from({ length: 16 }, (_, k) => `${name}/ai${k}`);
+}
+function fillDaqDevice() {
+  const manual = !daqDevices.length;
+  S("daq-dev").hidden = manual; S("daq-dev-manual").hidden = !manual;
+  S("daq-dev").innerHTML = daqDevices.map(d =>
+    `<option>${d.name} · ${d.product_type || "?"}${d.serial ? " · S/N " + d.serial : ""}${d.simulated ? " (시뮬)" : ""}</option>`).join("");
+  fillDaqChannels();
+}
+function fillDaqChannels() {
+  const ch = daqChannels(), opt = (v, l) => `<option value="${v}">${l || v.split("/").pop()}</option>`;
+  S("daq-od").innerHTML = opt("", "없음") + ch.map(c => opt(c)).join("");
+  S("daq-os").innerHTML = opt("", "없음") + ch.map(c => opt(c)).join("");
+  S("daq-trig").innerHTML = opt("", "없음") + ch.map(c => opt(c)).join("");
+  S("daq-od").value = ch[0] || ""; S("daq-os").value = ch[1] || "";
+  S("daq-trig").value = ch.length > 2 ? ch[Math.min(7, ch.length - 1)] : "";
+  const dev = daqDevices[S("daq-dev").selectedIndex];
+  const ranges = dev && dev.ai_ranges_v.length ? dev.ai_ranges_v.map(r => Math.max(Math.abs(r[0]), Math.abs(r[1])))
+                                               : [10, 5, 1];
+  S("daq-range").innerHTML = [...new Set(ranges)].sort((a, b) => b - a)
+    .map(v => `<option value="${v}">±${v} V</option>`).join("");
+  S("daq-range").value = ranges.includes(5) ? "5" : String(Math.max(...ranges));
+  updateDaqPreview();
+}
+function daqConfig() {
+  return { od: S("daq-od").value, os: S("daq-os").value, trig: S("daq-trig").value,
+    rate: parseFloat(S("daq-rate").value) || 2000, gain: parseFloat(S("daq-gain").value) || 1,
+    range: S("daq-range").value, diff: S("daq-diff").checked, notch: S("daq-notch").value,
+    hp: parseFloat(S("daq-hp").value) || "", thr: parseFloat(S("daq-thr").value) || 1,
+    edge: S("daq-edge").value };
+}
+function updateDaqPreview() {
+  const o = daqConfig(), warn = [];
+  if (!o.od && !o.os) warn.push("OD 또는 OS 채널을 하나 이상 고르세요.");
+  if (o.trig && (o.trig === o.od || o.trig === o.os)) warn.push("트리거 채널이 신호 채널과 같습니다.");
+  if (o.od && o.od === o.os) warn.push("OD와 OS 채널이 같습니다.");
+  const dev = daqDevices[S("daq-dev").selectedIndex];
+  const nch = [o.od, o.os, o.trig].filter(Boolean).length;
+  if (dev && dev.ai_max_multi_rate && nch > 1 && o.rate * nch > dev.ai_max_multi_rate)
+    warn.push(`이 장치의 다채널 최대 속도는 합계 ${dev.ai_max_multi_rate} S/s입니다 — 채널당 ${Math.floor(dev.ai_max_multi_rate / nch)} Hz 이하로 낮추세요.`);
+  S("daq-preview").textContent = T.buildDaqConnection(o);
+  S("daq-warn").textContent = warn.join(" ");
+  S("daq-apply").disabled = !!warn.length;
+}
+document.querySelectorAll("#daq-panel input, #daq-panel select").forEach(el => {
+  el.addEventListener(el.tagName === "SELECT" || el.type === "checkbox" ? "change" : "input",
+    () => (el.id === "daq-dev" || el.id === "daq-dev-manual") ? fillDaqChannels() : updateDaqPreview());
+});
+S("daq-scan").addEventListener("click", async () => {
+  S("daq-info").textContent = "찾는 중…";
+  try {
+    const r = await api("/api/live/daq");
+    daqDevices = r.devices || [];
+    S("daq-info").textContent = !r.available ? `자동 인식 불가 — ${r.reason} 장치 이름을 직접 입력해도 됩니다.`
+      : daqDevices.length ? `NI-DAQmx ${r.driver_version || ""} · ${daqDevices.length}개 장치를 찾았습니다.`
+      : "NI-DAQmx는 설치돼 있지만 연결된 장치가 없습니다. USB 연결과 NI MAX에서 장치가 보이는지 확인하세요.";
+  } catch (e) { daqDevices = []; S("daq-info").textContent = "장치 조회 실패: " + e.message; }
+  fillDaqDevice();
+});
+S("daq-apply").addEventListener("click", () => {
+  S("connection").value = T.buildDaqConnection(daqConfig());
+  driversLoaded = false; connect();
+});
+
+/* ---- Bench check: noise, trigger timing, CAL gain -------------------- */
+const fmt = (v, d = 1) => v == null || !isFinite(v) ? "–" : v.toFixed(d);
+function benchUpdate() {
+  if (!filled) return;
+  const mains = parseFloat(S("mains").value);
+  S("bench-noise").innerHTML = `<table><tr><th></th><th>RMS</th><th>p-p</th><th>${mains} Hz</th></tr>` +
+    signals.map((lab, c) => {
+      const s = T.noiseStats(lastN(c, fs), fs, mains); if (!s) return "";
+      return `<tr><td style="color:${colorOf(lab, c)}">${lab}</td><td>${fmt(s.rms)}</td>` +
+             `<td>${fmt(s.p2p, 0)}</td><td>${fmt(s.hum)}</td></tr>`;
+    }).join("") + `</table><p class="cap">단위 µV (평균 제거). ${mains} Hz = 전원 잡음 진폭.</p>`;
+  const t = T.triggerStats(trigIdx, fs, total);
+  const live = t.sinceMs != null && t.sinceMs < Math.max(3000, 3 * (t.meanMs || 0));
+  const chip = !t.count ? `<span class="chip bad">트리거 없음</span>`
+    : live ? `<span class="chip good">수신 중</span>` : `<span class="chip warn">끊김 ${fmt(t.sinceMs / 1000)}s</span>`;
+  S("bench-trig").innerHTML = `${chip}<table>` +
+    `<tr><td>속도</td><td>${fmt(t.rate, 2)} Hz</td></tr>` +
+    `<tr><td>간격</td><td>${fmt(t.meanMs)} ± ${fmt(t.sdMs)} ms</td></tr>` +
+    `<tr><td>받은 수</td><td>${t.count}</td></tr></table>`;
+}
+setInterval(benchUpdate, 500);
+
+let calGains = null;
+S("cal-measure").addEventListener("click", () => {
+  const expected = parseFloat(S("cal-uv").value);
+  const conn = S("connection").value, isDaq = S("driver").value === "nidaq";
+  const gains = T.getGains(conn, signals.length);
+  let found = 0;
+  const rows = signals.map((lab, c) => {
+    const r = T.calStep(lastN(c, SECONDS * fs), fs);
+    if (!r) return `<tr><td style="color:${colorOf(lab, c)}">${lab}</td><td colspan="3">CAL 펄스를 찾지 못함</td></tr>`;
+    found++;
+    const err = (r.uv / expected - 1) * 100, g = +(gains[c] * r.uv / expected).toPrecision(4);
+    gains[c] = g;
+    const cls = Math.abs(err) <= 2 ? "good" : Math.abs(err) <= 10 ? "warn" : "bad";
+    return `<tr><td style="color:${colorOf(lab, c)}">${lab}</td><td>${fmt(r.uv)} µV</td>` +
+      `<td><span class="chip ${cls}">${err >= 0 ? "+" : ""}${fmt(err)}%</span></td>` +
+      `<td>${isDaq ? "보정 게인 " + g : r.edges + " edges"}</td></tr>`;
+  });
+  calGains = found && isDaq ? gains : null;
+  S("cal-apply").disabled = !calGains;
+  S("bench-cal").innerHTML = `<table>${rows.join("")}</table>` +
+    (found ? `기준 ${expected} µV 대비. ±2% 이내면 양호.` : "앰프 CAL 버튼을 누른 채(또는 CAL 펄스가 나오는 동안) 다시 측정하세요.");
+});
+S("cal-apply").addEventListener("click", () => {
+  if (!calGains) return;
+  S("connection").value = T.withGain(S("connection").value, calGains);
+  S("bench-cal").textContent = `게인을 ${calGains.join(", ")}(으)로 바꾸고 다시 연결했습니다. CAL을 한 번 더 측정해 확인하세요.`;
+  calGains = null; S("cal-apply").disabled = true;
+  driversLoaded = false; connect();
+});
 
 /* ---- Save the trigger-averaged epoch as an exam step ---------------- */
-let activeDevice = "live-stream", recExamId = null, recPatients = [];
+let recExamId = null, recPatients = [], stepEpochApplied = false;
 const recCard = S("rec-card");
 if (recCard) {
   const qInput = S("rec-patient-q"), protoSel = S("rec-protocol"), stepSel = S("rec-step");
@@ -213,11 +474,23 @@ if (recCard) {
       `<option value="${k}">${p.label}</option>`).join("");
     fillSteps();
   }
+  function currentStep() {
+    const p = protocols[protoSel.value];
+    return p ? p.steps.find(s => s.key === stepSel.value) : null;
+  }
   function fillSteps() {
     const p = protocols[protoSel.value]; if (!p) return;
     stepSel.innerHTML = p.steps.map(s => `<option value="${s.key}">${s.key} · ${s.label}</option>`).join("");
+    applyStep();
+  }
+  function applyStep() {  // match epoch + artifact limit to the step while the average is empty
+    const s = currentStep(); if (!s || avg.count > 0) return;
+    S("reject-uv").value = STEP_REJECT[s.kind] || 0;
+    stepEpochApplied = true; setEpochMs(s.duration_ms);
   }
   protoSel.addEventListener("change", fillSteps);
+  stepSel.addEventListener("change", applyStep);
+  S("rec-eye").addEventListener("change", (e) => { e.target.dataset.touched = "1"; });
 
   qInput.addEventListener("input", async () => {
     // a datalist pick fills "이름 (#MRN)" — search on the name part only
@@ -238,18 +511,27 @@ if (recCard) {
   S("rec-save").addEventListener("click", async () => {
     const p = selectedPatient();
     if (!p) return setMsg("rec-msg", "환자를 검색해 선택하세요.", "err");
-    if (avgCount < 1) return setMsg("rec-msg", "아직 평균된 sweep이 없습니다. 트리거를 기다리세요.", "err");
+    if (avg.count < 1) return setMsg("rec-msg", "아직 평균된 sweep이 없습니다. 트리거를 기다리세요.", "err");
     const target = parseInt(S("rec-target").value) || 1;
-    if (avgCount < target && !confirm(`목표 ${target} sweeps 중 ${avgCount}개만 평균됐습니다. 그래도 저장할까요?`)) return;
-    const samples = Array.from(sumEpoch, v => +(v / avgCount).toFixed(3));
+    if (avg.count < target && !confirm(`목표 ${target} sweeps 중 ${avg.count}개만 평균됐습니다. 그래도 저장할까요?`)) return;
+    const eye = S("rec-eye").value;
+    // OU stores each eye's channel; a single eye uses its labelled channel (or the only one)
+    const plan = eye === "OU" ? ["OD", "OS"].map(e => [e, signals.indexOf(e)])
+                              : [[eye, Math.max(0, signals.indexOf(eye))]];
+    const epochMs = avg.len / fs * 1000;
     try {
-      const exam = await api("/api/exams/record", { method: "POST", body: {
-        patient_id: p.id, protocol: protoSel.value, step_key: stepSel.value,
-        eye: S("rec-eye").value, samples, sampling_rate: fs, duration_ms: periodMs,
-        n_sweeps: avgCount, exam_id: recExamId, device: activeDevice } });
-      recExamId = exam.id;
+      let exam = null;
+      for (const [e, c] of plan) {
+        exam = await api("/api/exams/record", { method: "POST", body: {
+          patient_id: p.id, protocol: protoSel.value, step_key: stepSel.value,
+          eye: e, samples: avg.mean(c).map(v => +v.toFixed(3)), sampling_rate: fs,
+          duration_ms: epochMs, n_sweeps: avg.count, n_rejected: avg.rejected,
+          exam_id: recExamId, device: activeDevice } });
+        recExamId = exam.id;
+      }
       S("rec-exam").textContent = `검사 #${exam.id} (${exam.waveforms.length} trace)`;
-      setMsg("rec-msg", `저장됨: ${stepSel.value} ${S("rec-eye").value}, ${avgCount} sweeps → `, "ok");
+      setMsg("rec-msg", `저장됨: ${stepSel.value} ${plan.map(x => x[0]).join("+")}, ${avg.count} sweeps` +
+             (avg.rejected ? ` (${avg.rejected} 제거)` : "") + " → ", "ok");
       S("rec-msg").insertAdjacentHTML("beforeend",
         `<a href="/reports/${exam.id}" target="_blank">리포트 열기</a> · 다음 step/눈을 이어서 저장할 수 있습니다.`);
       resetAverage();
@@ -258,5 +540,15 @@ if (recCard) {
 
   loadProtocols();
 }
+
+/* ---- Start: restore the last driver/connection used on this PC ------ */
+try {
+  const saved = JSON.parse(localStorage.getItem(SAVED_KEY) || "null");
+  if (saved && saved.driver) {
+    S("driver").innerHTML = `<option value="${saved.driver}" selected>${saved.driver}</option>`;
+    S("connection").value = saved.connection || "";
+  }
+} catch (e) {}
+connect();
 </script>
 {% endblock %}

@@ -1,18 +1,26 @@
 """Real-time waveform streaming to the browser over a WebSocket.
 
-Streams samples from the selected amplifier driver, marks trigger positions
-(for trigger-synchronised averaging on the client) and periodically reports
-live electrode impedance.
+Streams samples from the selected amplifier driver (one row per signal
+channel, e.g. OD and OS), marks trigger positions (for trigger-synchronised
+averaging on the client) and periodically reports live electrode impedance.
 """
 import asyncio
 import math
 import time
 
+import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from app.acquisition.hw_streams import discover_nidaq
 from app.acquisition.streaming import get_live_stream, list_stream_drivers
 
 router = APIRouter(tags=["live"])
+
+
+@router.get("/api/live/daq")
+def daq_devices():
+    """NI-DAQmx devices attached to this PC, for the connection builder."""
+    return discover_nidaq()
 
 
 @router.websocket("/ws/live")
@@ -36,7 +44,8 @@ async def live_stream(ws: WebSocket):
     period = stream.trigger_period_samples
     await ws.send_json({
         "type": "meta", "fs": stream.sampling_rate, "device": stream.name,
-        "channels": stream.channels, "drivers": list_stream_drivers(),
+        "channels": stream.channels, "signals": stream.signals,
+        "drivers": list_stream_drivers(),
         "active": stream.name,
         "period_ms": (period / stream.sampling_rate * 1000.0) if period else None,
     })
@@ -45,20 +54,21 @@ async def live_stream(ws: WebSocket):
     last_imp = 0.0
     try:
         while True:
-            chunk = stream.read()
-            if chunk.size:
+            chunk = np.atleast_2d(stream.read())  # (signals, n)
+            n = chunk.shape[1]
+            if n:
                 triggers = []
                 if period:  # periodic trigger (simulator)
                     k = math.ceil(total / period) * period
-                    while k < total + chunk.size:
+                    while k < total + n:
                         triggers.append(int(k - total))
                         k += period
                 else:       # event-based triggers detected by the driver
                     triggers = list(getattr(stream, "last_triggers", []))
-                total += int(chunk.size)
+                total += n
                 await ws.send_json({
                     "type": "data",
-                    "samples": [round(float(v), 2) for v in chunk],
+                    "samples": [[round(float(v), 2) for v in row] for row in chunk],
                     "triggers": triggers,
                 })
             now = time.time()
