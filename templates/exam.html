@@ -1,35 +1,81 @@
 {% extends "base.html" %}
-{% block title %}New exam · {{ patient.name }}{% endblock %}
+{% block title %}새 검사 · {{ patient.name }}{% endblock %}
 {% block content %}
-<a class="back" href="/patients/{{ patient.id }}">← {{ patient.name }}</a>
-<h1>New exam <span class="muted">{{ patient.name }}</span></h1>
+<a class="back" href="/patients/{{ patient.id }}"><svg class="ico"><use href="#i-back"/></svg>{{ patient.name }}</a>
+<div class="page-head">
+  <div>
+    <p class="eyebrow">New examination</p>
+    <h1>새 검사 <small>{{ patient.name }} · #{{ patient.mrn }}</small></h1>
+  </div>
+</div>
 
-<section class="card">
-  <form id="exam-form" class="form-grid">
-    <label>Test type
-      <select id="test-type" name="test_type"></select>
-    </label>
-    <label>Protocol
-      <select id="protocol" name="protocol"></select>
-    </label>
-    <label>Eyes
-      <select id="eyes" name="eyes">
-        <option value="OD,OS">Both (OD + OS)</option>
-        <option value="OD">OD only</option>
-        <option value="OS">OS only</option>
-      </select>
-    </label>
-    <label>Operator<input name="operator" value="{{ '' }}"></label>
-    <button class="btn primary" id="run-btn" type="submit">▶ Acquire</button>
-    <button class="btn" id="stim-btn" type="button">🖥 Stimulus monitor</button>
-  </form>
-  <p id="exam-msg" class="msg"></p>
-</section>
+<form id="exam-form" class="exam-console">
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <h2>검사 설정</h2>
+        <p class="card-sub">ISCEV protocol · 측정 안 · 검사자</p>
+      </div>
+      <span class="chip std" id="proto-std">—</span>
+    </div>
+    <div class="setup-grid">
+      <label class="field">검사 종류 (Test type)
+        <select id="test-type" name="test_type"></select>
+      </label>
+      <label class="field">프로토콜 (Protocol)
+        <select id="protocol" name="protocol"></select>
+      </label>
+      <div class="field">측정 안 (Eyes)
+        <div class="seg" role="radiogroup" aria-label="Eyes">
+          <label><input type="radio" name="eyes" value="OD,OS" checked><span>
+            <i class="eye-dot" style="background:var(--od)"></i><i class="eye-dot" style="background:var(--os);margin-left:-4px"></i>양안 OD + OS</span></label>
+          <label><input type="radio" name="eyes" value="OD"><span><i class="eye-dot" style="background:var(--od)"></i>OD 우안</span></label>
+          <label><input type="radio" name="eyes" value="OS"><span><i class="eye-dot" style="background:var(--os)"></i>OS 좌안</span></label>
+        </div>
+      </div>
+      <label class="field">검사자 (Operator)<input name="operator" placeholder="이름 또는 ID"></label>
+      <div class="field span2">프로토콜 단계 (Steps)
+        <ul class="step-list" id="step-list"><li class="muted">—</li></ul>
+      </div>
+      <div class="field span2">자극 조건 (Stimulus)
+        <div class="chips" id="stim-chips" style="margin-top:2px"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card capture">
+    <div class="capture-head">
+      <h2>원키 측정</h2>
+      <small>One-key acquisition</small>
+    </div>
+    <button class="capture-btn" id="run-btn" type="submit">
+      <span class="cap-in">
+        <svg class="ico"><use href="#i-play"/></svg>
+        <span class="cap-label" id="run-label">측정 시작</span>
+        <span class="cap-sub">Acquire</span>
+      </span>
+    </button>
+    <ol class="seq" id="seq">
+      <li>전극 임피던스 확인<small>&lt; 5 kΩ</small></li>
+      <li>자극 제시 · 트리거<small>stimulator</small></li>
+      <li>트리거 동기 평균<small>sweeps</small></li>
+      <li>자동 마커 판독 · 정상범위 판정<small>ISCEV</small></li>
+    </ol>
+    <p id="exam-msg" class="msg"></p>
+    <div class="capture-foot">
+      <button class="btn dark small" id="stim-btn" type="button">
+        <svg class="ico"><use href="#i-monitor"/></svg>자극기 모니터 열기</button>
+    </div>
+  </section>
+</form>
 
 <section id="result" class="hidden">
-  <div class="row-between">
-    <h2>Result</h2>
-    <a id="report-link" class="btn" href="#">Open full report →</a>
+  <div class="section-head">
+    <div>
+      <h2>측정 결과</h2>
+      <p class="card-sub">자동 마커 · 정상범위 판정</p>
+    </div>
+    <a id="report-link" class="btn primary" href="#"><svg class="ico"><use href="#i-doc"/></svg>전체 리포트 열기</a>
   </div>
   <div id="waveforms"></div>
 </section>
@@ -40,15 +86,50 @@ const PATIENT_ID = {{ patient.id }};
 
 const ttSel = document.getElementById("test-type");
 const protoSel = document.getElementById("protocol");
+let stepLabels = {};
+
+async function showProtocol() {
+  const list = document.getElementById("step-list");
+  try {
+    const p = await api(`/api/protocols/${encodeURIComponent(protoSel.value)}`);
+    document.getElementById("proto-std").textContent = p.standard || "—";
+    stepLabels = Object.fromEntries(p.steps.map(s => [s.key, s.label]));
+    list.innerHTML = p.steps.map(s => `
+      <li><span class="k">${escHtml(s.key)}</span><span>${escHtml(s.label)}</span>
+        <span class="m">${s.duration_ms} ms · ${s.markers.join("/")}</span></li>`).join("");
+    document.getElementById("stim-chips").innerHTML = stimChips(p.steps[0] || {});
+  } catch (e) {
+    list.innerHTML = `<li class="muted">${escHtml(e.message)}</li>`;
+  }
+}
+
+/* Key stimulus parameters of the first step, as compact chips. */
+function stimChips(step) {
+  const s = step.stimulus || {}, out = [];
+  const chip = (html) => `<span class="chip mono">${html}</span>`;
+  if (s.cd_s_m2 != null) out.push(chip(`<b>${s.cd_s_m2}</b> cd·s·m⁻²`));
+  if (s.check_deg) out.push(chip(`check <b>${s.check_deg}°</b>`));
+  if (s.field_deg) out.push(chip(`field <b>${s.field_deg}°</b>`));
+  if (s.contrast) out.push(chip(`contrast <b>${Math.round(s.contrast * 100)}%</b>`));
+  if (s.reversal_hz) out.push(chip(`<b>${s.reversal_hz}</b> rev/s`));
+  if (s.rate_hz) out.push(chip(`<b>${s.rate_hz}</b> Hz`));
+  if (s.hexagons) out.push(chip(`<b>${s.hexagons}</b> hexagons`));
+  if (s.adaptation) out.push(chip(`${escHtml(s.adaptation)}-adapted`));
+  if (s.background) out.push(chip(`bg ${escHtml(s.background)}`));
+  if (s.filter) out.push(chip(`filter ${escHtml(s.filter)}`));
+  return out.join("") || '<span class="muted">—</span>';
+}
 
 function fillProtocols() {
   const list = TEST_TYPES[ttSel.value] || [];
   protoSel.innerHTML = list.map(p =>
     `<option value="${p.key}">${p.label}</option>`).join("");
+  showProtocol();
 }
 ttSel.innerHTML = Object.keys(TEST_TYPES).map(t =>
   `<option value="${t}">${t}</option>`).join("");
 ttSel.addEventListener("change", fillProtocols);
+protoSel.addEventListener("change", showProtocol);
 fillProtocols();
 
 document.getElementById("stim-btn").addEventListener("click", () => {
@@ -57,12 +138,24 @@ document.getElementById("stim-btn").addEventListener("click", () => {
     "width=1000,height=720,menubar=no,toolbar=no");
 });
 
+/* Visual progress through the acquisition sequence while the device runs. */
+const seqItems = [...document.querySelectorAll("#seq li")];
+function seqState(active) {
+  seqItems.forEach((li, i) => {
+    li.classList.toggle("done", i < active);
+    li.classList.toggle("run", i === active);
+  });
+}
+
 document.getElementById("exam-form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const f = ev.target;
   const btn = document.getElementById("run-btn");
-  btn.disabled = true; btn.textContent = "Acquiring…";
-  setMsg("exam-msg", "Acquiring sweeps from device…", "");
+  const label = document.getElementById("run-label");
+  btn.disabled = true; btn.classList.add("busy"); label.textContent = "측정 중…";
+  setMsg("exam-msg", "장비에서 sweep을 수집하고 있습니다…", "");
+  let stage = 0; seqState(0);
+  const timer = setInterval(() => { if (stage < seqItems.length - 1) seqState(++stage); }, 450);
   try {
     const exam = await api("/api/exams", { method: "POST", body: {
       patient_id: PATIENT_ID,
@@ -70,14 +163,17 @@ document.getElementById("exam-form").addEventListener("submit", async (ev) => {
       eyes: f.eyes.value.split(","),
       operator: f.operator.value || null,
     }});
-    setMsg("exam-msg", "Acquisition complete.", "ok");
+    clearInterval(timer); seqState(seqItems.length);
+    setMsg("exam-msg", "측정 완료 — 결과가 저장되었습니다.", "ok");
     document.getElementById("result").classList.remove("hidden");
     document.getElementById("report-link").href = `/reports/${exam.id}`;
-    renderExam(exam, document.getElementById("waveforms"));
+    renderExam(exam, document.getElementById("waveforms"), stepLabels);
+    document.getElementById("result").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (e) {
+    clearInterval(timer); seqState(-1);
     setMsg("exam-msg", e.message, "err");
   } finally {
-    btn.disabled = false; btn.textContent = "▶ Acquire";
+    btn.disabled = false; btn.classList.remove("busy"); label.textContent = "측정 시작";
   }
 });
 </script>

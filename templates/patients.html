@@ -1,30 +1,47 @@
 {% extends "base.html" %}
-{% block title %}Patients · ERG/VEP{% endblock %}
+{% block title %}환자 관리 · ERG·VEP{% endblock %}
 {% block content %}
-<h1>환자 관리 <span class="muted" style="font-size:14px">Patients</span></h1>
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Patients</p>
+    <h1>환자 관리</h1>
+    <p class="page-sub">환자 등록 · 검색 후 검사를 시작합니다.</p>
+  </div>
+  <div class="search-box">
+    <svg class="ico"><use href="#i-search"/></svg>
+    <input id="search" placeholder="이름 / 등록번호 / 연락처 검색…" aria-label="환자 검색">
+  </div>
+</div>
 
 {% if 'edit_patient' in perms %}
 <section class="card">
-  <div class="row-between">
-    <h2>신규 환자 등록</h2>
-    <button class="btn small" id="toggle-form" type="button">폼 접기</button>
+  <div class="card-head">
+    <div>
+      <h2>신규 환자 등록</h2>
+      <p class="card-sub">New patient · 필수 항목 <em style="color:var(--bad);font-style:normal">*</em></p>
+    </div>
+    <button class="btn small primary" id="toggle-form" type="button"><svg class="ico"><use href="#i-plus"/></svg>등록 폼 열기</button>
   </div>
-  <form id="patient-form"></form>
+  <form id="patient-form" class="hidden"></form>
 </section>
 {% endif %}
 
 <section class="card">
-  <div class="row-between">
-    <h2>환자 목록</h2>
-    <input id="search" placeholder="이름 / 등록번호 / 연락처 검색…" class="search">
+  <div class="card-head">
+    <div>
+      <h2>환자 목록</h2>
+      <p class="card-sub" id="patient-count">Patient registry</p>
+    </div>
   </div>
-  <table class="table">
-    <thead>
-      <tr><th>등록번호</th><th>성명</th><th>성별/나이</th><th>생년월일</th>
-          <th>연락처</th><th>보험</th><th></th></tr>
-    </thead>
-    <tbody id="patient-rows"></tbody>
-  </table>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr><th>등록번호</th><th>성명</th><th>성별 / 나이</th><th>생년월일</th>
+            <th>연락처</th><th>보험</th><th></th></tr>
+      </thead>
+      <tbody id="patient-rows"></tbody>
+    </table>
+  </div>
 </section>
 
 <script>
@@ -36,27 +53,31 @@ const sexLabel = (s) => ({M:"남", F:"여", O:"기타"}[s] || "-");
 async function loadPatients(q) {
   const rows = await api(`/api/patients${q ? "?q=" + encodeURIComponent(q) : ""}`);
   const tb = document.getElementById("patient-rows");
+  const e = escHtml;
   tb.innerHTML = rows.map(p => `
     <tr>
-      <td>${p.mrn}</td>
-      <td><a href="/patients/${p.id}">${p.name}</a></td>
-      <td>${sexLabel(p.sex)}${p.age != null ? " / " + p.age : ""}</td>
-      <td>${p.birth_date || "-"}</td>
-      <td>${p.phone || "-"}</td>
-      <td>${p.insurance_type || "-"}</td>
-      <td><a class="btn small" href="/patients/${p.id}">열기</a></td>
+      <td class="mono">${e(p.mrn)}</td>
+      <td><a href="/patients/${p.id}">${e(p.name)}</a>${p.name_en ? `<span class="cell-sub">${e(p.name_en)}</span>` : ""}</td>
+      <td>${sexLabel(p.sex)}${p.age != null ? " / " + p.age + "세" : ""}</td>
+      <td class="mono">${e(p.birth_date || "—")}</td>
+      <td class="mono">${e(p.phone || "—")}</td>
+      <td>${p.insurance_type ? `<span class="tag neutral">${e(p.insurance_type)}</span>` : "—"}</td>
+      <td class="actions"><a class="btn small" href="/patients/${p.id}">열기 <svg class="ico"><use href="#i-arrow"/></svg></a></td>
     </tr>`).join("") ||
-    `<tr><td colspan="7" class="muted">등록된 환자가 없습니다.</td></tr>`;
+    `<tr><td colspan="7" class="empty">${q ? "검색 결과가 없습니다." : "등록된 환자가 없습니다."}</td></tr>`;
+  document.getElementById("patient-count").textContent =
+    `${rows.length}명${q ? " · 검색: " + q : ""}`;
+  if (!q && !rows.length && toggleBtn) setFormOpen(true);
 }
 
 if (form) form.addEventListener("submit", async (ev) => {
   ev.preventDefault();
-  const msg = form.querySelector("[data-msg]");
   try {
     const data = collectPatientForm(form);
     await api("/api/patients", { method: "POST", body: data });
     renderPatientForm(form, null, "환자 등록");
-    msg.textContent = "환자가 등록되었습니다."; msg.className = "msg ok";
+    const done = form.querySelector("[data-msg]");
+    done.textContent = "환자가 등록되었습니다."; done.className = "msg ok";
     loadPatients();
   } catch (e) {
     const m = form.querySelector("[data-msg]");
@@ -66,9 +87,14 @@ if (form) form.addEventListener("submit", async (ev) => {
 
 const toggleBtn = document.getElementById("toggle-form");
 if (toggleBtn) toggleBtn.addEventListener("click", (e) => {
-  const hidden = form.classList.toggle("hidden");
-  e.target.textContent = hidden ? "폼 펼치기" : "폼 접기";
+  setFormOpen(form.classList.contains("hidden"));
 });
+function setFormOpen(open) {
+  form.classList.toggle("hidden", !open);
+  toggleBtn.classList.toggle("primary", !open);
+  toggleBtn.innerHTML = open ? "폼 닫기"
+    : '<svg class="ico"><use href="#i-plus"/></svg>등록 폼 열기';
+}
 
 document.getElementById("search").addEventListener("input", (e) =>
   loadPatients(e.target.value));

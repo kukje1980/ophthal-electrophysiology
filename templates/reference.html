@@ -1,28 +1,43 @@
 {% extends "base.html" %}
-{% block title %}정상범위 · ERG/VEP{% endblock %}
+{% block title %}정상범위 · ERG·VEP{% endblock %}
 {% block content %}
-<div class="row-between">
-  <h1>정상범위 관리 <span class="muted" style="font-size:14px">Laboratory normative data</span></h1>
-  <button class="btn small" id="seed-demo">데모값 불러오기</button>
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Laboratory normative data</p>
+    <h1>정상범위 관리</h1>
+  </div>
+  <button class="btn" id="seed-demo"><svg class="ico"><use href="#i-refresh"/></svg>데모값 불러오기</button>
 </div>
-<p class="muted">ISCEV는 각 검사실이 <b>자기 장비·인구로 정상인을 측정해 정상범위를 직접 만들도록</b> 요구합니다.
+<p class="callout"><svg class="ico"><use href="#i-norm"/></svg><span>ISCEV는 각 검사실이 <b>자기 장비·인구로 정상인을 측정해 정상범위를 직접 만들도록</b> 요구합니다.
   여기서 표로 입력하거나, CSV를 올리거나, 정상인 측정 데이터로 자동 계산할 수 있습니다.
-  판정은 이 표의 값을(연령대 지정 시 환자 나이에 맞는 행을) 사용합니다.</p>
+  판정은 이 표의 값을(연령대 지정 시 환자 나이에 맞는 행을) 사용합니다.</span></p>
 
 <section class="card">
-  <div class="row-between">
-    <h2>현재 정상범위</h2>
-    <span class="muted" id="ref-count"></span>
+  <div class="card-head">
+    <div>
+      <h2>현재 정상범위</h2>
+      <p class="card-sub">Reference ranges · <span id="ref-count"></span></p>
+    </div>
   </div>
+  <div class="table-wrap">
   <table class="table compact" id="ref-table">
     <thead><tr>
-      <th>Step</th><th>Marker</th><th>연령 min</th><th>연령 max</th>
-      <th>진폭 min (µV)</th><th>진폭 max</th><th>잠복 min (ms)</th><th>잠복 max (ms)</th>
-      <th>n</th><th>출처</th><th></th></tr></thead>
+      <th>Step</th><th>Marker</th><th class="num">연령 min</th><th class="num">연령 max</th>
+      <th class="num">진폭 min <span class="unit">(µV)</span></th><th class="num">진폭 max</th><th class="num">잠복 min <span class="unit">(ms)</span></th><th class="num">잠복 max <span class="unit">(ms)</span></th>
+      <th class="num">n</th><th>출처</th><th></th></tr></thead>
     <tbody id="ref-rows"></tbody>
   </table>
-  <h3 style="margin-top:16px">행 추가 / 수정</h3>
-  <form id="ref-form" class="form-grid">
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <div>
+      <h2>행 추가 / 수정</h2>
+      <p class="card-sub">같은 step · marker · 연령대는 덮어씁니다.</p>
+    </div>
+  </div>
+  <form id="ref-form" class="form-grid cols-4">
     <label>Step key<input name="step_key" placeholder="예: DA3.0" required></label>
     <label>Marker<input name="marker" placeholder="예: b" required></label>
     <label>연령 min<input name="age_min" type="number" min="0"></label>
@@ -33,49 +48,52 @@
     <label>잠복 max (ms)<input name="lat_max" type="number" step="any"></label>
     <label>n (정상인 수)<input name="n" type="number" min="0"></label>
     <label>메모<input name="note"></label>
-    <button class="btn primary" type="submit">저장</button>
+    <div class="form-actions"><button class="btn primary" type="submit">저장</button></div>
   </form>
   <p id="ref-msg" class="msg"></p>
 </section>
 
 <section class="card">
-  <h2>정상인 측정 데이터로 자동 계산</h2>
-  <p class="muted">CSV 열: <code>step_key,marker,latency_ms,amplitude_uv</code> (한 줄 = 정상인 1명의 측정 1개).
-    권장 최소 20~30명.</p>
-  <div class="live-controls">
+  <div class="card-head">
+    <div>
+      <h2>정상인 측정 데이터로 자동 계산</h2>
+      <p class="card-sub">CSV 열: <code>step_key,marker,latency_ms,amplitude_uv</code> (한 줄 = 정상인 1명의 측정 1개) · 권장 최소 20~30명</p>
+    </div>
+  </div>
+  <div class="controls">
     <label class="field">계산 방법
       <select id="method">
         <option value="sd2">평균 ± 2SD</option>
         <option value="pct">5–95 백분위</option>
       </select></label>
     <label class="field">CSV 파일<input type="file" id="vol-file" accept=".csv,text/csv"></label>
-    <button class="btn" id="compute">미리보기 계산</button>
+    <button class="btn" id="compute"><svg class="ico"><use href="#i-sigma"/></svg>미리보기 계산</button>
     <button class="btn primary hidden" id="compute-save">이 결과로 저장</button>
   </div>
-  <table class="table compact" id="calc-table" style="margin-top:12px">
-    <thead><tr><th>Step</th><th>Marker</th><th>n</th><th>진폭 평균±SD</th><th>잠복 평균±SD</th>
-      <th>→ 진폭 min</th><th>→ 잠복 min</th><th>→ 잠복 max</th></tr></thead>
-    <tbody id="calc-rows"><tr><td colspan="8" class="muted">계산 결과가 여기 표시됩니다.</td></tr></tbody>
-  </table>
   <p id="calc-msg" class="msg"></p>
+  <div class="table-wrap" style="margin-top:16px">
+  <table class="table compact" id="calc-table">
+    <thead><tr><th>Step</th><th>Marker</th><th class="num">n</th><th class="num">진폭 평균±SD</th><th class="num">잠복 평균±SD</th>
+      <th class="num">→ 진폭 min</th><th class="num">→ 잠복 min</th><th class="num">→ 잠복 max</th></tr></thead>
+    <tbody id="calc-rows"><tr><td colspan="8" class="empty">계산 결과가 여기 표시됩니다.</td></tr></tbody>
+  </table>
+  </div>
 </section>
 
 <section class="card">
-  <h2>정상범위 CSV 가져오기</h2>
-  <p class="muted">CSV 열: <code>step_key,marker,amp_min,amp_max,lat_min,lat_max,age_min,age_max,n,note</code></p>
-  <div class="live-controls">
+  <div class="card-head">
+    <div>
+      <h2>정상범위 CSV 가져오기</h2>
+      <p class="card-sub">CSV 열: <code>step_key,marker,amp_min,amp_max,lat_min,lat_max,age_min,age_max,n,note</code></p>
+    </div>
+  </div>
+  <div class="controls">
     <label class="field">CSV 파일<input type="file" id="rng-file" accept=".csv,text/csv"></label>
-    <button class="btn" id="import">가져오기</button>
+    <button class="btn" id="import"><svg class="ico"><use href="#i-upload"/></svg>가져오기</button>
   </div>
   <p id="imp-msg" class="msg"></p>
 </section>
 
-<style>
-  .live-controls { display:flex; gap:12px; align-items:end; flex-wrap:wrap; }
-  .live-controls .field { display:flex; flex-direction:column; gap:5px;
-    font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
-  .src-demo { color:#b45309; } .src-lab, .src-csv, .src-computed { color:#166534; }
-</style>
 
 <script>
 const S = id => document.getElementById(id);
@@ -87,15 +105,15 @@ async function loadRanges() {
   S("ref-count").textContent = rows.length + "행";
   S("ref-rows").innerHTML = rows.map(r => `
     <tr>
-      <td><b>${r.step_key}</b></td><td>${r.marker}</td>
-      <td>${fmt(r.age_min)}</td><td>${fmt(r.age_max)}</td>
-      <td>${fmt(r.amp_min)}</td><td>${fmt(r.amp_max)}</td>
-      <td>${fmt(r.lat_min)}</td><td>${fmt(r.lat_max)}</td>
-      <td>${fmt(r.n)}</td>
-      <td class="src-${r.source||'lab'}">${r.source||'lab'}</td>
-      <td><button class="btn small" data-edit='${JSON.stringify(r)}'>수정</button>
-          <button class="btn small" data-del="${r.id}">삭제</button></td>
-    </tr>`).join("") || `<tr><td colspan="11" class="muted">정상범위가 없습니다 — "데모값 불러오기"로 시작하세요.</td></tr>`;
+      <td><span class="tag neutral">${r.step_key}</span></td><td><b class="mono">${r.marker}</b></td>
+      <td class="num">${fmt(r.age_min)}</td><td class="num">${fmt(r.age_max)}</td>
+      <td class="num">${fmt(r.amp_min)}</td><td class="num">${fmt(r.amp_max)}</td>
+      <td class="num">${fmt(r.lat_min)}</td><td class="num">${fmt(r.lat_max)}</td>
+      <td class="num">${fmt(r.n)}</td>
+      <td><span class="src src-${r.source||'lab'}">${r.source||'lab'}</span></td>
+      <td class="actions"><button class="btn small" data-edit='${JSON.stringify(r)}'><svg class="ico"><use href="#i-edit"/></svg>수정</button>
+          <button class="btn small danger" data-del="${r.id}"><svg class="ico"><use href="#i-trash"/></svg>삭제</button></td>
+    </tr>`).join("") || `<tr><td colspan="11" class="empty">정상범위가 없습니다 — "데모값 불러오기"로 시작하세요.</td></tr>`;
   document.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => {
     const r = JSON.parse(b.dataset.edit), f = S("ref-form");
     for (const k of ["step_key","marker","age_min","age_max","amp_min","amp_max","lat_min","lat_max","n","note"])
@@ -134,10 +152,10 @@ S("compute").addEventListener("click", async () => {
       body: { csv: await readFile(f), method: S("method").value, save: false } });
     computed = r.ranges;
     S("calc-rows").innerHTML = computed.map(x => `
-      <tr><td><b>${x.step_key}</b></td><td>${x.marker}</td><td>${x.n}</td>
-        <td>${x.amp_mean} ± ${x.amp_sd}</td><td>${x.lat_mean} ± ${x.lat_sd}</td>
-        <td><b>${x.amp_min}</b></td><td><b>${x.lat_min}</b></td><td><b>${x.lat_max}</b></td></tr>`).join("")
-      || `<tr><td colspan="8" class="muted">계산할 데이터가 없습니다 (그룹당 2명 이상 필요).</td></tr>`;
+      <tr><td><span class="tag neutral">${x.step_key}</span></td><td><b class="mono">${x.marker}</b></td><td class="num">${x.n}</td>
+        <td class="num">${x.amp_mean} ± ${x.amp_sd}</td><td class="num">${x.lat_mean} ± ${x.lat_sd}</td>
+        <td class="num"><b>${x.amp_min}</b></td><td class="num"><b>${x.lat_min}</b></td><td class="num"><b>${x.lat_max}</b></td></tr>`).join("")
+      || `<tr><td colspan="8" class="empty">계산할 데이터가 없습니다 (그룹당 2명 이상 필요).</td></tr>`;
     S("compute-save").classList.toggle("hidden", !computed.length);
     setMsg("calc-msg", `${computed.length}개 마커 계산됨 — 확인 후 저장하세요.`, "ok");
   } catch (e) { setMsg("calc-msg", e.message, "err"); }

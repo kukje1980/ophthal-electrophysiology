@@ -1,94 +1,89 @@
 {% extends "base.html" %}
-{% block title %}실시간 스트림 · ERG/VEP{% endblock %}
+{% block title %}실시간 측정 · ERG·VEP{% endblock %}
 {% block content %}
-<div class="row-between">
-  <h1>실시간 스트림 <span class="muted" style="font-size:14px">Live amplifier link</span></h1>
-  <span class="pill-live" id="status">연결 중…</span>
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Live amplifier link</p>
+    <h1>실시간 측정</h1>
+    <p class="page-sub">앰프 연속 스트림 · 트리거 동기 평균 · 전극 임피던스</p>
+  </div>
+  <span class="status-pill" id="status"><i class="led"></i><span id="status-text">연결 중…</span></span>
 </div>
 
 <section class="card">
-  <div class="live-controls">
-    <label class="field">드라이버
+  <div class="controls">
+    <label class="field">드라이버 (Driver)
       <select id="driver"></select>
     </label>
-    <label class="field" style="flex:1">연결 문자열
-      <input id="connection" placeholder="예: 192.168.0.10:8888:32  또는  /dev/ttyUSB0:115200">
+    <label class="field grow">연결 문자열 (Connection)
+      <input id="connection" class="mono" placeholder="예: 192.168.0.10:8888:32  또는  /dev/ttyUSB0:115200">
     </label>
-    <button class="btn" id="reconnect">연결</button>
-    <button class="btn ghost" id="pause">⏸ 일시정지</button>
+    <button class="btn primary" id="reconnect"><svg class="ico"><use href="#i-plug"/></svg>연결</button>
+    <button class="btn" id="pause"><svg class="ico"><use href="#i-pause"/></svg>일시정지</button>
   </div>
   <p id="err" class="msg err"></p>
 </section>
 
 <div class="live-grid">
-  <section class="card">
-    <h3 class="muted" id="meta">device: – · fs: – Hz</h3>
+  <section class="monitor">
+    <div class="monitor-head">
+      <h3>연속 스트림</h3>
+      <span class="meta" id="meta">device: – · fs: – Hz</span>
+      <span class="right meta">ROLL 4 s</span>
+    </div>
     <canvas id="scope" width="520" height="260"></canvas>
-    <p class="muted cap">앰프의 연속 표본 (롤링 4초)</p>
+    <div class="monitor-foot">앰프의 연속 표본 (롤링 4초)</div>
   </section>
-  <section class="card">
-    <div class="row-between">
-      <h3 class="muted">트리거 동기 평균 <span id="avgn" class="tag">0 sweeps</span></h3>
-      <button class="btn small" id="avg-reset">평균 초기화</button>
+  <section class="monitor">
+    <div class="monitor-head">
+      <h3>트리거 동기 평균</h3>
+      <span id="avgn" class="tag">0 sweeps</span>
+      <span class="right"><button class="btn dark small" id="avg-reset"><svg class="ico"><use href="#i-refresh"/></svg>평균 초기화</button></span>
     </div>
     <canvas id="avg" width="520" height="260"></canvas>
-    <p class="muted cap">매 트리거마다 epoch을 잘라 누적 평균 — 잡음이 √N로 감소</p>
+    <div class="monitor-foot">매 트리거마다 epoch을 잘라 누적 평균 — 잡음이 √N로 감소</div>
   </section>
 </div>
 
 {% if 'run_exam' in perms %}
 <section class="card" id="rec-card">
-  <div class="row-between">
-    <h3 class="muted">검사로 저장 <span class="muted" style="font-size:12px">트리거 동기 평균 파형 → 검사 기록 → 리포트</span></h3>
+  <div class="card-head">
+    <div>
+      <h2>검사로 저장</h2>
+      <p class="card-sub">트리거 동기 평균 파형 → 검사 기록 → 리포트</p>
+    </div>
     <span id="rec-exam" class="tag">새 검사</span>
   </div>
-  <div class="live-controls">
-    <label class="field" style="min-width:220px">환자 (이름/등록번호 검색)
+  <div class="controls">
+    <label class="field grow">환자 (이름/등록번호 검색)
       <input id="rec-patient-q" list="rec-patients" placeholder="검색…" autocomplete="off">
       <datalist id="rec-patients"></datalist>
     </label>
     <label class="field">프로토콜<select id="rec-protocol"></select></label>
     <label class="field">Step<select id="rec-step"></select></label>
     <label class="field">눈<select id="rec-eye"><option value="OD">OD (우)</option><option value="OS">OS (좌)</option></select></label>
-    <label class="field">목표 sweeps<input id="rec-target" type="number" min="1" value="50" style="width:90px"></label>
-    <button class="btn primary" id="rec-save">저장</button>
-    <button class="btn ghost" id="rec-new">새 검사 시작</button>
+    <label class="field narrow">목표 sweeps<input id="rec-target" type="number" min="1" value="50"></label>
+    <button class="btn primary" id="rec-save"><svg class="ico"><use href="#i-download"/></svg>저장</button>
+    <button class="btn" id="rec-new"><svg class="ico"><use href="#i-plus"/></svg>새 검사 시작</button>
   </div>
   <p id="rec-msg" class="msg"></p>
 </section>
 {% endif %}
 
 <section class="card">
-  <h3 class="muted">전극 임피던스 <span class="muted" style="font-size:12px">(ISCEV 권고 &lt; 5 kΩ)</span></h3>
+  <div class="card-head">
+    <div>
+      <h2>전극 임피던스</h2>
+      <p class="card-sub">ISCEV 권고 &lt; 5 kΩ · 막대 중앙선 = 5 kΩ</p>
+    </div>
+  </div>
   <div id="imp" class="imp-grid"><span class="muted">–</span></div>
 </section>
 
-<style>
-  .pill-live { font-size:12px; padding:4px 12px; border-radius:999px;
-    background:#fee2e2; color:#991b1b; font-weight:600; }
-  .pill-live.on { background:#dcfce7; color:#166534; }
-  .live-controls { display:flex; gap:12px; align-items:end; flex-wrap:wrap; }
-  .live-controls .field { display:flex; flex-direction:column; gap:5px;
-    font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
-  .live-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-  @media (max-width:760px){ .live-grid{ grid-template-columns:1fr; } }
-  #scope, #avg { width:100%; height:auto; background:#0b1424; border-radius:10px;
-    border:1px solid var(--line); }
-  .cap { font-size:12px; margin:8px 0 0; }
-  .imp-grid { display:flex; gap:10px; flex-wrap:wrap; }
-  .imp-chip { display:flex; flex-direction:column; align-items:center; gap:2px;
-    min-width:96px; padding:10px; border-radius:10px; border:1px solid var(--line);
-    font-family:ui-monospace,monospace; }
-  .imp-chip b { font-size:18px; } .imp-chip small { color:var(--muted); font-size:11px; }
-  .imp-good { background:#dcfce7; color:#166534; } .imp-good b{ color:#166534; }
-  .imp-warn { background:#fef9c3; color:#854d0e; } .imp-warn b{ color:#854d0e; }
-  .imp-bad  { background:#fee2e2; color:#991b1b; } .imp-bad b{ color:#991b1b; }
-</style>
-
 <script>
 const S = (id) => document.getElementById(id);
-const scope = S("scope").getContext("2d");
-const avgc = S("avg").getContext("2d");
+const scope = hidpiCanvas(S("scope")).ctx;
+const avgc = hidpiCanvas(S("avg")).ctx;
 
 let fs = 1000, periodMs = 500, epochLen = 500;
 const SECONDS = 4; let CAP = fs * SECONDS;
@@ -127,29 +122,41 @@ function feedAverage(samples, triggers) {
 
 function drawScope(g, W, H, series, n, xmaxLabel) {
   g.clearRect(0,0,W,H);
-  const padL=44, padB=18, pw=W-padL-8, ph=H-16-padB;
+  g.fillStyle="#070b10"; g.fillRect(0,0,W,H);
+  const padL=44, padB=18, pw=W-padL-10, ph=H-16-padB;
   let ymin=Infinity, ymax=-Infinity;
   for (let i=0;i<n;i++){ const v=series(i); if(v<ymin)ymin=v; if(v>ymax)ymax=v; }
   if(!isFinite(ymin)){ymin=-1;ymax=1;} ymin=Math.min(ymin,0); ymax=Math.max(ymax,0);
   const pad=(ymax-ymin)*0.1||1; ymin-=pad; ymax+=pad;
   const Y=v=>10+(ymax-v)/(ymax-ymin)*ph;
-  g.strokeStyle="#17233a"; g.lineWidth=1;
-  for(let k=0;k<=4;k++){ const x=padL+pw*k/4; g.beginPath();g.moveTo(x,10);g.lineTo(x,10+ph);g.stroke(); }
-  g.strokeStyle="#33496b"; g.beginPath(); g.moveTo(padL,Y(0)); g.lineTo(padL+pw,Y(0)); g.stroke();
-  g.fillStyle="#7e90ab"; g.font="10px ui-monospace,monospace"; g.textAlign="right";
-  g.fillText(ymax.toFixed(0), padL-4, Y(ymax)+8); g.fillText(ymin.toFixed(0), padL-4, Y(ymin));
-  g.textAlign="center"; g.fillText(xmaxLabel, W-24, H-4);
-  g.strokeStyle="#22d3ee"; g.lineWidth=1.4; g.beginPath();
+  g.lineWidth=1;
+  g.strokeStyle="#101924"; g.beginPath();
+  for(let k=0;k<=20;k++){ const x=Math.round(padL+pw*k/20)+.5; g.moveTo(x,10); g.lineTo(x,10+ph); }
+  for(let k=0;k<=10;k++){ const y=Math.round(10+ph*k/10)+.5; g.moveTo(padL,y); g.lineTo(padL+pw,y); }
+  g.stroke();
+  g.strokeStyle="#1a2635"; g.beginPath();
+  for(let k=0;k<=4;k++){ const x=Math.round(padL+pw*k/4)+.5; g.moveTo(x,10); g.lineTo(x,10+ph); }
+  g.stroke();
+  g.strokeStyle="#2e4257"; g.beginPath(); g.moveTo(padL,Math.round(Y(0))+.5); g.lineTo(padL+pw,Math.round(Y(0))+.5); g.stroke();
+  g.fillStyle="#6f7f92"; g.font="500 10px ui-monospace,monospace"; g.textAlign="right";
+  g.fillText(ymax.toFixed(0), padL-6, Y(ymax)+8); g.fillText(ymin.toFixed(0), padL-6, Y(ymin));
+  g.fillText("µV", padL-6, 10+ph/2+3);
+  g.textAlign="right"; g.fillText(xmaxLabel, padL+pw, H-4);
+  g.save();
+  g.shadowColor="rgba(34,211,238,.55)"; g.shadowBlur=6;
+  g.strokeStyle="#3ad7f5"; g.lineWidth=1.4; g.lineJoin="round"; g.beginPath();
   for(let i=0;i<n;i++){ const x=padL+pw*i/(n-1||1), y=Y(series(i)); i?g.lineTo(x,y):g.moveTo(x,y); }
   g.stroke();
+  g.restore();
 }
 
 function render() {
   drawScope(scope, 520, 260, i => { const idx=(head-filled+i+CAP*2)%CAP; return buf[idx]; },
             filled||1, SECONDS+"s →");
   if (avgCount>0) drawScope(avgc, 520, 260, i => sumEpoch[i]/avgCount, epochLen, periodMs+"ms");
-  else { avgc.clearRect(0,0,520,260); avgc.fillStyle="#7e90ab"; avgc.font="13px system-ui";
-    avgc.textAlign="center"; avgc.fillText("트리거 대기 중…", 260, 130); }
+  else { avgc.clearRect(0,0,520,260); avgc.fillStyle="#070b10"; avgc.fillRect(0,0,520,260);
+    avgc.fillStyle="#6f7f92"; avgc.font="500 13px system-ui";
+    avgc.textAlign="center"; avgc.fillText("트리거 대기 중…", 260, 134); }
   requestAnimationFrame(render);
 }
 requestAnimationFrame(render);
@@ -157,7 +164,10 @@ requestAnimationFrame(render);
 function renderImp(values) {
   S("imp").innerHTML = Object.entries(values).map(([k,v]) => {
     const cls = v <= 5 ? "imp-good" : v <= 10 ? "imp-warn" : "imp-bad";
-    return `<div class="imp-chip ${cls}"><b>${v.toFixed(1)}</b><small>kΩ · ${k}</small></div>`;
+    const pct = Math.min(100, v / 10 * 100);     // bar spans 0–10 kΩ; midline = 5 kΩ
+    return `<div class="imp-chip ${cls}">
+      <div class="imp-top"><span class="imp-name">${escHtml(k)}</span><b>${v.toFixed(1)}<small>kΩ</small></b></div>
+      <div class="imp-bar"><i style="width:${pct}%"></i></div></div>`;
   }).join("");
 }
 
@@ -167,15 +177,15 @@ function connect() {
   const d = S("driver").value, c = S("connection").value;
   const qs = new URLSearchParams(); if (d) qs.set("driver", d); if (c) qs.set("connection", c);
   ws = new WebSocket(`${proto}://${location.host}/ws/live?${qs}`);
-  const st = S("status");
-  ws.onopen = () => { st.textContent="● 스트리밍"; st.classList.add("on"); S("err").textContent=""; };
-  ws.onclose = () => { st.textContent="연결 끊김"; st.classList.remove("on"); };
+  const st = S("status"), stText = S("status-text");
+  ws.onopen = () => { stText.textContent="스트리밍"; st.classList.add("on"); S("err").textContent=""; };
+  ws.onclose = () => { stText.textContent="연결 끊김"; st.classList.remove("on"); };
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     if (m.type === "error") {
       S("err").textContent = "드라이버 연결 실패: " + m.message;
       if (m.drivers && !driversLoaded) fillDrivers(m.drivers, S("driver").value);
-      st.textContent="오류"; st.classList.remove("on"); return;
+      stText.textContent="오류"; st.classList.remove("on"); return;
     }
     if (m.type === "meta") {
       fs = m.fs; CAP = fs*SECONDS; buf = new Float32Array(CAP).fill(0); head=0; filled=0;
@@ -196,8 +206,9 @@ function fillDrivers(drivers, active) {
 
 S("reconnect").addEventListener("click", () => { driversLoaded=false; resetAverage(); connect(); });
 S("avg-reset").addEventListener("click", resetAverage);
-S("pause").addEventListener("click", (e) => { paused=!paused;
-  e.target.textContent = paused ? "▶ 재개" : "⏸ 일시정지"; });
+S("pause").addEventListener("click", () => { paused=!paused;
+  S("pause").innerHTML = paused ? '<svg class="ico"><use href="#i-play"/></svg>재개'
+                                : '<svg class="ico"><use href="#i-pause"/></svg>일시정지'; });
 connect();
 
 /* ---- Save the trigger-averaged epoch as an exam step ---------------- */

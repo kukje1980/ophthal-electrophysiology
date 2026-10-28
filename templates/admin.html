@@ -1,11 +1,22 @@
 {% extends "base.html" %}
-{% block title %}관리자 · ERG/VEP{% endblock %}
+{% block title %}사용자 · 감사 · ERG·VEP{% endblock %}
 {% block content %}
-<h1>관리자 <span class="muted" style="font-size:14px">Users &amp; Audit</span></h1>
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Users &amp; audit</p>
+    <h1>사용자 · 감사</h1>
+    <p class="page-sub">계정과 역할(RBAC)을 관리하고 접근 기록을 검토합니다.</p>
+  </div>
+</div>
 
 <section class="card">
-  <h2>사용자 계정</h2>
-  <form id="user-form" class="form-grid">
+  <div class="card-head">
+    <div>
+      <h2>사용자 계정</h2>
+      <p class="card-sub">User accounts</p>
+    </div>
+  </div>
+  <form id="user-form" class="form-grid cols-4">
     <label>아이디<input name="username" required></label>
     <label>이름<input name="full_name"></label>
     <label>비밀번호<input name="password" type="password" required minlength="6"></label>
@@ -14,26 +25,35 @@
         {% for value, label in roles %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
       </select>
     </label>
-    <button class="btn primary" type="submit">계정 생성</button>
+    <div class="form-actions">
+      <button class="btn primary" type="submit"><svg class="ico"><use href="#i-plus"/></svg>계정 생성</button>
+      <p id="user-msg" class="msg" style="margin:0"></p>
+    </div>
   </form>
-  <p id="user-msg" class="msg"></p>
-  <table class="table compact">
-    <thead><tr><th>아이디</th><th>이름</th><th>역할</th><th>상태</th>
-      <th>마지막 로그인</th><th></th></tr></thead>
-    <tbody id="user-rows"></tbody>
-  </table>
+  <div class="table-wrap" style="margin-top:18px">
+    <table class="table compact">
+      <thead><tr><th>아이디</th><th>이름</th><th>역할</th><th>상태</th>
+        <th>마지막 로그인</th><th></th></tr></thead>
+      <tbody id="user-rows"></tbody>
+    </table>
+  </div>
 </section>
 
 <section class="card">
-  <div class="row-between">
-    <h2>감사 로그 (Audit log)</h2>
-    <a class="btn small" href="/api/audit/export">CSV 내보내기</a>
+  <div class="card-head">
+    <div>
+      <h2>감사 로그</h2>
+      <p class="card-sub">Audit log · 최근 100건</p>
+    </div>
+    <a class="btn small" href="/api/audit/export"><svg class="ico"><use href="#i-download"/></svg>CSV 내보내기</a>
   </div>
-  <table class="table compact">
-    <thead><tr><th>시각</th><th>사용자</th><th>행위</th><th>대상</th>
-      <th>상세</th><th>IP</th></tr></thead>
-    <tbody id="audit-rows"></tbody>
-  </table>
+  <div class="table-wrap">
+    <table class="table compact">
+      <thead><tr><th>시각</th><th>사용자</th><th>행위</th><th>대상</th>
+        <th>상세</th><th>IP</th></tr></thead>
+      <tbody id="audit-rows"></tbody>
+    </table>
+  </div>
 </section>
 
 <script>
@@ -43,13 +63,13 @@ async function loadUsers() {
   const rows = await api("/api/users");
   document.getElementById("user-rows").innerHTML = rows.map(u => `
     <tr>
-      <td><b>${u.username}</b></td>
-      <td>${u.full_name || "-"}</td>
-      <td>${ROLE_LABEL[u.role] || u.role}</td>
-      <td>${u.is_active ? "활성" : "<span class='muted'>비활성</span>"}</td>
-      <td>${u.last_login ? new Date(u.last_login).toLocaleString() : "-"}</td>
-      <td>
-        <button class="btn small" data-toggle="${u.id}" data-active="${u.is_active}">
+      <td><b class="mono">${escHtml(u.username)}</b></td>
+      <td>${escHtml(u.full_name || "—")}</td>
+      <td><span class="tag neutral">${escHtml(ROLE_LABEL[u.role] || u.role)}</span></td>
+      <td>${u.is_active ? '<span class="status-dot">활성</span>' : '<span class="status-dot off">비활성</span>'}</td>
+      <td class="mono">${fmtDateTime(u.last_login)}</td>
+      <td class="actions">
+        <button class="btn small${u.is_active ? " danger" : ""}" data-toggle="${u.id}" data-active="${u.is_active}">
           ${u.is_active ? "비활성화" : "활성화"}</button>
       </td>
     </tr>`).join("");
@@ -65,13 +85,13 @@ async function loadAudit() {
   const rows = await api("/api/audit?limit=100");
   document.getElementById("audit-rows").innerHTML = rows.map(a => `
     <tr>
-      <td>${new Date(a.at).toLocaleString()}</td>
-      <td>${a.username || "-"}</td>
-      <td><span class="tag">${a.action}</span></td>
-      <td>${a.entity ? a.entity + (a.entity_id ? " #" + a.entity_id : "") : "-"}</td>
-      <td>${a.detail || "-"}</td>
-      <td>${a.ip || "-"}</td>
-    </tr>`).join("") || `<tr><td colspan="6" class="muted">기록 없음</td></tr>`;
+      <td class="mono">${fmtDateTime(a.at)}</td>
+      <td>${escHtml(a.username || "—")}</td>
+      <td><span class="tag">${escHtml(a.action)}</span></td>
+      <td class="mono">${a.entity ? escHtml(a.entity + (a.entity_id ? " #" + a.entity_id : "")) : "—"}</td>
+      <td>${escHtml(a.detail || "—")}</td>
+      <td class="mono">${escHtml(a.ip || "—")}</td>
+    </tr>`).join("") || `<tr><td colspan="6" class="empty">기록 없음</td></tr>`;
 }
 
 document.getElementById("user-form").addEventListener("submit", async (ev) => {
