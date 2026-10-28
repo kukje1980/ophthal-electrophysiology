@@ -30,6 +30,7 @@ def init_db():
 
     Base.metadata.create_all(bind=engine)
     _add_missing_columns()
+    _add_missing_indexes()
 
 
 def _add_missing_columns():
@@ -51,3 +52,11 @@ def _add_missing_columns():
                     f'ALTER TABLE "{table.name}" ADD COLUMN '
                     f'"{column.name}" {col_type}'
                 ))
+
+
+def _add_missing_indexes():
+    """Create model indexes missing from existing tables — create_all only
+    indexes tables it creates, and patient search relies on these."""
+    for table in Base.metadata.sorted_tables:
+        for index in table.indexes:
+            index.create(bind=engine, checkfirst=True)

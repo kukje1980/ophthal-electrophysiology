@@ -27,8 +27,8 @@ python run.py
 
 Open <http://localhost:8000>. Interactive API docs at `/docs`.
 
-Typical flow: **Patients → add patient → New exam → pick protocol → Acquire →
-Report**.
+Typical flow: **검사 접수 (start screen) → find or register the patient → this
+visit's details → 저장하고 검사 시작 → Acquire / Live → Report**.
 
 ## Architecture
 
@@ -37,7 +37,7 @@ app/
   main.py            FastAPI app
   config.py          settings (env-overridable)
   database.py        SQLAlchemy engine/session
-  models/            Patient, Exam, Waveform, Measurement
+  models/            Patient, Visit, Exam, Waveform, Measurement
   schemas/           Pydantic I/O
   crud/              DB access + acquire→store→auto-mark pipeline
   routers/           patients, exams, protocols, devices, pages (HTML)
@@ -51,6 +51,47 @@ app/
     registry.py      driver registry + active-device selection
 templates/  static/  Jinja2 pages + Canvas plotting
 ```
+
+## Reception (검사 접수)
+
+The start page (`/`) is a single screen built for the testing room:
+
+1. **One search box** — type an ID, a name or a birth date (`680302`,
+   `19680302`, `1968-03-02`); the top 20 patients whose ID or name *starts
+   with* the text appear as you type, with sex/age, birth date and their last
+   visit (date, how long ago, number of visits, last diagnosis). ↑↓ + Enter
+   picks one; a **barcode scanner** works as-is (it types the ID + Enter, which
+   selects the exact ID). No match → *신규 환자로 등록* with what was typed
+   filled in (digits → ID, letters → name).
+2. **Patient** — a returning patient is shown as a summary card. A new
+   patient needs only ID, name, birth date (typed the Korean way, `680302`,
+   age shown live) and sex (keys 1/3 = 남, 2/4 = 여); contact, referral and
+   history are optional under *추가 정보*. A duplicate ID is flagged before
+   saving.
+3. **This visit** — attending doctor (clinician accounts + names used
+   before), diagnosis / reason (this lab's frequent diagnoses + a common list),
+   requested tests, best-corrected VA and pupil size per eye, and the
+   recording conditions an ISCEV report documents (dark/light adaptation,
+   electrode, refractive correction). For a returning patient the doctor,
+   diagnosis, tests and conditions carry forward from the last visit, while
+   last time's VA / pupil are only *offered* (one click), since they must be
+   measured again.
+4. **저장하고 검사 시작** opens the exam page for that visit (or *저장만* puts the
+   patient on **today's worklist**, where visits can be continued, edited or
+   cancelled while no exam is recorded).
+
+Per-visit data lives in the `visits` table (`app/models/visit.py`), so the
+history is kept and each exam (`exams.visit_id`) and report shows the values of
+its own day. API: `POST /api/reception` (new or existing patient + visit in one
+transaction), `GET /api/patients/search`, `GET/PUT/DELETE /api/visits…`,
+`GET /api/visits/options`.
+
+**Speed with large databases.** Search uses index range scans (`ID/name
+starts with`, exact birth date) capped at 20 rows, debounced while typing and
+with stale responses dropped, so its cost does not grow with the number of
+patients: with 200,000 patients and 60,000 visits a search round trip takes
+~11 ms. The patient list shows the latest 50 unless searched. Existing
+databases gain the new table, column and indexes automatically on start.
 
 ## Real-device integration (amplifier + stimulator)
 

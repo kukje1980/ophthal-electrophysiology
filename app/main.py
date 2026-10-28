@@ -10,7 +10,7 @@ from app.config import settings
 from app.database import SessionLocal, init_db
 from app.routers import (
     account, audit, auth, devices, exams, live, pages, patients, protocols,
-    reference, users,
+    reference, users, visits,
 )
 
 # Paths reachable without a login session.
@@ -95,6 +95,7 @@ def create_app() -> FastAPI:
     app.include_router(account.router)
     app.include_router(live.router)  # WebSocket live stream
     app.include_router(reference.router)
+    app.include_router(visits.router)
     # Auth + HTML pages
     app.include_router(auth.router)
     app.include_router(pages.router)

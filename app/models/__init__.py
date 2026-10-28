@@ -1,11 +1,12 @@
 """ORM models. Importing this package registers every model on Base.metadata."""
 from app.models.patient import Patient
 from app.models.exam import Exam
+from app.models.visit import Visit
 from app.models.waveform import Waveform
 from app.models.measurement import Measurement
 from app.models.user import User
 from app.models.audit import AuditLog
 from app.models.reference import ReferenceRange
 
-__all__ = ["Patient", "Exam", "Waveform", "Measurement", "User", "AuditLog",
+__all__ = ["Patient", "Exam", "Visit", "Waveform", "Measurement", "User", "AuditLog",
            "ReferenceRange"]

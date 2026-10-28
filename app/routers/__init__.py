@@ -1,10 +1,10 @@
 """FastAPI routers."""
 from app.routers import (
     account, audit, auth, devices, exams, live, pages, patients, protocols,
-    reference, users,
+    reference, users, visits,
 )
 
 __all__ = [
     "account", "audit", "auth", "devices", "exams", "live", "pages",
-    "patients", "protocols", "reference", "users",
+    "patients", "protocols", "reference", "users", "visits",
 ]

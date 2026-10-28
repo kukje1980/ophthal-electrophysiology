@@ -1,77 +1,60 @@
 {% extends "base.html" %}
 {% block title %}Patients · ERG/VEP{% endblock %}
 {% block content %}
-<h1>환자 관리 <span class="muted" style="font-size:14px">Patients</span></h1>
-
-{% if 'edit_patient' in perms %}
-<section class="card">
-  <div class="row-between">
-    <h2>신규 환자 등록</h2>
-    <button class="btn small" id="toggle-form" type="button">폼 접기</button>
-  </div>
-  <form id="patient-form"></form>
-</section>
-{% endif %}
+<div class="row-between">
+  <h1>환자 관리 <span class="muted" style="font-size:14px">Patients</span></h1>
+  {% if 'edit_patient' in perms %}
+  <a class="btn primary" href="/">＋ 신규 등록 · 검사 접수</a>
+  {% endif %}
+</div>
 
 <section class="card">
   <div class="row-between">
     <h2>환자 목록</h2>
-    <input id="search" placeholder="이름 / 등록번호 / 연락처 검색…" class="search">
+    <input id="search" placeholder="ID · 이름 앞글자 또는 생년월일(680302)…" class="search" style="max-width:300px">
   </div>
+  <p class="muted" id="list-note" style="font-size:12px;margin:0 0 8px"></p>
   <table class="table">
     <thead>
       <tr><th>등록번호</th><th>성명</th><th>성별/나이</th><th>생년월일</th>
-          <th>연락처</th><th>보험</th><th></th></tr>
+          <th>최근 방문</th><th>지난 진단</th><th></th></tr>
     </thead>
     <tbody id="patient-rows"></tbody>
   </table>
 </section>
 
 <script>
-const form = document.getElementById("patient-form");
-if (form) renderPatientForm(form, null, "환자 등록");
-
 const sexLabel = (s) => ({M:"남", F:"여", O:"기타"}[s] || "-");
+const escH = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+let seq = 0, timer = null;
 
 async function loadPatients(q) {
-  const rows = await api(`/api/patients${q ? "?q=" + encodeURIComponent(q) : ""}`);
-  const tb = document.getElementById("patient-rows");
-  tb.innerHTML = rows.map(p => `
+  const my = ++seq;
+  q = (q || "").trim();
+  // search: top matches with visit history; no query: the latest registered
+  const rows = await api(q ? `/api/patients/search?q=${encodeURIComponent(q)}&limit=50`
+                           : `/api/patients?limit=50`);
+  if (my !== seq) return;
+  document.getElementById("list-note").textContent = q
+    ? `‘${q}’ 검색 결과 ${rows.length}명${rows.length >= 50 ? " (상위 50명)" : ""}`
+    : "최근 등록 50명을 보여줍니다 — 검색하면 전체에서 찾습니다.";
+  document.getElementById("patient-rows").innerHTML = rows.map(p => `
     <tr>
-      <td>${p.mrn}</td>
-      <td><a href="/patients/${p.id}">${p.name}</a></td>
+      <td>${escH(p.mrn)}</td>
+      <td><a href="/patients/${p.id}">${escH(p.name)}</a></td>
       <td>${sexLabel(p.sex)}${p.age != null ? " / " + p.age : ""}</td>
       <td>${p.birth_date || "-"}</td>
-      <td>${p.phone || "-"}</td>
-      <td>${p.insurance_type || "-"}</td>
+      <td>${p.last_visit ? p.last_visit + (p.visit_count ? ` (${p.visit_count}회)` : "") : (q ? "-" : "")}</td>
+      <td>${escH(p.last_diagnosis || "")}</td>
       <td><a class="btn small" href="/patients/${p.id}">열기</a></td>
     </tr>`).join("") ||
-    `<tr><td colspan="7" class="muted">등록된 환자가 없습니다.</td></tr>`;
+    `<tr><td colspan="7" class="muted">${q ? "일치하는 환자가 없습니다." : "등록된 환자가 없습니다."}</td></tr>`;
 }
 
-if (form) form.addEventListener("submit", async (ev) => {
-  ev.preventDefault();
-  const msg = form.querySelector("[data-msg]");
-  try {
-    const data = collectPatientForm(form);
-    await api("/api/patients", { method: "POST", body: data });
-    renderPatientForm(form, null, "환자 등록");
-    msg.textContent = "환자가 등록되었습니다."; msg.className = "msg ok";
-    loadPatients();
-  } catch (e) {
-    const m = form.querySelector("[data-msg]");
-    if (m) { m.textContent = e.message; m.className = "msg err"; }
-  }
+document.getElementById("search").addEventListener("input", (e) => {
+  clearTimeout(timer);
+  timer = setTimeout(() => loadPatients(e.target.value), 150);
 });
-
-const toggleBtn = document.getElementById("toggle-form");
-if (toggleBtn) toggleBtn.addEventListener("click", (e) => {
-  const hidden = form.classList.toggle("hidden");
-  e.target.textContent = hidden ? "폼 펼치기" : "폼 접기";
-});
-
-document.getElementById("search").addEventListener("input", (e) =>
-  loadPatients(e.target.value));
 
 loadPatients();
 </script>

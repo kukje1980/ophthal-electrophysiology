@@ -17,6 +17,16 @@ async function api(path, opts = {}) {
   return data;
 }
 
+/* Server timestamps are naive UTC ("2026-10-28T05:59:35"); show them in the
+   PC's local time (a bare ISO string would otherwise be read as local). */
+function fmtDateTime(iso, opts) {
+  if (!iso) return "-";
+  const s = /[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : iso + "Z";
+  const d = new Date(s);
+  return isNaN(d) ? iso : d.toLocaleString("ko-KR", opts || {
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
 function setMsg(id, text, cls) {
   const el = document.getElementById(id);
   if (!el) return;

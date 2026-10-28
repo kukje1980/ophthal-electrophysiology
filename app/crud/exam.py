@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.acquisition import get_active_device
 from app.crud import reference as reference_crud
 from app.iscev import detect_markers, get_protocol
-from app.models import Exam, Measurement, Patient, Waveform
+from app.models import Exam, Measurement, Patient, Visit, Waveform
 from app.schemas import ExamCreate, ExamRecord
 
 
@@ -33,6 +33,16 @@ def _ref_lookup(db: Session, patient_id: int):
     built-in demonstration ranges when the lab has no row)."""
     patient = db.get(Patient, patient_id)
     return reference_crud.make_lookup(db, patient.age if patient else None)
+
+
+def _check_visit(db: Session, visit_id: Optional[int], patient_id: int):
+    """The reception an exam is filed under must belong to the same patient."""
+    if visit_id is None:
+        return None
+    visit = db.get(Visit, visit_id)
+    if visit is None or visit.patient_id != patient_id:
+        raise KeyError("Visit not found for this patient")
+    return visit_id
 
 
 def _store_trace(db: Session, exam_id: int, eye: str, step: dict,
@@ -63,12 +73,14 @@ def run_exam(db: Session, data: ExamCreate) -> Exam:
     path works for the simulator and for any real driver.
     """
     protocol = get_protocol(data.protocol)
+    visit_id = _check_visit(db, data.visit_id, data.patient_id)
     device = get_active_device()
     device.configure(protocol)
     ref_lookup = _ref_lookup(db, data.patient_id)
 
     exam = Exam(
         patient_id=data.patient_id,
+        visit_id=visit_id,
         test_type=protocol["test_type"],
         protocol=data.protocol,
         device=device.name,
@@ -109,6 +121,7 @@ def record_step(db: Session, data: ExamRecord) -> Exam:
     else:
         exam = Exam(
             patient_id=data.patient_id, test_type=protocol["test_type"],
+            visit_id=_check_visit(db, data.visit_id, data.patient_id),
             protocol=data.protocol, device=data.device or "live-stream",
             operator=data.operator, status="completed", note=data.note,
         )

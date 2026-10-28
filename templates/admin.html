@@ -47,7 +47,7 @@ async function loadUsers() {
       <td>${u.full_name || "-"}</td>
       <td>${ROLE_LABEL[u.role] || u.role}</td>
       <td>${u.is_active ? "활성" : "<span class='muted'>비활성</span>"}</td>
-      <td>${u.last_login ? new Date(u.last_login).toLocaleString() : "-"}</td>
+      <td>${u.last_login ? fmtDateTime(u.last_login) : "-"}</td>
       <td>
         <button class="btn small" data-toggle="${u.id}" data-active="${u.is_active}">
           ${u.is_active ? "비활성화" : "활성화"}</button>
@@ -65,7 +65,7 @@ async function loadAudit() {
   const rows = await api("/api/audit?limit=100");
   document.getElementById("audit-rows").innerHTML = rows.map(a => `
     <tr>
-      <td>${new Date(a.at).toLocaleString()}</td>
+      <td>${fmtDateTime(a.at, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</td>
       <td>${a.username || "-"}</td>
       <td><span class="tag">${a.action}</span></td>
       <td>${a.entity ? a.entity + (a.entity_id ? " #" + a.entity_id : "") : "-"}</td>

@@ -13,6 +13,7 @@ class ExamCreate(BaseModel):
     eyes: List[str] = ["OD", "OS"]
     operator: Optional[str] = None
     note: Optional[str] = None
+    visit_id: Optional[int] = None  # reception this exam belongs to
 
 
 class ExamRecord(BaseModel):
@@ -29,6 +30,7 @@ class ExamRecord(BaseModel):
     n_sweeps: int = 1
     n_rejected: int = 0         # epochs dropped by artifact rejection
     exam_id: Optional[int] = None
+    visit_id: Optional[int] = None  # reception, when a new exam is created
     device: Optional[str] = None
     operator: Optional[str] = None
     note: Optional[str] = None
@@ -39,6 +41,7 @@ class ExamSummary(BaseModel):
 
     id: int
     patient_id: int
+    visit_id: Optional[int] = None
     test_type: str
     protocol: str
     device: Optional[str] = None

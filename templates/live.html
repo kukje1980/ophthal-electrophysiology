@@ -137,7 +137,6 @@
 </section>
 
 <style>
-  [hidden] { display:none !important; }
   .unit { text-transform:none; letter-spacing:0; }
   .pill-live { font-size:12px; padding:4px 12px; border-radius:999px;
     background:#fee2e2; color:#991b1b; font-weight:600; }
@@ -462,6 +461,8 @@ S("cal-apply").addEventListener("click", () => {
 });
 
 /* ---- Save the trigger-averaged epoch as an exam step ---------------- */
+const URLQ = new URLSearchParams(location.search);
+const recVisitId = URLQ.get("visit_id") ? +URLQ.get("visit_id") : null;  // from reception
 let recExamId = null, recPatients = [], stepEpochApplied = false;
 const recCard = S("rec-card");
 if (recCard) {
@@ -526,7 +527,7 @@ if (recCard) {
           patient_id: p.id, protocol: protoSel.value, step_key: stepSel.value,
           eye: e, samples: avg.mean(c).map(v => +v.toFixed(3)), sampling_rate: fs,
           duration_ms: epochMs, n_sweeps: avg.count, n_rejected: avg.rejected,
-          exam_id: recExamId, device: activeDevice } });
+          exam_id: recExamId, visit_id: recVisitId, device: activeDevice } });
         recExamId = exam.id;
       }
       S("rec-exam").textContent = `검사 #${exam.id} (${exam.waveforms.length} trace)`;
@@ -539,6 +540,11 @@ if (recCard) {
   });
 
   loadProtocols();
+  if (URLQ.get("patient_id")) {  // preselect the patient handed over from reception
+    api(`/api/patients/${URLQ.get("patient_id")}`).then(p => {
+      recPatients = [p]; qInput.value = `${p.name} (#${p.mrn})`;
+    }).catch(() => {});
+  }
 }
 
 /* ---- Start: restore the last driver/connection used on this PC ------ */

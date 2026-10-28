@@ -14,6 +14,8 @@ class Exam(Base):
     patient_id = Column(
         Integer, ForeignKey("patients.id"), nullable=False, index=True
     )
+    # the reception (검사 접수) this exam was recorded under, if any
+    visit_id = Column(Integer, ForeignKey("visits.id"), nullable=True, index=True)
 
     # Test type: ffERG / PERG / VEP / mfERG
     test_type = Column(String(16), nullable=False)
@@ -27,6 +29,7 @@ class Exam(Base):
     note = Column(String(512), nullable=True)
 
     patient = relationship("Patient", back_populates="exams")
+    visit = relationship("Visit", back_populates="exams")
     waveforms = relationship(
         "Waveform", back_populates="exam", cascade="all, delete-orphan"
     )

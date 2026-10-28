@@ -2,6 +2,10 @@
 from app.schemas.patient import PatientCreate, PatientOut, PatientUpdate
 from app.schemas.exam import ExamCreate, ExamOut, ExamRecord, ExamSummary
 from app.schemas.waveform import MeasurementOut, WaveformOut
+from app.schemas.visit import (
+    PatientSearchOut, ReceptionIn, ReceptionOut, VisitCreate, VisitListOut,
+    VisitOut,
+)
 
 __all__ = [
     "PatientCreate",
@@ -13,4 +17,10 @@ __all__ = [
     "ExamSummary",
     "WaveformOut",
     "MeasurementOut",
+    "PatientSearchOut",
+    "ReceptionIn",
+    "ReceptionOut",
+    "VisitCreate",
+    "VisitListOut",
+    "VisitOut",
 ]
