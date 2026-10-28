@@ -18,3 +18,9 @@ env/
 
 # Env
 .env
+
+# Runtime data
+backups/
+logs/
+*.db-wal
+*.db-shm

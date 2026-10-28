@@ -96,6 +96,14 @@ def set_totp(db: Session, user: User, secret: Optional[str],
     db.commit()
 
 
+def _clip(value, n):
+    """Fit a value to its column so a long detail can never fail the insert."""
+    if value is None:
+        return None
+    value = str(value)
+    return value if len(value) <= n else value[:n - 1] + "…"
+
+
 def audit(db: Session, *, user=None, action: str, entity: str = None,
           entity_id: int = None, detail: str = None,
           request: Request = None) -> None:
@@ -106,14 +114,33 @@ def audit(db: Session, *, user=None, action: str, entity: str = None,
             ip = request.client.host
         db.add(AuditLog(
             user_id=getattr(user, "id", None),
-            username=getattr(user, "username", None),
-            action=action, entity=entity, entity_id=entity_id,
-            detail=detail, ip=ip,
+            username=_clip(getattr(user, "username", None), 64),
+            action=_clip(action, 48), entity=_clip(entity, 32),
+            entity_id=entity_id, detail=_clip(detail, 256), ip=_clip(ip, 45),
         ))
         db.commit()
     except Exception:
         db.rollback()
 
 
-def list_audit(db: Session, limit: int = 200) -> List[AuditLog]:
-    return db.query(AuditLog).order_by(AuditLog.at.desc()).limit(limit).all()
+def list_audit(db: Session, limit: int = 200, offset: int = 0) -> List[AuditLog]:
+    return (db.query(AuditLog).order_by(AuditLog.at.desc(), AuditLog.id.desc())
+            .offset(offset).limit(limit).all())
+
+
+def iter_audit(db: Session, since=None, until=None, batch: int = 1000):
+    """Yield audit rows oldest first in fixed-size batches (keyset paging), so
+    exporting years of log never loads it all into memory."""
+    last_id = 0
+    while True:
+        q = db.query(AuditLog).filter(AuditLog.id > last_id)
+        if since is not None:
+            q = q.filter(AuditLog.at >= since)
+        if until is not None:
+            q = q.filter(AuditLog.at < until)
+        rows = q.order_by(AuditLog.id).limit(batch).all()
+        if not rows:
+            return
+        yield from rows
+        last_id = rows[-1].id
+        db.expunge_all()

@@ -18,14 +18,8 @@ _LIMIT_KEYS = ("amp_min", "amp_max", "lat_min", "lat_max")
 
 # -- lookup -----------------------------------------------------------------
 
-def lookup(db: Session, step_key: str, marker: str,
-           age: Optional[int] = None) -> Optional[dict]:
-    """Return the limits dict for a marker, preferring an age band that
-    contains ``age``, then an all-ages row. None -> caller falls back to the
-    built-in demonstration values."""
-    rows = (db.query(ReferenceRange)
-            .filter(ReferenceRange.step_key == step_key,
-                    ReferenceRange.marker == marker).all())
+def _pick(rows: List[ReferenceRange], age: Optional[int]) -> Optional[dict]:
+    """Prefer an age band that contains ``age``, then an all-ages row."""
     if not rows:
         return None
     if age is not None:
@@ -40,8 +34,24 @@ def lookup(db: Session, step_key: str, marker: str,
     return rows[0].limits()
 
 
+def lookup(db: Session, step_key: str, marker: str,
+           age: Optional[int] = None) -> Optional[dict]:
+    """Return the limits dict for a marker, preferring an age band that
+    contains ``age``, then an all-ages row. None -> caller falls back to the
+    built-in demonstration values."""
+    rows = (db.query(ReferenceRange)
+            .filter(ReferenceRange.step_key == step_key,
+                    ReferenceRange.marker == marker).all())
+    return _pick(rows, age)
+
+
 def make_lookup(db: Session, age: Optional[int]) -> Callable[[str, str], Optional[dict]]:
-    return lambda step_key, marker: lookup(db, step_key, marker, age)
+    """Lookup over the whole (small) reference table loaded once, instead of
+    one query per marker of every stored trace."""
+    by_key: Dict[tuple, List[ReferenceRange]] = defaultdict(list)
+    for r in db.query(ReferenceRange).order_by(ReferenceRange.id).all():
+        by_key[(r.step_key, r.marker)].append(r)
+    return lambda step_key, marker: _pick(by_key.get((step_key, marker)), age)
 
 
 # -- CRUD -------------------------------------------------------------------
@@ -54,11 +64,14 @@ def list_all(db: Session) -> List[ReferenceRange]:
 
 def upsert(db: Session, data: dict) -> ReferenceRange:
     """Create or update the row identified by (step_key, marker, age band)."""
+    def _eq(col, v):  # "IS <number>" is SQLite-only; use = for values
+        return col.is_(None) if v is None else col == v
+
     q = db.query(ReferenceRange).filter(
         ReferenceRange.step_key == data["step_key"],
         ReferenceRange.marker == data["marker"],
-        ReferenceRange.age_min.is_(data.get("age_min")),
-        ReferenceRange.age_max.is_(data.get("age_max")),
+        _eq(ReferenceRange.age_min, data.get("age_min")),
+        _eq(ReferenceRange.age_max, data.get("age_max")),
     )
     row = q.first()
     if row is None:

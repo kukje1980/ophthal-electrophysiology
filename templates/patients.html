@@ -25,6 +25,11 @@
     </thead>
     <tbody id="patient-rows"></tbody>
   </table>
+  <div class="pager">
+    <span id="page-info"></span>
+    <button class="btn small" id="page-prev" type="button">← 이전</button>
+    <button class="btn small" id="page-next" type="button">다음 →</button>
+  </div>
 </section>
 
 <script>
@@ -33,34 +38,67 @@ if (form) renderPatientForm(form, null, "환자 등록");
 
 const sexLabel = (s) => ({M:"남", F:"여", O:"기타"}[s] || "-");
 
-async function loadPatients(q) {
-  const rows = await api(`/api/patients${q ? "?q=" + encodeURIComponent(q) : ""}`);
+const PAGE = 50;
+let page = 0, query = "", loadSeq = 0;
+
+/* Only one page is fetched at a time, so the list stays fast however many
+   patients accumulate. A sequence number drops responses that arrive out of
+   order (fast typing on a slow network). */
+async function loadPatients() {
+  const seq = ++loadSeq;
+  const qs = new URLSearchParams({ limit: PAGE, offset: page * PAGE });
+  if (query) qs.set("q", query);
+  let res;
+  try { res = await api(`/api/patients?${qs}`, { withMeta: true }); }
+  catch (e) {
+    if (seq === loadSeq) document.getElementById("page-info").textContent = "목록을 불러오지 못했습니다: " + e.message;
+    return;
+  }
+  if (seq !== loadSeq) return;
+  const rows = res.data, total = res.total;
   const tb = document.getElementById("patient-rows");
   tb.innerHTML = rows.map(p => `
     <tr>
-      <td>${p.mrn}</td>
-      <td><a href="/patients/${p.id}">${p.name}</a></td>
+      <td>${esc(p.mrn)}</td>
+      <td><a href="/patients/${p.id}">${esc(p.name)}</a></td>
       <td>${sexLabel(p.sex)}${p.age != null ? " / " + p.age : ""}</td>
-      <td>${p.birth_date || "-"}</td>
-      <td>${p.phone || "-"}</td>
-      <td>${p.insurance_type || "-"}</td>
+      <td>${esc(p.birth_date || "-")}</td>
+      <td>${esc(p.phone || "-")}</td>
+      <td>${esc(p.insurance_type || "-")}</td>
       <td><a class="btn small" href="/patients/${p.id}">열기</a></td>
     </tr>`).join("") ||
-    `<tr><td colspan="7" class="muted">등록된 환자가 없습니다.</td></tr>`;
+    `<tr><td colspan="7" class="muted">${query ? "검색 결과가 없습니다." : "등록된 환자가 없습니다."}</td></tr>`;
+  const pages = Math.max(1, Math.ceil(total / PAGE));
+  document.getElementById("page-info").textContent =
+    `총 ${total.toLocaleString()}명 · ${page + 1} / ${pages} 페이지`;
+  document.getElementById("page-prev").disabled = page === 0;
+  document.getElementById("page-next").disabled = page + 1 >= pages;
 }
+
+document.getElementById("page-prev").addEventListener("click", () => {
+  if (page > 0) { page--; loadPatients(); }
+});
+document.getElementById("page-next").addEventListener("click", () => {
+  page++; loadPatients();
+});
 
 if (form) form.addEventListener("submit", async (ev) => {
   ev.preventDefault();
-  const msg = form.querySelector("[data-msg]");
+  const btn = form.querySelector('button[type="submit"]');
+  if (btn.disabled) return;  // no double submit while the first is in flight
+  btn.disabled = true;
   try {
     const data = collectPatientForm(form);
     await api("/api/patients", { method: "POST", body: data });
     renderPatientForm(form, null, "환자 등록");
-    msg.textContent = "환자가 등록되었습니다."; msg.className = "msg ok";
-    loadPatients();
+    const okMsg = form.querySelector("[data-msg]");
+    okMsg.textContent = "환자가 등록되었습니다."; okMsg.className = "msg ok";
+    page = 0; loadPatients();
   } catch (e) {
     const m = form.querySelector("[data-msg]");
     if (m) { m.textContent = e.message; m.className = "msg err"; }
+  } finally {
+    btn.disabled = false;
   }
 });
 
@@ -70,8 +108,9 @@ if (toggleBtn) toggleBtn.addEventListener("click", (e) => {
   e.target.textContent = hidden ? "폼 펼치기" : "폼 접기";
 });
 
-document.getElementById("search").addEventListener("input", (e) =>
-  loadPatients(e.target.value));
+document.getElementById("search").addEventListener("input", debounce((e) => {
+  query = e.target.value.trim(); page = 0; loadPatients();
+}, 250));
 
 loadPatients();
 </script>
