@@ -21,8 +21,8 @@ function n95p50Ratios(traces) {
     const p50 = ms.find((m) => m.marker === "P50");
     const n95 = ms.find((m) => m.marker === "N95");
     if (p50 && n95 && Math.abs(p50.amplitude_uv) > 0) {
-      out.push(`${tr.label}: ${(Math.abs(n95.amplitude_uv) /
-        Math.abs(p50.amplitude_uv)).toFixed(2)}`);
+      out.push(`${tr.label} <b>${(Math.abs(n95.amplitude_uv) /
+        Math.abs(p50.amplitude_uv)).toFixed(2)}</b>`);
     }
   }
   return out;
@@ -41,16 +41,16 @@ function markerTable(traces, opts = {}) {
       const armed = opts.armed && opts.armed.traceIndex === ti && opts.armed.marker === m.marker;
       const lat = editable
         ? `<input class="lat-input" type="number" step="0.5" min="0" value="${m.latency_ms.toFixed(1)}"
-                  data-mid="${m.id}" title="implicit time (ms) — Enter to apply"> ms`
-        : `${m.latency_ms.toFixed(1)} ms`;
+                  data-mid="${m.id}" title="implicit time (ms) — Enter to apply">`
+        : `${m.latency_ms.toFixed(1)}`;
       rows.push(`
         <tr class="${armed ? "armed" : ""}" data-ti="${ti}" data-marker="${m.marker}">
-          <td><i class="dot ${tr.label === "OD" ? "od" : "os"}"></i> ${tr.label}</td>
-          <td><b class="mk ${editable ? "clickable" : ""}" data-ti="${ti}" data-marker="${m.marker}"
+          <td><span class="eye-chip ${tr.label === "OS" ? "os" : "od"}">${tr.label}</span></td>
+          <td><b class="mono mk ${editable ? "clickable" : ""}" data-ti="${ti}" data-marker="${m.marker}"
                  title="${editable ? "클릭 후 파형 위를 클릭해 커서 이동" : ""}">${m.marker}</b>
               ${m.is_auto === false ? `<span class="manual-tag" title="수동 배치">수동</span>` : ""}</td>
-          <td>${lat}</td>
-          <td>${m.amplitude_uv.toFixed(2)} µV</td>
+          <td class="num">${lat}</td>
+          <td class="num">${m.amplitude_uv.toFixed(2)}</td>
           <td>${flagBadge(m.flag)}</td>
           ${editable ? `<td class="row-actions"><button class="icon-btn" data-del="${m.id}" title="마커 삭제">✕</button></td>` : ""}
         </tr>`);
@@ -71,19 +71,19 @@ function markerTable(traces, opts = {}) {
       </div>`).join("") + `</div>`;
   }
 
-  if (!rows.length) return `<p class="muted">No markers detected.</p>${tools}`;
+  if (!rows.length) return `<p class="muted">검출된 마커가 없습니다 (No markers detected).</p>${tools}`;
   const ratios = n95p50Ratios(traces);
   const ratioLine = ratios.length
-    ? `<p class="muted ratio-line">N95:P50 amplitude ratio — ${ratios.join(" · ")}</p>`
+    ? `<p class="ratio-line">N95:P50 amplitude ratio · ${ratios.join(" · ")}</p>`
     : "";
   return `
-    <table class="table compact marker-table">
+    <div class="table-wrap"><table class="table compact marker-table">
       <thead><tr>
-        <th>Eye</th><th>Marker</th><th>Implicit time</th>
-        <th>Amplitude</th><th>Status</th>${editable ? "<th></th>" : ""}
+        <th>Eye</th><th>Marker</th><th class="num">Implicit <span class="unit">(ms)</span></th>
+        <th class="num">Amp <span class="unit">(µV)</span></th><th>Status</th>${editable ? "<th></th>" : ""}
       </tr></thead>
       <tbody>${rows.join("")}</tbody>
-    </table>${ratioLine}${tools}`;
+    </table></div>${ratioLine}${tools}`;
 }
 
 /* Interocular (OD vs OS) comparison for one step, from /api/exams/{id}/analysis. */
@@ -96,7 +96,7 @@ function interocularTable(stepAnalysis) {
         ${rows.some((r) => r.flag === "abnormal") ? flagBadge("abnormal")
           : rows.some((r) => r.flag === "borderline") ? flagBadge("borderline") : flagBadge("normal")}
       </summary>
-      <table class="table compact">
+      <div class="table-wrap"><table class="table compact">
         <thead><tr><th>Marker</th><th>잠복기 차이</th><th></th><th>진폭비 (작은/큰)</th><th></th></tr></thead>
         <tbody>${rows.map((r) => `
           <tr>
@@ -107,7 +107,7 @@ function interocularTable(stepAnalysis) {
             <td>${flagBadge(r.amp_flag)}</td>
           </tr>`).join("")}
         </tbody>
-      </table>
+      </table></div>
       <p class="muted cap">기준(시연값): 잠복기 차이 &gt; ${rows[0].limits.lat_diff_border}/${rows[0].limits.lat_diff_abn} ms,
         진폭비 &lt; ${rows[0].limits.amp_ratio_border}/${rows[0].limits.amp_ratio_abn} → 경계/비정상 (마커별 상이)</p>
     </details>`;

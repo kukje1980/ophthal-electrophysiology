@@ -1,10 +1,21 @@
 {% extends "base.html" %}
-{% block title %}Stimulus monitor · ERG/VEP{% endblock %}
+{% block title %}자극기 모니터 · ERG·VEP{% endblock %}
 {% block content %}
-<div class="row-between no-print stim-toolbar">
-  <a class="back" href="javascript:history.back()">← Back</a>
+<div class="page-head no-print">
+  <div>
+    <a class="back" href="javascript:history.back()"><svg class="ico"><use href="#i-back"/></svg>뒤로</a>
+    <p class="eyebrow">Monitor stimulator</p>
+    <h1>자극기 모니터</h1>
+  </div>
+  <div class="btn-row">
+    <button class="btn" id="toggle"><svg class="ico"><use href="#i-pause"/></svg>일시정지</button>
+    <button class="btn primary" id="fs"><svg class="ico"><use href="#i-expand"/></svg>전체 화면</button>
+  </div>
+</div>
+
+<section class="card stim-toolbar no-print">
   <div class="stim-controls">
-    <label>Mode
+    <label class="field">모드 (Mode)
       <select id="mode">
         <option value="pattern">Pattern reversal</option>
         <option value="flash">Flash</option>
@@ -12,30 +23,27 @@
         <option value="mfocal">Multifocal (mfERG)</option>
       </select>
     </label>
-    <label>Hexagons
+    <label class="field">Hexagons
       <select id="hexagons">
         <option value="61">61</option>
         <option value="103">103</option>
       </select>
     </label>
-    <label>Check (deg)<input id="check_deg" type="number" step="0.05" value="1.0"></label>
-    <label>Contrast<input id="contrast" type="number" step="0.01" min="0" max="1" value="0.97"></label>
-    <label>Rate (Hz)<input id="rate_hz" type="number" step="0.5" value="2"></label>
-    <button class="btn" id="toggle">⏸ Pause</button>
-    <button class="btn" id="fs">⛶ Full screen</button>
+    <label class="field">Check (deg)<input id="check_deg" type="number" step="0.05" value="1.0"></label>
+    <label class="field">Contrast<input id="contrast" type="number" step="0.01" min="0" max="1" value="0.97"></label>
+    <label class="field">Rate (Hz)<input id="rate_hz" type="number" step="0.5" value="2"></label>
   </div>
-</div>
+</section>
 
 <div class="stim-stage" id="stage">
   <canvas id="stim-canvas" width="960" height="600"></canvas>
   <div class="stim-readout" id="readout"></div>
 </div>
 
-<p class="muted no-print" style="font-size:12px">
-  This is the patient-facing <b>monitor stimulator</b> surface. In a real rig
-  it runs full-screen on the stimulus display; the amplifier records each
-  reversal/flash via the trigger. Keys: <kbd>Space</kbd> pause · <kbd>F</kbd>
-  flash · <kbd>P</kbd> pattern.
+<p class="note no-print">
+  환자용 <b>모니터 자극기</b> 표시면입니다. 실제 장비에서는 자극 디스플레이에서 전체 화면으로
+  실행되며, 앰프가 트리거로 매 반전/플래시를 기록합니다. 키: <kbd>Space</kbd> 정지 ·
+  <kbd>F</kbd> 플래시 · <kbd>P</kbd> 패턴.
 </p>
 
 <script>
@@ -207,7 +215,8 @@ function render(now) {
 
 $("toggle").addEventListener("click", () => {
   running = !running;
-  $("toggle").textContent = running ? "⏸ Pause" : "▶ Resume";
+  $("toggle").innerHTML = running ? '<svg class="ico"><use href="#i-pause"/></svg>일시정지'
+                                  : '<svg class="ico"><use href="#i-play"/></svg>재개';
 });
 $("fs").addEventListener("click", () => {
   if (!document.fullscreenElement) $("stage").requestFullscreen?.();

@@ -1,26 +1,39 @@
 {% extends "base.html" %}
-{% block title %}Patients · ERG/VEP{% endblock %}
+{% block title %}환자 관리 · ERG·VEP{% endblock %}
 {% block content %}
-<div class="row-between">
-  <h1>환자 관리 <span class="muted" style="font-size:14px">Patients</span></h1>
-  {% if 'edit_patient' in perms %}
-  <a class="btn primary" href="/">＋ 신규 등록 · 검사 접수</a>
-  {% endif %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Patients</p>
+    <h1>환자 관리</h1>
+    <p class="page-sub">환자 검색 · 기록 열람. 신규 등록과 검사 시작은 검사 접수에서 합니다.</p>
+  </div>
+  <div class="toolbar">
+    <div class="search-box">
+      <svg class="ico"><use href="#i-search"/></svg>
+      <input id="search" placeholder="ID · 이름 앞글자 또는 생년월일(680302)…" aria-label="환자 검색">
+    </div>
+    {% if 'edit_patient' in perms %}
+    <a class="btn primary" href="/"><svg class="ico"><use href="#i-plus"/></svg>신규 등록 · 검사 접수</a>
+    {% endif %}
+  </div>
 </div>
 
 <section class="card">
-  <div class="row-between">
-    <h2>환자 목록</h2>
-    <input id="search" placeholder="ID · 이름 앞글자 또는 생년월일(680302)…" class="search" style="max-width:300px">
+  <div class="card-head">
+    <div>
+      <h2>환자 목록</h2>
+      <p class="card-sub" id="list-note">Patient registry</p>
+    </div>
   </div>
-  <p class="muted" id="list-note" style="font-size:12px;margin:0 0 8px"></p>
-  <table class="table">
-    <thead>
-      <tr><th>등록번호</th><th>성명</th><th>성별/나이</th><th>생년월일</th>
-          <th>최근 방문</th><th>지난 진단</th><th></th></tr>
-    </thead>
-    <tbody id="patient-rows"></tbody>
-  </table>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr><th>등록번호</th><th>성명</th><th>성별 / 나이</th><th>생년월일</th>
+            <th>최근 방문</th><th>지난 진단</th><th></th></tr>
+      </thead>
+      <tbody id="patient-rows"></tbody>
+    </table>
+  </div>
   <div class="pager">
     <span id="page-info"></span>
     <button class="btn small" id="page-prev" type="button">← 이전</button>
@@ -55,18 +68,18 @@ async function loadPatients() {
   if (seq !== loadSeq) return;
   document.getElementById("list-note").textContent = q
     ? `‘${q}’ 검색 결과 ${rows.length}명${rows.length >= 50 ? " (상위 50명)" : ""}`
-    : "최근 등록 순입니다 — 검색하면 전체에서 찾습니다.";
+    : "최근 등록 순 — 검색하면 전체에서 찾습니다.";
   document.getElementById("patient-rows").innerHTML = rows.map(p => `
     <tr>
-      <td>${esc(p.mrn)}</td>
-      <td><a href="/patients/${p.id}">${esc(p.name)}</a></td>
-      <td>${sexLabel(p.sex)}${p.age != null ? " / " + p.age : ""}</td>
-      <td>${esc(p.birth_date || "-")}</td>
-      <td>${p.last_visit ? esc(p.last_visit) + (p.visit_count ? ` (${p.visit_count}회)` : "") : (q ? "-" : "")}</td>
+      <td class="mono">${esc(p.mrn)}</td>
+      <td><a href="/patients/${p.id}">${esc(p.name)}</a>${p.name_en ? `<span class="cell-sub">${esc(p.name_en)}</span>` : ""}</td>
+      <td>${sexLabel(p.sex)}${p.age != null ? " / " + p.age + "세" : ""}</td>
+      <td class="mono">${esc(p.birth_date || "—")}</td>
+      <td class="mono">${p.last_visit ? esc(p.last_visit) + (p.visit_count ? ` <span class="muted">(${p.visit_count}회)</span>` : "") : (q ? "—" : "")}</td>
       <td>${esc(p.last_diagnosis || "")}</td>
-      <td><a class="btn small" href="/patients/${p.id}">열기</a></td>
+      <td class="actions"><a class="btn small" href="/patients/${p.id}">열기 <svg class="ico"><use href="#i-arrow"/></svg></a></td>
     </tr>`).join("") ||
-    `<tr><td colspan="7" class="muted">${q ? "일치하는 환자가 없습니다." : "등록된 환자가 없습니다."}</td></tr>`;
+    `<tr><td colspan="7" class="empty">${q ? "일치하는 환자가 없습니다." : "등록된 환자가 없습니다."}</td></tr>`;
   const pager = document.querySelector(".pager");
   pager.hidden = !!q;
   if (!q) {

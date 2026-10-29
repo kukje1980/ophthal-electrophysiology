@@ -1,15 +1,33 @@
 {% extends "base.html" %}
-{% block title %}Report · ERG/VEP{% endblock %}
+{% block title %}리포트 · ERG·VEP{% endblock %}
 {% block content %}
-<div class="row-between no-print">
-  <a class="back" href="/patients/{{ patient_id }}">← 환자 기록</a>
-  <div class="toolbar">
-    <a class="btn" id="csv-link" href="/api/exams/{{ exam_id }}/export.csv">⬇ CSV</a>
-    <button class="btn" onclick="window.print()">🖨 Print</button>
+<div class="row-between no-print" style="margin-bottom:16px">
+  <a class="back" href="/patients/{{ patient_id }}" style="margin:0"><svg class="ico"><use href="#i-back"/></svg>환자 기록</a>
+  <div class="btn-row">
+    <a class="btn" id="csv-link" href="/api/exams/{{ exam_id }}/export.csv"><svg class="ico"><use href="#i-download"/></svg>CSV</a>
+    <button class="btn primary" onclick="window.print()"><svg class="ico"><use href="#i-print"/></svg>인쇄 / PDF</button>
   </div>
 </div>
 
-<div id="report-head"></div>
+<article class="card report-sheet">
+  <header class="report-band">
+    <span class="brand">
+      {% include "partials/mark.html" %}
+      <span class="brand-text">
+        <span class="brand-name">ERG<b>·</b>VEP</span>
+        <span class="brand-sub">Visual Electrophysiology</span>
+      </span>
+    </span>
+    <div class="report-title">
+      <h1 id="report-h1">Electrophysiology report</h1>
+      <p id="report-id">Exam #{{ exam_id }}</p>
+      <div id="report-status"></div>
+    </div>
+  </header>
+  <dl class="report-meta" id="report-meta"></dl>
+  <div class="report-clin" id="report-clin"></div>
+</article>
+
 <div id="analysis"></div>
 <div id="waveforms"></div>
 <div id="interpretation"></div>
@@ -21,56 +39,65 @@ const can = (p) => PERMS.includes(p);
 let exam = null, analysis = null, patient = {}, proto = {}, visit = null, knownMarkers = [];
 
 // server times are naive UTC: fmtDateTime shows them in local time
-const fmtDate = (s) => s ? fmtDateTime(s) : "-";
+const fmtDate = (s) => s ? fmtDateTime(s) : "—";
 
 function renderHead() {
   const p = patient, v = visit;
-  const ageSex = [p.age != null ? p.age + "y" : null,
-    ({M:"M",F:"F",O:"O"}[p.sex] || null)].filter(Boolean).join(" ");
-  // ISCEV reports should document the patient state at the time of the test.
-  const eyeLine = (label, va, ref, pupil) => {
+  const sex = ({M: "남 M", F: "여 F", O: "기타 O"})[p.sex];
+  const ageSex = [sex, p.age != null ? p.age + "세" : null].filter(Boolean).join(" · ");
+  const item = (k, val, mono, cls) =>
+    `<div${cls ? ` class="${cls}"` : ""}><dt>${k}</dt><dd${mono ? ' class="mono"' : ""}>${esc(val == null || val === "" ? "—" : val)}</dd></div>`;
+
+  document.getElementById("report-h1").textContent = `${exam.test_type} Report`;
+  document.getElementById("report-id").textContent =
+    `Exam #${exam.id} · ${proto.standard || exam.protocol}`;
+  document.getElementById("report-status").innerHTML = exam.status === "signed"
+    ? `<span class="status-pill signed small" title="${fmtDate(exam.signed_at)}">✔ 서명 완료 · ${esc(exam.signed_by)}</span>`
+    : `<span class="status-pill open small no-print">판독 대기 (미서명)</span>`;
+  // the reception carries the day's physician, diagnosis and recording conditions
+  const cond = v ? [
+    v.dark_adapt_min != null ? `암순응 ${v.dark_adapt_min}분` : null,
+    v.light_adapt_min != null ? `명순응 ${v.light_adapt_min}분` : null,
+    v.electrode ? `전극 ${v.electrode}` : null,
+    v.refraction ? `굴절교정 ${v.refraction}` : null,
+  ].filter(Boolean).join(" · ") : "";
+  document.getElementById("report-meta").innerHTML = [
+    item("환자 Patient", p.name),
+    item("등록번호 MRN", p.mrn || exam.patient_id, true),
+    item("성별 · 나이", ageSex),
+    item("생년월일 DOB", p.birth_date, true),
+    item("검사 Test", exam.test_type),
+    item("프로토콜 Protocol", proto.label || exam.protocol),
+    item("표준 Standard", proto.standard),
+    item("검사 일시 Performed", fmtDate(exam.performed_at), true),
+    item("장비 Device", exam.device, true),
+    item("검사자 Operator", exam.operator),
+    v ? item("담당의 Physician", v.attending_doctor) : item("의뢰의 Referring", p.referring_doctor),
+    v ? item("진단 · 사유 Indication", v.diagnosis) : item("주호소 C.C.", p.chief_complaint),
+    cond ? item("검사 조건 Conditions", cond, false, "span2") : "",
+    exam.note ? item("메모 Note", exam.note, false, "span2") : "",
+    v && v.note ? item("접수 메모", v.note, false, "span2") : "",
+  ].join("");
+
+  // ISCEV reports should document the patient state at the time of the test:
+  // the visit's acuity / pupils when the exam was recorded under a reception.
+  const mm = (x) => x != null && x !== "" ? x + " mm" : null;
+  const eyeLine = (eye, va, ref, pupil) => {
     const parts = [];
     if (va) parts.push("VA " + va);
     if (ref) parts.push(ref);
     if (pupil) parts.push("pupil " + pupil);
-    return parts.length ? `<div><b>${label}:</b> ${esc(parts.join(" · "))}</div>` : "";
+    return parts.length
+      ? `<div><span class="eye-chip ${eye.toLowerCase()}">${eye}</span>
+           <span class="mono">${esc(parts.join(" · "))}</span></div>` : "";
   };
-  // the reception carries the day's acuity, pupils and recording conditions
-  const mm = (x) => x != null && x !== "" ? x + " mm" : null;
   const clinical = v
     ? eyeLine("OD", v.va_od, null, mm(v.pupil_od)) + eyeLine("OS", v.va_os, null, mm(v.pupil_os))
     : eyeLine("OD", p.va_od, p.refraction_od, p.pupil_od)
       + eyeLine("OS", p.va_os, p.refraction_os, p.pupil_os);
-  const cond = v ? [
-    v.dark_adapt_min != null ? `dark adaptation ${v.dark_adapt_min} min` : null,
-    v.light_adapt_min != null ? `light adaptation ${v.light_adapt_min} min` : null,
-    v.electrode ? `electrode ${esc(v.electrode)}` : null,
-    v.refraction ? `correction ${esc(v.refraction)}` : null,
-  ].filter(Boolean).join(" · ") : "";
-  const visitLines = v ? `
-      <div><b>Physician:</b> ${esc(v.attending_doctor || "-")}</div>
-      <div><b>Diagnosis / indication:</b> ${esc(v.diagnosis || "-")}</div>
-      ${cond ? `<div style="grid-column:1/-1"><b>Conditions:</b> ${cond}</div>` : ""}
-      ${v.note ? `<div style="grid-column:1/-1"><b>Note:</b> ${esc(v.note)}</div>` : ""}` : "";
-  const status = exam.status === "signed"
-    ? `<span class="status-pill signed" title="${fmtDate(exam.signed_at)}">✔ 서명 완료 · ${esc(exam.signed_by)}</span>`
-    : `<span class="status-pill open">판독 대기 (미서명)</span>`;
-  document.getElementById("report-head").innerHTML = `
-    <div class="row-between">
-      <h1>${esc(exam.test_type)} report <span class="muted" style="font-size:14px">#${exam.id}</span></h1>
-      ${status}
-    </div>
-    <div class="report-meta card">
-      <div><b>Patient:</b> <a href="/patients/${exam.patient_id}">${esc(p.name || "-")}</a> (#${esc(p.mrn || exam.patient_id)})${ageSex ? " · " + ageSex : ""}</div>
-      <div><b>Protocol:</b> ${esc(proto.label || exam.protocol)}</div>
-      <div><b>Standard:</b> ${esc(proto.standard || "—")}</div>
-      <div><b>Performed:</b> ${fmtDate(exam.performed_at)}</div>
-      <div><b>Device:</b> ${esc(exam.device || "-")}</div>
-      <div><b>Operator:</b> ${esc(exam.operator || "-")}</div>
-      ${visitLines}
-      ${clinical}
-      ${exam.note ? `<div class="span2"><b>Note:</b> ${esc(exam.note)}</div>` : ""}
-    </div>`;
+  const clinEl = document.getElementById("report-clin");
+  clinEl.innerHTML = clinical;
+  clinEl.hidden = !clinical;
 }
 
 function renderAnalysis() {
@@ -170,6 +197,7 @@ function renderAll() {
   renderHead();
   renderAnalysis();
   renderExam(exam, document.getElementById("waveforms"), {
+    stepLabels: Object.fromEntries((proto.steps || []).map((s) => [s.key, s.label])),
     editable: can("edit_markers") && exam.status !== "signed",
     analysis, markers: knownMarkers,
     onChange: () => reload(true),

@@ -1,0 +1,34 @@
+{# Large aperture graphic (widefield lens + ring light + ERG trace).
+   Include with {% with ap_id="unique" %}…{% endwith %} so gradient ids stay unique. #}
+<svg class="aperture" viewBox="0 0 400 400" aria-hidden="true">
+  <defs>
+    <radialGradient id="{{ ap_id }}-glass" cx="50%" cy="40%" r="62%">
+      <stop offset="0" stop-color="#1d2b3a"/><stop offset=".62" stop-color="#0b1219"/><stop offset="1" stop-color="#05080c"/>
+    </radialGradient>
+    <linearGradient id="{{ ap_id }}-ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8ae8ff"/><stop offset=".45" stop-color="#12b4d8"/><stop offset="1" stop-color="#0b63ce"/>
+    </linearGradient>
+    <radialGradient id="{{ ap_id }}-pupil" cx="50%" cy="46%" r="55%">
+      <stop offset="0" stop-color="#0e3d60"/><stop offset=".68" stop-color="#061521"/><stop offset="1" stop-color="#020508"/>
+    </radialGradient>
+    <filter id="{{ ap_id }}-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="7"/>
+    </filter>
+  </defs>
+  <circle cx="200" cy="200" r="197" fill="url(#{{ ap_id }}-glass)" stroke="#2c3744" stroke-width="2"/>
+  <circle cx="200" cy="200" r="181" fill="none" stroke="#344252" stroke-width="9" stroke-dasharray="1.4 14.3"/>
+  <circle cx="200" cy="200" r="181" fill="none" stroke="#6f7f92" stroke-width="15" stroke-dasharray="2.6 92.2"/>
+  <circle cx="200" cy="200" r="164" fill="none" stroke="#1e2935" stroke-width="1.5"/>
+  <circle cx="200" cy="200" r="150" fill="none" stroke="#12b4d8" stroke-width="12" opacity=".45" filter="url(#{{ ap_id }}-glow)"/>
+  <circle cx="200" cy="200" r="150" fill="none" stroke="url(#{{ ap_id }}-ring)" stroke-width="6"/>
+  <circle cx="200" cy="200" r="132" fill="url(#{{ ap_id }}-pupil)" stroke="#0c1620" stroke-width="3"/>
+  <g fill="none" stroke="#7fe3ff" stroke-opacity=".09" stroke-width="1">
+    <circle cx="200" cy="200" r="98"/><circle cx="200" cy="200" r="64"/><circle cx="200" cy="200" r="30"/>
+    <path d="M68 200h264M200 68v264"/>
+  </g>
+  <path d="M84 214h44c10 0 15 2 19 13s8 13 12-2c5-26 10-74 19-86 4-6 6 8 9 0s6 6 9-1c6-9 10 14 18 38 8 23 22 36 46 39 20 2 40 0 54 0"
+        fill="none" stroke="#12b4d8" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" opacity=".35" filter="url(#{{ ap_id }}-glow)"/>
+  <path d="M84 214h44c10 0 15 2 19 13s8 13 12-2c5-26 10-74 19-86 4-6 6 8 9 0s6 6 9-1c6-9 10 14 18 38 8 23 22 36 46 39 20 2 40 0 54 0"
+        fill="none" stroke="#8ae8ff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <ellipse cx="150" cy="118" rx="58" ry="22" fill="#fff" opacity=".05" transform="rotate(-32 150 118)"/>
+</svg>

@@ -1,10 +1,19 @@
 {% extends "base.html" %}
-{% block title %}내 계정 · ERG/VEP{% endblock %}
+{% block title %}내 계정 · ERG·VEP{% endblock %}
 {% block content %}
-<h1>내 계정 <span class="muted" style="font-size:14px">{{ user.username }} · {{ role_label }}</span></h1>
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Account</p>
+    <h1>내 계정 <small class="mono">{{ user.username }}</small></h1>
+    <p class="page-sub">{{ user.full_name or user.username }} · {{ role_label }}</p>
+  </div>
+</div>
 
-<section class="card" style="max-width:520px">
-  <h2>비밀번호 변경</h2>
+<div class="grid-2">
+<section class="card">
+  <div class="card-head">
+    <div class="card-title"><svg class="ico"><use href="#i-key"/></svg><h2>비밀번호 변경</h2></div>
+  </div>
   <form id="pw-form" class="form-grid">
     <label class="span2">현재 비밀번호
       <input name="current_password" type="password" autocomplete="current-password" required></label>
@@ -12,19 +21,19 @@
       <input name="new_password" type="password" minlength="6" autocomplete="new-password" required></label>
     <label class="span2">새 비밀번호 확인
       <input name="confirm" type="password" minlength="6" autocomplete="new-password" required></label>
-    <button class="btn primary" type="submit">비밀번호 변경</button>
+    <div class="form-actions"><button class="btn primary" type="submit">비밀번호 변경</button></div>
   </form>
   <p id="pw-msg" class="msg"></p>
 </section>
 
-<section class="card" style="max-width:520px">
-  <div class="row-between">
-    <h2>2단계 인증 (2FA)</h2>
-    <span id="tfa-state" class="tag">{% if user.totp_enabled %}사용 중{% else %}미사용{% endif %}</span>
+<section class="card">
+  <div class="card-head">
+    <div class="card-title"><svg class="ico"><use href="#i-shield"/></svg><h2>2단계 인증 (2FA)</h2></div>
+    <span id="tfa-state" class="tag{% if not user.totp_enabled %} neutral{% endif %}">{% if user.totp_enabled %}사용 중{% else %}미사용{% endif %}</span>
   </div>
 
   <div id="tfa-off" class="{% if user.totp_enabled %}hidden{% endif %}">
-    <p class="muted">Google Authenticator·Authy 등 인증 앱과 연동해 로그인 보안을 강화합니다.</p>
+    <p class="muted" style="margin-top:0">Google Authenticator·Authy 등 인증 앱과 연동해 로그인 보안을 강화합니다.</p>
     <button class="btn" id="tfa-init">2단계 인증 설정 시작</button>
     <div id="tfa-setup" class="hidden" style="margin-top:14px">
       <div id="tfa-qr" class="tfa-qr"></div>
@@ -33,21 +42,22 @@
       <form id="tfa-enable-form" class="form-grid">
         <label>인증 코드 (6자리)
           <input name="code" inputmode="numeric" maxlength="6" placeholder="000000" required></label>
-        <button class="btn primary" type="submit">활성화</button>
+        <div><button class="btn primary" type="submit">활성화</button></div>
       </form>
     </div>
   </div>
 
   <div id="tfa-on" class="{% if not user.totp_enabled %}hidden{% endif %}">
-    <p class="muted">이 계정은 2단계 인증이 켜져 있습니다.</p>
+    <p class="muted" style="margin-top:0">이 계정은 2단계 인증이 켜져 있습니다.</p>
     <form id="tfa-disable-form" class="form-grid">
       <label class="span2">현재 비밀번호 (해제 확인)
         <input name="current_password" type="password" autocomplete="current-password" required></label>
-      <button class="btn" type="submit">2단계 인증 해제</button>
+      <div class="form-actions"><button class="btn danger" type="submit">2단계 인증 해제</button></div>
     </form>
   </div>
   <p id="tfa-msg" class="msg"></p>
 </section>
+</div>
 
 <script>
 document.getElementById("pw-form").addEventListener("submit", async (ev) => {
@@ -84,6 +94,7 @@ document.getElementById("tfa-enable-form").addEventListener("submit", async (ev)
     document.getElementById("tfa-off").classList.add("hidden");
     document.getElementById("tfa-on").classList.remove("hidden");
     document.getElementById("tfa-state").textContent = "사용 중";
+    document.getElementById("tfa-state").classList.remove("neutral");
   } catch (e) { setMsg("tfa-msg", e.message, "err"); }
 });
 
@@ -98,6 +109,7 @@ document.getElementById("tfa-disable-form").addEventListener("submit", async (ev
     document.getElementById("tfa-off").classList.remove("hidden");
     document.getElementById("tfa-setup").classList.add("hidden");
     document.getElementById("tfa-state").textContent = "미사용";
+    document.getElementById("tfa-state").classList.add("neutral");
   } catch (e) { setMsg("tfa-msg", e.message, "err"); }
 });
 </script>

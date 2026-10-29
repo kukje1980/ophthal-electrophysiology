@@ -1,235 +1,379 @@
-<title>ISCEV ERG / VEP — Interactive Preview</title>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ERG·VEP Preview</title>
 <style>
   :root {
-    --bg: #eef2f7; --surface: #ffffff; --surface-2: #f7f9fc;
-    --ink: #14203a; --muted: #5b6b86; --line: #dde5ef;
-    --accent: #0891b2; --accent-ink: #ffffff;
-    --od: #2563eb; --os: #dc2626;
-    --good: #15803d; --good-bg: #dcfce7;
-    --warn: #b45309; --warn-bg: #fef3c7;
-    --bad: #b91c1c; --bad-bg: #fee2e2;
-    --plot-bg: #ffffff; --grid: #eef2f7; --zero: #c3cedd; --axis: #64748b;
-    --shadow: 0 1px 2px rgba(16,31,58,.06), 0 8px 24px rgba(16,31,58,.06);
-    --mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
+    --bg: #eef1f5; --surface: #ffffff; --surface-2: #f7f9fb; --surface-3: #eef2f6;
+    --line: #e0e5eb; --line-2: #cdd5de;
+    --ink: #0e1621; --ink-2: #2a3646; --muted: #667387; --faint: #929cab;
+    --brand: #0b63ce; --brand-600: #0954b0; --brand-700: #08468f;
+    --brand-50: #ecf4fe; --brand-100: #d6e7fb;
+    --cyan: #12b4d8; --cyan-soft: #8ae8ff;
+    --glass: #0e131a; --glass-line: #29333f; --glass-ink: #e8eef5; --glass-muted: #8a97a8;
+    --od: #1f6fe0; --os: #e0473c;
+    --ok: #0f7a55; --ok-bg: #e4f5ed; --ok-line: #bfe5d2;
+    --warn: #9a5b00; --warn-bg: #fff3db; --warn-line: #f3d9a3;
+    --bad: #bf2f28; --bad-bg: #fdeae8; --bad-line: #f4c6c1;
+    --plot-bg: #ffffff; --plot-minor: #f2f5f8; --plot-major: #e2e7ed;
+    --plot-zero: #a9b4c2; --plot-axis: #6b7789; --plot-stim: #12b4d8;
+    --sh-1: 0 1px 2px rgba(14,22,33,.05);
+    --sh-2: 0 1px 2px rgba(14,22,33,.06), 0 14px 34px -14px rgba(14,22,33,.22);
+    --ring: 0 0 0 3px rgba(11,99,206,.18);
+    --font: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+      "Apple SD Gothic Neo", "Segoe UI", "Malgun Gothic", "Noto Sans KR", Roboto, sans-serif;
+    --mono: "JetBrains Mono", "SF Mono", "Cascadia Mono", ui-monospace, Menlo, Consolas, monospace;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0a0f1c; --surface: #111a2c; --surface-2: #0d1524;
-      --ink: #e7eefb; --muted: #93a4bf; --line: #22304a;
-      --accent: #22d3ee; --accent-ink: #05202a;
-      --od: #60a5fa; --os: #f87171;
-      --good: #4ade80; --good-bg: #0f2f1e;
-      --warn: #fbbf24; --warn-bg: #35280a;
-      --bad: #f87171; --bad-bg: #3a1417;
-      --plot-bg: #0b1424; --grid: #17233a; --zero: #33496b; --axis: #7e90ab;
-      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+    :root:not([data-theme="light"]) {
+      --bg: #090d12; --surface: #10161e; --surface-2: #0c1218; --surface-3: #151d27;
+      --line: #1f2a36; --line-2: #2c3947;
+      --ink: #e8eef5; --ink-2: #c3cdd9; --muted: #8a97a8; --faint: #65717f;
+      --brand: #3b8cf0; --brand-600: #2f7ad8; --brand-700: #8cbcff;
+      --brand-50: #0f2036; --brand-100: #1a3355;
+      --od: #5b9bff; --os: #ff6b5e;
+      --ok: #4ade80; --ok-bg: #0d2a1d; --ok-line: #1b4a33;
+      --warn: #fbbf24; --warn-bg: #2e2309; --warn-line: #574313;
+      --bad: #f87171; --bad-bg: #331415; --bad-line: #5a2326;
+      --plot-bg: #0b1118; --plot-minor: #111a24; --plot-major: #1b2734;
+      --plot-zero: #3a4e63; --plot-axis: #7d8b9c;
+      --sh-1: 0 1px 2px rgba(0,0,0,.4);
+      --sh-2: 0 1px 2px rgba(0,0,0,.5), 0 14px 34px -14px rgba(0,0,0,.7);
     }
   }
-  :root[data-theme="light"] {
-    --bg: #eef2f7; --surface: #ffffff; --surface-2: #f7f9fc;
-    --ink: #14203a; --muted: #5b6b86; --line: #dde5ef;
-    --accent: #0891b2; --accent-ink: #ffffff; --od: #2563eb; --os: #dc2626;
-    --good: #15803d; --good-bg: #dcfce7; --warn: #b45309; --warn-bg: #fef3c7;
-    --bad: #b91c1c; --bad-bg: #fee2e2;
-    --plot-bg: #ffffff; --grid: #eef2f7; --zero: #c3cedd; --axis: #64748b;
-    --shadow: 0 1px 2px rgba(16,31,58,.06), 0 8px 24px rgba(16,31,58,.06);
-  }
   :root[data-theme="dark"] {
-    --bg: #0a0f1c; --surface: #111a2c; --surface-2: #0d1524;
-    --ink: #e7eefb; --muted: #93a4bf; --line: #22304a;
-    --accent: #22d3ee; --accent-ink: #05202a; --od: #60a5fa; --os: #f87171;
-    --good: #4ade80; --good-bg: #0f2f1e; --warn: #fbbf24; --warn-bg: #35280a;
-    --bad: #f87171; --bad-bg: #3a1417;
-    --plot-bg: #0b1424; --grid: #17233a; --zero: #33496b; --axis: #7e90ab;
-    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+    --bg: #090d12; --surface: #10161e; --surface-2: #0c1218; --surface-3: #151d27;
+    --line: #1f2a36; --line-2: #2c3947;
+    --ink: #e8eef5; --ink-2: #c3cdd9; --muted: #8a97a8; --faint: #65717f;
+    --brand: #3b8cf0; --brand-600: #2f7ad8; --brand-700: #8cbcff;
+    --brand-50: #0f2036; --brand-100: #1a3355;
+    --od: #5b9bff; --os: #ff6b5e;
+    --ok: #4ade80; --ok-bg: #0d2a1d; --ok-line: #1b4a33;
+    --warn: #fbbf24; --warn-bg: #2e2309; --warn-line: #574313;
+    --bad: #f87171; --bad-bg: #331415; --bad-line: #5a2326;
+    --plot-bg: #0b1118; --plot-minor: #111a24; --plot-major: #1b2734;
+    --plot-zero: #3a4e63; --plot-axis: #7d8b9c;
+    --sh-1: 0 1px 2px rgba(0,0,0,.4);
+    --sh-2: 0 1px 2px rgba(0,0,0,.5), 0 14px 34px -14px rgba(0,0,0,.7);
   }
 
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--bg); color: var(--ink);
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    line-height: 1.5; -webkit-font-smoothing: antialiased;
+    font-family: var(--font); font-size: 14px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
   }
-  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 18px 72px; }
-
-  /* Topbar ---------------------------------------------------------- */
-  .topbar {
-    position: sticky; top: 0; z-index: 20;
-    background: color-mix(in srgb, var(--bg) 86%, transparent);
-    backdrop-filter: blur(10px);
-    border-bottom: 1px solid var(--line);
-  }
-  .topbar-in { max-width: 1000px; margin: 0 auto; padding: 12px 18px;
-    display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-  .brand { display: flex; align-items: center; gap: 9px; font-weight: 700;
-    letter-spacing: -.01em; font-size: 17px; }
-  .brand .eye {
-    width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center;
-    background: var(--accent); color: var(--accent-ink); font-size: 15px;
-  }
-  .brand small { color: var(--accent); font-weight: 700; font-size: 10px;
-    letter-spacing: .12em; text-transform: uppercase; vertical-align: super; }
-  .pill {
-    margin-left: auto; font-family: var(--mono); font-size: 12px;
-    padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line);
-    background: var(--surface); color: var(--muted); white-space: nowrap;
-  }
-  .pill b { color: var(--good); }
-  .pill .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
-    background: var(--good); margin-right: 6px; vertical-align: middle; }
-
-  /* Tabs ------------------------------------------------------------ */
-  .tabs { display: flex; gap: 4px; margin: 22px 0 20px;
-    background: var(--surface-2); border: 1px solid var(--line);
-    padding: 4px; border-radius: 12px; width: fit-content; }
-  .tab { border: 0; background: transparent; color: var(--muted); cursor: pointer;
-    font: inherit; font-size: 14px; font-weight: 600; padding: 8px 16px;
-    border-radius: 8px; }
-  .tab[aria-selected="true"] { background: var(--surface); color: var(--ink);
-    box-shadow: var(--shadow); }
-  .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-  h1 { font-size: 15px; letter-spacing: .08em; text-transform: uppercase;
-    color: var(--muted); margin: 0 0 14px; font-weight: 700; }
-  h2 { font-size: 15px; margin: 0; font-family: var(--mono); letter-spacing: -.01em; }
-
-  .card { background: var(--surface); border: 1px solid var(--line);
-    border-radius: 14px; padding: 18px; box-shadow: var(--shadow); }
-  .stack { display: grid; gap: 16px; }
-
-  /* Controls -------------------------------------------------------- */
-  .controls { display: grid; grid-template-columns: 2fr 1fr auto; gap: 14px;
-    align-items: end; }
-  label.field { display: flex; flex-direction: column; gap: 6px;
-    font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
-    color: var(--muted); font-weight: 600; }
-  select, .btn { font: inherit; }
-  select {
-    padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px;
-    background: var(--surface-2); color: var(--ink); font-size: 14px;
-  }
-  select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-  .btn {
-    padding: 11px 18px; border-radius: 10px; border: 1px solid var(--accent);
-    background: var(--accent); color: var(--accent-ink); font-weight: 700;
-    cursor: pointer; font-size: 14px; white-space: nowrap;
-  }
-  .btn:hover { filter: brightness(1.06); }
-  .btn:active { transform: translateY(1px); }
-  .btn.ghost { background: var(--surface); color: var(--ink); border-color: var(--line); }
-  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .btn[disabled] { opacity: .55; cursor: progress; }
-
-  .chips { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 14px; }
-  .chip { font-family: var(--mono); font-size: 11.5px; color: var(--muted);
-    background: var(--surface-2); border: 1px solid var(--line);
-    padding: 4px 9px; border-radius: 7px; }
-  .chip b { color: var(--ink); font-weight: 600; }
-  .chip.std { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
-
-  /* Waveform card --------------------------------------------------- */
-  .wf-head { display: flex; align-items: center; justify-content: space-between;
-    gap: 10px; margin-bottom: 6px; }
-  .legend { display: flex; gap: 12px; font-size: 12px; color: var(--muted);
-    font-family: var(--mono); }
-  .legend i { display: inline-block; width: 20px; height: 3px; border-radius: 2px;
-    vertical-align: middle; margin-right: 5px; }
-  .legend .od { background: var(--od); } .legend .os { background: var(--os); }
-  canvas { display: block; width: 100%; height: auto; border-radius: 10px;
-    background: var(--plot-bg); border: 1px solid var(--line); }
-
-  .scroll-x { overflow-x: auto; }
-  table.meas { width: 100%; border-collapse: collapse; margin-top: 12px;
-    font-size: 13.5px; min-width: 460px; }
-  .meas th { text-align: left; font-size: 10.5px; text-transform: uppercase;
-    letter-spacing: .05em; color: var(--muted); font-weight: 700;
-    padding: 6px 10px; border-bottom: 1px solid var(--line); }
-  .meas td { padding: 7px 10px; border-bottom: 1px solid var(--line);
-    font-variant-numeric: tabular-nums; font-family: var(--mono); }
-  .meas td.eye { color: var(--muted); }
-  .meas td.mk { font-weight: 700; color: var(--ink); }
-  .badge { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 6px;
-    font-family: system-ui, sans-serif; }
-  .b-good { background: var(--good-bg); color: var(--good); }
-  .b-warn { background: var(--warn-bg); color: var(--warn); }
-  .b-bad { background: var(--bad-bg); color: var(--bad); }
-  .ratio { margin: 12px 2px 0; font-size: 12.5px; color: var(--muted);
-    font-family: var(--mono); }
-  .ratio b { color: var(--ink); }
-
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px 64px; }
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
   .muted { color: var(--muted); }
-  .empty { text-align: center; color: var(--muted); padding: 40px 10px; font-size: 14px; }
-
-  /* Stimulus monitor ------------------------------------------------ */
-  .stim-controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: end;
-    margin-bottom: 14px; }
-  .stim-controls label.field { min-width: 92px; }
-  .stim-controls select, .stim-controls input { width: 100%; }
-  input[type=number] { padding: 10px 12px; border: 1px solid var(--line);
-    border-radius: 9px; background: var(--surface-2); color: var(--ink);
-    font-size: 14px; font-family: var(--mono); }
-  .stage { position: relative; background: #000; border-radius: 12px; overflow: hidden; }
-  .stage canvas { border: 0; border-radius: 12px; background: #000; }
-  .readout { position: absolute; left: 12px; bottom: 11px; color: #e2e8f0;
-    background: rgba(8,15,28,.66); padding: 4px 11px; border-radius: 999px;
-    font-size: 12px; font-family: var(--mono); }
-  .note { font-size: 12px; color: var(--muted); margin-top: 12px; }
-  kbd { font-family: var(--mono); background: var(--surface-2); border: 1px solid var(--line);
-    border-radius: 5px; padding: 1px 6px; font-size: 11px; }
-  .foot { text-align: center; color: var(--muted); font-size: 12px; margin-top: 34px; }
   .hidden { display: none !important; }
 
-  @media (max-width: 640px) {
-    .controls { grid-template-columns: 1fr; }
-    .controls .btn { width: 100%; }
+  /* Top bar: graphite instrument chrome ---------------------------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 20; color: var(--glass-ink);
+    background: linear-gradient(180deg, #131a23, #0c1016);
+    border-bottom: 1px solid #06090c;
   }
-  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-</style>
+  .topbar::after { content: ""; display: block; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--cyan) 30%, #0b63ce 70%, transparent); opacity: .7; }
+  .topbar-in { max-width: 1180px; margin: 0 auto; padding: 11px 20px;
+    display: flex; align-items: center; gap: 18px; }
+  .brand { display: flex; align-items: center; gap: 11px; }
+  .brand .mark { width: 34px; height: 34px; flex: none; filter: drop-shadow(0 0 10px rgba(18,180,216,.28)); }
+  .brand-text { display: flex; flex-direction: column; line-height: 1.1; }
+  .brand-name { font-weight: 800; font-size: 16px; letter-spacing: .03em; color: #fff; }
+  .brand-name b { color: var(--cyan); }
+  .brand-sub { margin-top: 4px; font-size: 8.5px; font-weight: 600; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--glass-muted); white-space: nowrap; }
+  .std-strip { display: flex; gap: 6px; overflow: hidden; }
+  .std-strip span { height: 24px; display: inline-flex; align-items: center; padding: 0 9px;
+    font-family: var(--mono); font-size: 11px; color: var(--glass-muted); white-space: nowrap;
+    border: 1px solid var(--glass-line); border-radius: 999px; }
+  .std-strip span b { color: var(--glass-ink); font-weight: 600; margin-right: 5px; }
+  .pill { margin-left: auto; display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 12px; color: var(--glass-ink); white-space: nowrap;
+    padding: 6px 12px; border-radius: 999px; border: 1px solid var(--glass-line);
+    background: rgba(255,255,255,.03); }
+  .pill small { color: #4ade80; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+  .led { width: 8px; height: 8px; border-radius: 50%; background: #22c55e;
+    box-shadow: 0 0 0 3px rgba(34,197,94,.16), 0 0 10px rgba(34,197,94,.55); }
 
+  /* Page header + tabs --------------------------------------------- */
+  .page-head { display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap; margin: 28px 0 20px; }
+  .eyebrow { display: flex; align-items: center; gap: 8px; margin: 0 0 7px;
+    font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--brand); }
+  .eyebrow::before { content: ""; width: 16px; height: 2px; border-radius: 2px; background: var(--cyan); }
+  h1 { margin: 0; font-size: 26px; line-height: 1.2; font-weight: 750; letter-spacing: -.02em; }
+  h2 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+  .page-sub { margin: 7px 0 0; color: var(--muted); font-size: 13.5px; }
+  .tabs { display: inline-flex; gap: 2px; padding: 3px; background: var(--surface-3);
+    border: 1px solid var(--line); border-radius: 10px; }
+  .tab { border: 0; background: transparent; color: var(--muted); cursor: pointer;
+    font: inherit; font-size: 13px; font-weight: 600; height: 32px; padding: 0 14px; border-radius: 7px; }
+  .tab:hover { color: var(--ink); }
+  .tab[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(14,22,33,.16); }
+  .tab:focus-visible { outline: none; box-shadow: var(--ring); }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: var(--sh-1); padding: 20px; }
+  .stack { display: grid; gap: 18px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap; margin: -2px 0 16px; }
+  .card-sub { margin: 3px 0 0; font-size: 12.5px; color: var(--muted); }
+
+  /* Controls -------------------------------------------------------- */
+  .console-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(320px, .7fr); gap: 18px; margin-bottom: 18px; }
+  .setup { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; }
+  label.field, .field { display: flex; flex-direction: column; gap: 6px; min-width: 0;
+    font-size: 12px; font-weight: 600; color: var(--ink-2); }
+  select, input[type=number] {
+    font: inherit; font-size: 13.5px; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--line-2); border-radius: 8px; height: 36px; padding: 0 11px;
+  }
+  select { -webkit-appearance: none; appearance: none; padding-right: 32px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M6 8l4 4 4-4' fill='none' stroke='%23667387' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 9px center; background-size: 16px; }
+  input[type=number] { font-family: var(--mono); }
+  select:focus, input:focus { outline: none; border-color: var(--brand); box-shadow: var(--ring); }
+  .seg { display: inline-flex; gap: 2px; padding: 3px; align-self: flex-start;
+    background: var(--surface-3); border: 1px solid var(--line); border-radius: 10px; }
+  .seg label { position: relative; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg span { display: flex; align-items: center; gap: 7px; height: 28px; padding: 0 11px;
+    border-radius: 7px; cursor: pointer; white-space: nowrap; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+  .seg input:checked + span { color: var(--ink); background: var(--surface); box-shadow: 0 1px 2px rgba(14,22,33,.16); }
+  .seg input:focus-visible + span { box-shadow: var(--ring); }
+  .eye-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    height: 36px; padding: 0 14px; font: inherit; font-size: 13.5px; font-weight: 600;
+    color: var(--ink); background: var(--surface); border: 1px solid var(--line-2);
+    border-radius: 8px; cursor: pointer; white-space: nowrap; }
+  .btn:hover { background: var(--surface-2); }
+  .btn:focus-visible { outline: none; box-shadow: var(--ring); }
+
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 16px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 9px;
+    font-family: var(--mono); font-size: 11.5px; color: var(--ink-2);
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; }
+  .chip b { color: var(--ink); font-weight: 700; }
+  .chip.std { color: var(--brand-700); background: var(--brand-50); border-color: var(--brand-100); }
+  .step-list { margin: 16px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+  .step-list li { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+    padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .step-list .k { font-family: var(--mono); font-size: 11.5px; font-weight: 600; color: var(--brand-700); }
+  .step-list .m { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+  @media (max-width: 560px) { .step-list li { grid-template-columns: 84px minmax(0, 1fr); } .step-list .m { display: none; } }
+
+  /* One-key capture panel ------------------------------------------ */
+  .capture { display: flex; flex-direction: column; gap: 16px; color: var(--glass-ink);
+    background: radial-gradient(130% 100% at 50% 0%, #1b2532 0%, #0f141b 55%, #0b0f14 100%);
+    border-color: #070a0e; box-shadow: var(--sh-2); }
+  .capture-head { display: flex; align-items: center; justify-content: space-between; }
+  .capture-head h2 { color: #fff; font-size: 15px; }
+  .capture-head small { font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--glass-muted); }
+  .capture-btn { position: relative; align-self: center; width: 132px; height: 132px; border-radius: 50%;
+    cursor: pointer; display: grid; place-items: center; color: #fff; font: inherit; border: 0;
+    background: radial-gradient(circle at 50% 38%, #1d7ae6 0%, #0b5cc0 55%, #083f86 100%);
+    box-shadow: 0 0 0 8px #0b1016, 0 0 0 10px #2a3543, 0 0 0 13px rgba(18,180,216,.55),
+      0 0 36px 12px rgba(18,180,216,.26), inset 0 2px 0 rgba(255,255,255,.2), inset 0 -10px 24px rgba(0,0,0,.3);
+    margin: 10px 0 6px; transition: transform .12s, filter .2s; }
+  .capture-btn:hover { filter: brightness(1.08); }
+  .capture-btn:active { transform: scale(.98); }
+  .capture-btn:focus-visible { outline: 2px solid var(--cyan-soft); outline-offset: 18px; }
+  .capture-btn[disabled] { cursor: progress; }
+  .capture-btn.busy::after { content: ""; position: absolute; inset: -13px; border-radius: 50%;
+    border: 3px solid transparent; border-top-color: var(--cyan-soft); border-right-color: var(--cyan);
+    animation: spin 1s linear infinite; }
+  .cap-in { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .cap-in svg { width: 26px; height: 26px; }
+  .cap-label { font-size: 14px; font-weight: 700; }
+  .cap-sub { font-size: 9.5px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: rgba(255,255,255,.7); }
+  .seq { margin: 0; padding: 0; list-style: none; counter-reset: seq; }
+  .seq li { counter-increment: seq; display: flex; align-items: center; gap: 11px; padding: 6px 0;
+    font-size: 12.5px; color: var(--glass-muted); }
+  .seq li::before { content: counter(seq); width: 22px; height: 22px; border-radius: 50%; flex: none;
+    display: grid; place-items: center; font-family: var(--mono); font-size: 11px; font-weight: 600;
+    border: 1px solid var(--glass-line); }
+  .seq li.run { color: #fff; }
+  .seq li.run::before { border-color: var(--cyan); color: var(--cyan-soft); box-shadow: 0 0 0 3px rgba(18,180,216,.16); }
+  .seq li.done { color: #c7d2de; }
+  .seq li.done::before { content: "✓"; color: #062a1b; background: #34d399; border-color: #34d399; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Waveform cards -------------------------------------------------- */
+  .wf { padding: 0; overflow: hidden; }
+  .wf-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 13px 20px; border-bottom: 1px solid var(--line); }
+  .wf-key { font-family: var(--mono); font-size: 12px; font-weight: 600; height: 24px;
+    display: inline-flex; align-items: center; padding: 0 9px; color: var(--cyan-soft);
+    background: var(--glass); border-radius: 6px; box-shadow: inset 0 0 0 1px rgba(18,180,216,.25); }
+  .wf-title { font-size: 14px; font-weight: 700; }
+  .wf-meta { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+  .legend { margin-left: auto; display: inline-flex; gap: 14px; font-family: var(--mono);
+    font-size: 12px; font-weight: 600; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; }
+  .legend .od { background: var(--od); } .legend .os { background: var(--os); }
+  .wf-body { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .wf-plot { padding: 12px 14px 8px; min-width: 0; }
+  canvas { display: block; width: 100%; height: auto; }
+  .wf-markers { border-top: 1px solid var(--line); min-width: 0; overflow-x: auto; }
+  @media (min-width: 1100px) {
+    .wf-body { grid-template-columns: minmax(0, 1fr) 400px; }
+    .wf-markers { border-top: 0; border-left: 1px solid var(--line); }
+  }
+  table.meas { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .meas th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted); font-weight: 700; padding: 9px 10px; background: var(--surface-2);
+    border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .meas th.num, .meas td.num { text-align: right; }
+  .meas th:first-child, .meas td:first-child { padding-left: 20px; }
+  .meas th:last-child, .meas td:last-child { padding-right: 20px; }
+  .meas td { padding: 8px 10px; border-bottom: 1px solid var(--line);
+    font-variant-numeric: tabular-nums; font-family: var(--mono); }
+  .meas tr:last-child td { border-bottom: 0; }
+  .unit { text-transform: none; letter-spacing: 0; }
+  .eye-chip { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+  .eye-chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--od); }
+  .eye-chip.os::before { background: var(--os); }
+  .badge { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px 0 8px;
+    font-family: var(--font); font-size: 11.5px; font-weight: 700; text-transform: capitalize;
+    border: 1px solid transparent; border-radius: 999px; }
+  .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .b-good { background: var(--ok-bg); color: var(--ok); border-color: var(--ok-line); }
+  .b-warn { background: var(--warn-bg); color: var(--warn); border-color: var(--warn-line); }
+  .b-bad { background: var(--bad-bg); color: var(--bad); border-color: var(--bad-line); }
+  .ratio { margin: 0; padding: 10px 20px; font-size: 12px; color: var(--muted); font-family: var(--mono);
+    background: var(--surface-2); border-top: 1px solid var(--line); }
+  .ratio b { color: var(--ink); }
+  .result-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .empty { text-align: center; color: var(--muted); padding: 34px 10px; font-size: 14px; }
+
+  /* Stimulus monitor ------------------------------------------------ */
+  .stim-controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .stim-controls .field { min-width: 96px; }
+  .stim-controls input { width: 100px; }
+  .stim-controls .btn { margin-left: auto; }
+  .stage { position: relative; background: #000; border-radius: 14px; overflow: hidden; margin: 25px 7px 0;
+    box-shadow: 0 0 0 1px #070a0e, 0 0 0 6px #151c25, 0 0 0 7px #29333f, var(--sh-2); }
+  .readout { position: absolute; left: 14px; bottom: 12px; display: inline-flex; align-items: center; gap: 8px;
+    color: #e2e8f0; background: rgba(10,14,19,.72); border: 1px solid rgba(255,255,255,.08);
+    padding: 5px 12px; border-radius: 999px; font-size: 11.5px; font-family: var(--mono); }
+  .readout::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+  .note { font-size: 12.5px; color: var(--muted); margin: 18px 0 0; }
+  kbd { font-family: var(--mono); background: var(--surface); border: 1px solid var(--line-2);
+    border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; font-size: 11px; }
+  .foot { text-align: center; color: var(--faint); font-size: 12px; margin-top: 34px; }
+
+  @media (max-width: 860px) {
+    .std-strip { display: none; }
+    .console-grid { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 560px) {
+    .wrap { padding: 0 16px 48px; }
+    .topbar-in { padding: 10px 16px; }
+    .brand-sub { display: none; }
+    .pill { font-size: 11px; padding: 5px 10px; }
+    .pill small { display: none; }
+    .setup { grid-template-columns: minmax(0, 1fr); }
+    h1 { font-size: 22px; }
+    .wf-head { padding: 12px 16px; }
+    .legend { margin-left: 0; }
+    .stim-controls .btn { margin-left: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
 <header class="topbar">
   <div class="topbar-in">
-    <span class="brand"><span class="eye">👁</span> ERG / VEP <small>ISCEV</small></span>
-    <span class="pill" id="pill"><span class="dot"></span>device: <b>simulator</b> · connected</span>
+    <span class="brand">
+      <svg class="mark" viewBox="0 0 40 40" aria-hidden="true">
+        <defs>
+          <linearGradient id="mk-ring" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8ae8ff"/><stop offset=".5" stop-color="#12b4d8"/><stop offset="1" stop-color="#0b63ce"/></linearGradient>
+          <radialGradient id="mk-pupil" cx="50%" cy="45%" r="60%"><stop offset="0" stop-color="#0f3550"/><stop offset="1" stop-color="#03070b"/></radialGradient>
+        </defs>
+        <circle cx="20" cy="20" r="19" fill="#0b1118" stroke="#2f3a47"/>
+        <circle cx="20" cy="20" r="14.2" fill="none" stroke="url(#mk-ring)" stroke-width="2.6"/>
+        <circle cx="20" cy="20" r="10.6" fill="url(#mk-pupil)"/>
+        <path d="M11.6 21h3.4l1.5-3.6 2.4 7.4 2.2-6.6 1.4 2.8h5.9" fill="none" stroke="#6ee0fa" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="15.6" cy="14.4" r="1.4" fill="#fff" opacity=".8"/>
+      </svg>
+      <span class="brand-text"><span class="brand-name">ERG<b>·</b>VEP</span><span class="brand-sub">Visual Electrophysiology</span></span>
+    </span>
+    <div class="std-strip" aria-label="ISCEV standards">
+      <span><b>ffERG</b>2022</span><span><b>PERG</b>2024</span><span><b>VEP</b>2025</span><span><b>mfERG</b>2021</span>
+    </div>
+    <span class="pill" id="pill"><i class="led"></i>simulator <small>connected</small></span>
   </div>
 </header>
 
 <div class="wrap">
-  <div class="tabs" role="tablist" aria-label="View">
-    <button class="tab" role="tab" id="tab-exam" aria-selected="true" aria-controls="view-exam">검사 · 리포트</button>
-    <button class="tab" role="tab" id="tab-stim" aria-selected="false" aria-controls="view-stim">자극기 모니터</button>
+  <div class="page-head">
+    <div>
+      <p class="eyebrow">Interactive preview</p>
+      <h1>검사 · 리포트 미리보기</h1>
+      <p class="page-sub">서버 없이 동작하는 ISCEV 시뮬레이션 — 프로토콜을 고르고 측정을 시작하세요.</p>
+    </div>
+    <div class="tabs" role="tablist" aria-label="View">
+      <button class="tab" role="tab" id="tab-exam" aria-selected="true" aria-controls="view-exam">검사 · 리포트</button>
+      <button class="tab" role="tab" id="tab-stim" aria-selected="false" aria-controls="view-stim">자극기 모니터</button>
+    </div>
   </div>
 
   <!-- ============ Exam / report ============ -->
-  <section id="view-exam" role="tabpanel" aria-labelledby="tab-exam" class="stack">
-    <div class="card">
-      <h1>Acquire an ISCEV study</h1>
-      <div class="controls">
-        <label class="field">Protocol
-          <select id="protocol"></select>
-        </label>
-        <label class="field">Eyes
-          <select id="eyes">
-            <option value="OD,OS">Both (OD + OS)</option>
-            <option value="OD">OD only</option>
-            <option value="OS">OS only</option>
-          </select>
-        </label>
-        <button class="btn" id="acquire">▶ Acquire</button>
+  <section id="view-exam" role="tabpanel" aria-labelledby="tab-exam">
+    <div class="console-grid">
+      <div class="card">
+        <div class="card-head">
+          <div><h2>검사 설정</h2><p class="card-sub">ISCEV protocol · 측정 안</p></div>
+          <span class="chip std" id="proto-std">—</span>
+        </div>
+        <div class="setup">
+          <label class="field">프로토콜 (Protocol)
+            <select id="protocol"></select>
+          </label>
+          <div class="field">측정 안 (Eyes)
+            <div class="seg" role="radiogroup" aria-label="Eyes">
+              <label><input type="radio" name="eyes" value="OD,OS" checked><span><i class="eye-dot" style="background:var(--od)"></i><i class="eye-dot" style="background:var(--os);margin-left:-4px"></i>양안</span></label>
+              <label><input type="radio" name="eyes" value="OD"><span><i class="eye-dot" style="background:var(--od)"></i>OD</span></label>
+              <label><input type="radio" name="eyes" value="OS"><span><i class="eye-dot" style="background:var(--os)"></i>OS</span></label>
+            </div>
+          </div>
+        </div>
+        <div class="chips" id="proto-chips"></div>
+        <ul class="step-list" id="step-list"></ul>
       </div>
-      <div class="chips" id="proto-chips"></div>
+      <div class="card capture">
+        <div class="capture-head"><h2>원키 측정</h2><small>One-key acquisition</small></div>
+        <button class="capture-btn" id="acquire" type="button">
+          <span class="cap-in">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 4.6v14.8L19.6 12z" fill="currentColor"/></svg>
+            <span class="cap-label" id="acq-label">측정 시작</span>
+            <span class="cap-sub">Acquire</span>
+          </span>
+        </button>
+        <ol class="seq" id="seq">
+          <li>전극 임피던스 확인</li>
+          <li>자극 제시 · 트리거</li>
+          <li>트리거 동기 평균</li>
+          <li>자동 마커 판독 · 정상범위 판정</li>
+        </ol>
+      </div>
     </div>
 
     <div id="results" class="stack"></div>
-    <p class="empty" id="empty">프로토콜을 고르고 <b>Acquire</b> 를 누르면 ISCEV 시뮬레이션 파형과 자동 마커 판독이 표시됩니다.</p>
+    <p class="empty" id="empty">프로토콜을 고르고 <b>측정 시작</b>을 누르면 ISCEV 시뮬레이션 파형과 자동 마커 판독이 표시됩니다.</p>
   </section>
 
   <!-- ============ Stimulus monitor ============ -->
   <section id="view-stim" role="tabpanel" aria-labelledby="tab-stim" class="hidden">
     <div class="card">
-      <h1>Monitor stimulator</h1>
       <div class="stim-controls">
-        <label class="field">Mode
+        <label class="field">모드 (Mode)
           <select id="mode">
             <option value="pattern">Pattern reversal</option>
             <option value="flash">Flash</option>
@@ -246,18 +390,18 @@
           <input id="contrast" type="number" step="0.01" min="0" max="1" value="0.97"></label>
         <label class="field">Rate Hz
           <input id="rate_hz" type="number" step="0.5" value="2"></label>
-        <button class="btn ghost" id="toggle">⏸ Pause</button>
+        <button class="btn" id="toggle">일시정지</button>
       </div>
-      <div class="stage">
-        <canvas id="stim" width="920" height="560"></canvas>
-        <div class="readout" id="readout"></div>
-      </div>
-      <p class="note">환자용 <b>모니터 자극기</b> 표시면입니다. 키: <kbd>Space</kbd> 정지 ·
-        <kbd>F</kbd> 플래시 · <kbd>P</kbd> 패턴 · <kbd>M</kbd> 멀티포컬</p>
     </div>
+    <div class="stage">
+      <canvas id="stim" width="920" height="560"></canvas>
+      <div class="readout" id="readout"></div>
+    </div>
+    <p class="note">환자용 <b>모니터 자극기</b> 표시면입니다. 키: <kbd>Space</kbd> 정지 ·
+      <kbd>F</kbd> 플래시 · <kbd>P</kbd> 패턴 · <kbd>M</kbd> 멀티포컬</p>
   </section>
 
-  <p class="foot">ISCEV ffERG 2022 · PERG 2024 · VEP 2025 · mfERG 2021 —
+  <p class="foot">ERG·VEP Visual Electrophysiology · ISCEV ffERG 2022 · PERG 2024 · VEP 2025 · mfERG 2021 —
     simulated acquisition (미리보기, 데모용)</p>
 </div>
 
@@ -406,48 +550,74 @@ function detect(samples, dur, sk, markers){
 }
 
 /* ====================================================================
-   Rendering
+   Rendering (mirrors static/js/waveform-plot.js + markers.js)
    ==================================================================== */
 const cssv=(k)=>getComputedStyle(document.documentElement).getPropertyValue(k).trim();
-function plotColors(){ return { bg:cssv("--plot-bg"),grid:cssv("--grid"),zero:cssv("--zero"),
-  axis:cssv("--axis"),ink:cssv("--ink"),od:cssv("--od"),os:cssv("--os") }; }
+function plotColors(){ return { bg:cssv("--plot-bg"),minor:cssv("--plot-minor"),major:cssv("--plot-major"),
+  zero:cssv("--plot-zero"),axis:cssv("--plot-axis"),stim:cssv("--plot-stim"),mono:cssv("--mono"),
+  od:cssv("--od"),os:cssv("--os") }; }
 
 function niceStep(range,target){ const raw=range/target; const mag=Math.pow(10,Math.floor(Math.log10(raw)));
   const nm=raw/mag; let s; if(nm<1.5)s=1;else if(nm<3)s=2;else if(nm<7)s=5;else s=10; return s*mag; }
 
+/* HiDPI backing store; draw in the canvas' attribute size afterwards. */
+function hidpi(canvas){
+  if(!canvas.dataset.w){ canvas.dataset.w=canvas.width; canvas.dataset.h=canvas.height; }
+  const W=+canvas.dataset.w,H=+canvas.dataset.h, dpr=Math.max(2,Math.ceil(window.devicePixelRatio||1));
+  if(canvas.width!==W*dpr){ canvas.width=W*dpr; canvas.height=H*dpr; }
+  const ctx=canvas.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0); return {ctx,W,H};
+}
+const isNeg=m=>/^(a|N)/.test(m);   // a-wave / N-components are labelled below the trace
+
 function drawTraces(canvas, traces){
-  const C=plotColors(), ctx=canvas.getContext("2d");
-  const W=canvas.width,H=canvas.height, padL=54,padR=16,padT=14,padB=30;
-  const pw=W-padL-padR, ph=H-padT-padB;
-  ctx.clearRect(0,0,W,H);
-  ctx.fillStyle=C.bg; ctx.fillRect(0,0,W,H);
+  const C=plotColors(), {ctx,W,H}=hidpi(canvas);
+  const padL=50,padR=14,padT=20,padB=34, pw=W-padL-padR, ph=H-padT-padB;
+  ctx.clearRect(0,0,W,H); ctx.fillStyle=C.bg; ctx.fillRect(0,0,W,H);
   let maxT=0,ymin=Infinity,ymax=-Infinity;
   for(const tr of traces){ maxT=Math.max(maxT,tr.duration_ms);
     for(const v of tr.samples){ if(v<ymin)ymin=v; if(v>ymax)ymax=v; } }
   if(!isFinite(ymin)){ymin=-1;ymax=1;} ymin=Math.min(ymin,0);ymax=Math.max(ymax,0);
-  const pad=(ymax-ymin)*0.12||1; ymin-=pad; ymax+=pad;
-  const X=t=>padL+(t/maxT)*pw, Y=v=>padT+(ymax-v)/(ymax-ymin)*ph;
-  ctx.font="11px ui-monospace, monospace"; ctx.lineWidth=1;
-  const tStep=niceStep(maxT,8); ctx.textAlign="center";
-  for(let t=0;t<=maxT+1e-6;t+=tStep){ const x=X(t);
-    ctx.strokeStyle=C.grid; ctx.beginPath();ctx.moveTo(x,padT);ctx.lineTo(x,padT+ph);ctx.stroke();
-    ctx.fillStyle=C.axis; ctx.fillText(Math.round(t),x,H-9); }
-  const vStep=niceStep(ymax-ymin,6); ctx.textAlign="right";
-  for(let v=Math.ceil(ymin/vStep)*vStep;v<=ymax;v+=vStep){ const y=Y(v);
-    ctx.strokeStyle=Math.abs(v)<1e-9?C.zero:C.grid; ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(padL+pw,y);ctx.stroke();
-    ctx.fillStyle=C.axis; ctx.fillText(v.toFixed(vStep<1?1:0),padL-6,y+3); }
-  ctx.fillStyle=C.axis; ctx.textAlign="center"; ctx.fillText("time (ms)",padL+pw/2,H-0);
-  ctx.save();ctx.translate(13,padT+ph/2);ctx.rotate(-Math.PI/2);ctx.fillText("amplitude (µV)",0,0);ctx.restore();
+  const pad=(ymax-ymin)*0.2||1; ymin-=pad; ymax+=pad;
+  const X=t=>padL+(t/maxT)*pw, Y=v=>padT+(ymax-v)/(ymax-ymin)*ph, cr=p=>Math.round(p)+.5;
+  const tStep=niceStep(maxT,8), vStep=niceStep(ymax-ymin,6), vDec=Math.max(0,-Math.floor(Math.log10(vStep)));
+  ctx.lineWidth=1; ctx.strokeStyle=C.minor; ctx.beginPath();
+  for(let i=0;i*tStep/5<=maxT+1e-9;i++){ const x=cr(X(i*tStep/5)); ctx.moveTo(x,padT); ctx.lineTo(x,padT+ph); }
+  for(let i=Math.ceil(ymin/(vStep/5));i*vStep/5<=ymax+1e-9;i++){ const y=cr(Y(i*vStep/5)); ctx.moveTo(padL,y); ctx.lineTo(padL+pw,y); }
+  ctx.stroke();
+  ctx.font=`500 10.5px ${C.mono}`; ctx.strokeStyle=C.major; ctx.fillStyle=C.axis; ctx.beginPath(); ctx.textAlign="center";
+  for(let i=0;i*tStep<=maxT+1e-9;i++){ const t=i*tStep,x=cr(X(t)); ctx.moveTo(x,padT); ctx.lineTo(x,padT+ph); ctx.fillText(String(Math.round(t)),x,padT+ph+15); }
+  ctx.textAlign="right";
+  for(let i=Math.ceil(ymin/vStep);i*vStep<=ymax+1e-9;i++){ const v=i*vStep,y=cr(Y(v)); ctx.moveTo(padL,y); ctx.lineTo(padL+pw,y);
+    ctx.fillText((Math.abs(v)<1e-9?0:v).toFixed(vDec),padL-8,y+3.5); }
+  ctx.stroke();
+  ctx.strokeStyle=C.zero; ctx.beginPath(); ctx.moveTo(padL,cr(Y(0))); ctx.lineTo(padL+pw,cr(Y(0))); ctx.stroke();
+  ctx.strokeStyle=C.major; ctx.strokeRect(cr(padL),cr(padT),Math.round(pw)-1,Math.round(ph)-1);
+  ctx.fillStyle=C.stim; ctx.beginPath(); ctx.moveTo(padL-5,padT-9); ctx.lineTo(padL+5,padT-9); ctx.lineTo(padL,padT-2); ctx.closePath(); ctx.fill();
+  ctx.font=`700 9.5px ${C.mono}`; ctx.textAlign="left"; ctx.fillText("STIM",padL+9,padT-3);
+  ctx.fillStyle=C.axis; ctx.font=`500 10.5px ${C.mono}`; ctx.textAlign="right"; ctx.fillText("ms",padL+pw,H-4);
+  ctx.textAlign="left"; ctx.fillText("µV",6,padT-3);
+  ctx.save(); ctx.beginPath(); ctx.rect(padL,padT,pw,ph); ctx.clip();
   for(const tr of traces){
     const n=tr.samples.length, dt=tr.duration_ms/n;
-    ctx.strokeStyle=tr.eye==="OD"?C.od:C.os; ctx.lineWidth=1.7; ctx.beginPath();
+    ctx.strokeStyle=tr.eye==="OD"?C.od:C.os; ctx.lineWidth=1.7; ctx.lineJoin="round"; ctx.beginPath();
     for(let i=0;i<n;i++){ const x=X(i*dt),y=Y(tr.samples[i]); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
     ctx.stroke();
-    for(const m of tr.measurements||[]){ const idx=Math.min(n-1,Math.round(m.latency_ms/dt));
-      const x=X(m.latency_ms),y=Y(tr.samples[idx]);
-      ctx.fillStyle=tr.eye==="OD"?C.od:C.os; ctx.beginPath();ctx.arc(x,y,3.2,0,2*Math.PI);ctx.fill();
-      ctx.fillStyle=C.ink; ctx.textAlign="center"; ctx.font="700 11px ui-monospace,monospace";
-      ctx.fillText(m.marker,x,y-7); ctx.font="11px ui-monospace,monospace"; }
+  }
+  ctx.restore();
+  // marker dots, then one label per eye stacked away from the waveform
+  const groups={};
+  traces.forEach((tr,ti)=>{ const n=tr.samples.length, dt=tr.duration_ms/n, col=tr.eye==="OD"?C.od:C.os;
+    for(const m of tr.measurements||[]){ const idx=Math.min(n-1,Math.max(0,Math.round(m.latency_ms/dt)));
+      const pt={x:X(m.latency_ms),y:Y(tr.samples[idx]),col,ti};
+      ctx.fillStyle=col; ctx.strokeStyle=C.bg; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(pt.x,pt.y,3.6,0,2*Math.PI); ctx.fill(); ctx.stroke();
+      (groups[m.marker]=groups[m.marker]||[]).push(pt); } });
+  ctx.font=`700 11px ${C.mono}`; ctx.textAlign="center"; ctx.lineJoin="round";
+  for(const [mk,pts] of Object.entries(groups)){
+    const below=isNeg(mk), edge=below?Math.max(...pts.map(p=>p.y)):Math.min(...pts.map(p=>p.y));
+    pts.sort((p,q)=>p.ti-q.ti).forEach((pt,k)=>{
+      let ly=below?edge+17+k*13:edge-9-k*13; ly=Math.min(padT+ph-4,Math.max(padT+11,ly));
+      ctx.lineWidth=3.5; ctx.strokeStyle=C.bg; ctx.strokeText(mk,pt.x,ly); ctx.fillStyle=pt.col; ctx.fillText(mk,pt.x,ly); });
   }
 }
 
@@ -455,18 +625,19 @@ function badge(f){ return f==="abnormal"?"b-bad":f==="borderline"?"b-warn":"b-go
 function measTable(traces){
   let rows="";
   for(const tr of traces) for(const m of tr.measurements||[])
-    rows+=`<tr><td class="eye">${tr.eye}</td><td class="mk">${m.marker}</td>
-      <td>${m.latency_ms.toFixed(1)} ms</td><td>${m.amplitude_uv.toFixed(2)} µV</td>
+    rows+=`<tr><td><span class="eye-chip ${tr.eye==="OS"?"os":""}">${tr.eye}</span></td><td><b>${m.marker}</b></td>
+      <td class="num">${m.latency_ms.toFixed(1)}</td><td class="num">${m.amplitude_uv.toFixed(2)}</td>
       <td><span class="badge ${badge(m.flag)}">${m.flag}</span></td></tr>`;
-  if(!rows) return `<p class="muted">No markers detected.</p>`;
+  if(!rows) return `<p class="muted" style="padding:16px 20px;margin:0">검출된 마커가 없습니다.</p>`;
   let ratio="";
   const rr=[];
   for(const tr of traces){ const ms=tr.measurements||[];
     const p=ms.find(x=>x.marker==="P50"), q=ms.find(x=>x.marker==="N95");
-    if(p&&q&&Math.abs(p.amplitude_uv)>0) rr.push(`${tr.eye}: <b>${(Math.abs(q.amplitude_uv)/Math.abs(p.amplitude_uv)).toFixed(2)}</b>`); }
-  if(rr.length) ratio=`<p class="ratio">N95:P50 amplitude ratio — ${rr.join(" · ")}</p>`;
-  return `<div class="scroll-x"><table class="meas"><thead><tr><th>Eye</th><th>Marker</th>
-    <th>Implicit time</th><th>Amplitude</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>${ratio}`;
+    if(p&&q&&Math.abs(p.amplitude_uv)>0) rr.push(`${tr.eye} <b>${(Math.abs(q.amplitude_uv)/Math.abs(p.amplitude_uv)).toFixed(2)}</b>`); }
+  if(rr.length) ratio=`<p class="ratio">N95:P50 amplitude ratio · ${rr.join(" · ")}</p>`;
+  return `<table class="meas"><thead><tr><th>Eye</th><th>Marker</th>
+    <th class="num">Implicit <span class="unit">(ms)</span></th><th class="num">Amp <span class="unit">(µV)</span></th>
+    <th>Status</th></tr></thead><tbody>${rows}</tbody></table>${ratio}`;
 }
 
 let LAST=null;
@@ -477,31 +648,34 @@ function renderExam(protoKey, eyes){
     for(const eye of eyes){
       const wf=simulate(step,eye);
       wf.measurements=detect(wf.samples,step.duration_ms,step.key,step.markers);
-      if(!byStep[step.key]){ byStep[step.key]={label:step.label,traces:[]}; order.push(step.key); }
+      if(!byStep[step.key]){ byStep[step.key]={step,traces:[]}; order.push(step.key); }
       byStep[step.key].traces.push(wf);
     }
   }
   LAST={protoKey,eyes,byStep,order};
   const box=document.getElementById("results"); box.innerHTML="";
   document.getElementById("empty").classList.add("hidden");
-  const head=document.createElement("div"); head.className="card";
-  head.innerHTML=`<div class="wf-head"><h2>${proto.label}</h2>
-    <span class="chip std">${proto.standard}</span></div>
-    <p class="muted" style="font-size:13px;margin:6px 0 0">${eyes.join(" + ")} · ${order.length} step(s) · auto-marked & classified</p>`;
+  const head=document.createElement("div"); head.className="result-head";
+  head.innerHTML=`<div><h2>${proto.label}</h2>
+    <p class="card-sub">${eyes.join(" + ")} · ${order.length} step(s) · 자동 마커 · 정상범위 판정</p></div>
+    <span class="chip std">${proto.standard}</span>`;
   box.appendChild(head);
   for(const sk of order){
-    const grp=byStep[sk];
-    const card=document.createElement("div"); card.className="card";
-    card.innerHTML=`<div class="wf-head"><h2>${grp.label} <span class="muted" style="font-weight:400">· ${sk}</span></h2>
-      <span class="legend"><span><i class="od"></i>OD</span><span><i class="os"></i>OS</span></span></div>
-      <canvas width="900" height="300"></canvas><div class="mt"></div>`;
+    const grp=byStep[sk], st=grp.step;
+    const card=document.createElement("div"); card.className="card wf";
+    card.innerHTML=`<div class="wf-head"><span class="wf-key">${sk}</span><span class="wf-title">${st.label}</span>
+      <span class="wf-meta">${st.duration_ms} ms · ${st.sampling_rate} Hz</span>
+      <span class="legend">${eyes.includes("OD")?'<span><i class="od"></i>OD</span>':""}${eyes.includes("OS")?'<span><i class="os"></i>OS</span>':""}</span></div>
+      <div class="wf-body"><div class="wf-plot"><canvas width="820" height="300"></canvas></div><div class="wf-markers"></div></div>`;
     box.appendChild(card);
-    drawTraces(card.querySelector("canvas"), grp.traces);
-    card.querySelector(".mt").innerHTML=measTable(grp.traces);
+    const cv=card.querySelector("canvas"), bw=cv.parentElement.clientWidth-28;
+    if(bw>0&&bw<820){ cv.width=Math.max(420,Math.round(bw)); cv.height=cv.width<600?280:300; }
+    drawTraces(cv, grp.traces);
+    card.querySelector(".wf-markers").innerHTML=measTable(grp.traces);
   }
 }
 function redrawAll(){ if(!LAST) return;
-  const cards=document.querySelectorAll("#results .card canvas");
+  const cards=document.querySelectorAll("#results canvas");
   let i=0; for(const sk of LAST.order){ drawTraces(cards[i++], LAST.byStep[sk].traces); } }
 
 // ---- protocol select + chips ------------------------------------------
@@ -515,8 +689,9 @@ for(const [tt,list] of Object.entries(groups)){
 }
 function updChips(){
   const p=PROTOCOLS[protoSel.value], s0=p.steps[0].stimulus, chips=[];
-  chips.push(`<span class="chip std">${p.standard}</span>`);
+  document.getElementById("proto-std").textContent=p.standard;
   chips.push(`<span class="chip"><b>${p.steps.length}</b> step</span>`);
+  if(s0.cd_s_m2!=null) chips.push(`<span class="chip"><b>${s0.cd_s_m2}</b> cd·s·m⁻²</span>`);
   if(s0.check_deg) chips.push(`<span class="chip">check <b>${s0.check_deg}°</b></span>`);
   if(s0.contrast) chips.push(`<span class="chip">contrast <b>${Math.round(s0.contrast*100)}%</b></span>`);
   if(s0.reversal_hz) chips.push(`<span class="chip"><b>${s0.reversal_hz}</b> rev/s</span>`);
@@ -525,16 +700,22 @@ function updChips(){
   if(s0.field_deg) chips.push(`<span class="chip">field <b>${s0.field_deg}°</b></span>`);
   if(s0.adaptation) chips.push(`<span class="chip">${s0.adaptation}-adapted</span>`);
   document.getElementById("proto-chips").innerHTML=chips.join("");
+  document.getElementById("step-list").innerHTML=p.steps.map(st=>`<li><span class="k">${st.key}</span>
+    <span>${st.label}</span><span class="m">${st.duration_ms} ms · ${st.markers.join("/")}</span></li>`).join("");
 }
 protoSel.addEventListener("change",updChips);
 protoSel.value="VEP_pattern_reversal"; updChips();
 
-const acqBtn=document.getElementById("acquire");
+const acqBtn=document.getElementById("acquire"), acqLabel=document.getElementById("acq-label");
+const seqItems=[...document.querySelectorAll("#seq li")];
+const seqState=a=>seqItems.forEach((li,i)=>{ li.classList.toggle("done",i<a); li.classList.toggle("run",i===a); });
 acqBtn.addEventListener("click",()=>{
-  acqBtn.disabled=true; acqBtn.textContent="Acquiring…";
-  const eyes=document.getElementById("eyes").value.split(",");
-  setTimeout(()=>{ renderExam(protoSel.value, eyes);
-    acqBtn.disabled=false; acqBtn.textContent="▶ Acquire"; },260);
+  acqBtn.disabled=true; acqBtn.classList.add("busy"); acqLabel.textContent="측정 중…";
+  const eyes=document.querySelector('input[name="eyes"]:checked').value.split(",");
+  let stage=0; seqState(0);
+  const timer=setInterval(()=>{ if(stage<seqItems.length-1) seqState(++stage); },220);
+  setTimeout(()=>{ clearInterval(timer); seqState(seqItems.length); renderExam(protoSel.value, eyes);
+    acqBtn.disabled=false; acqBtn.classList.remove("busy"); acqLabel.textContent="측정 시작"; },900);
 });
 
 /* ====================================================================
@@ -591,7 +772,7 @@ function stimFrame(now){
     readout.textContent=`Flash · ${rate}/s (Ganzfeld)`; }
   requestAnimationFrame(stimFrame);
 }
-$("toggle").addEventListener("click",()=>{ running=!running; $("toggle").textContent=running?"⏸ Pause":"▶ Resume"; });
+$("toggle").addEventListener("click",()=>{ running=!running; $("toggle").textContent=running?"일시정지":"재개"; });
 document.addEventListener("keydown",e=>{
   if(document.getElementById("view-stim").classList.contains("hidden")) return;
   if(e.code==="Space"){ e.preventDefault(); $("toggle").click(); }
@@ -617,5 +798,7 @@ mq.addEventListener?.("change",redrawAll);
 new MutationObserver(redrawAll).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
 
 // first render
-renderExam("VEP_pattern_reversal",["OD","OS"]);
+renderExam("VEP_pattern_reversal",["OD","OS"]); seqState(seqItems.length);
 </script>
+</body>
+</html>

@@ -1,49 +1,61 @@
 {% extends "base.html" %}
-{% block title %}실시간 스트림 · ERG/VEP{% endblock %}
+{% block title %}실시간 측정 · ERG·VEP{% endblock %}
 {% block content %}
-<div class="row-between">
-  <h1>실시간 스트림 <span class="muted" style="font-size:14px">Live amplifier link</span></h1>
-  <span class="pill-live" id="status">연결 중…</span>
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Live amplifier link</p>
+    <h1>실시간 측정</h1>
+    <p class="page-sub">앰프 연속 스트림 · 트리거 동기 평균 · 전극 임피던스 · 장비 점검</p>
+  </div>
+  <span class="status-pill" id="status"><i class="led"></i><span id="status-text">연결 중…</span></span>
 </div>
 
 <section class="card">
-  <div class="live-controls">
-    <label class="field">드라이버
+  <div class="controls">
+    <label class="field">드라이버 (Driver)
       <select id="driver"></select>
     </label>
-    <label class="field" style="flex:1">연결 문자열
-      <input id="connection" placeholder="예: Dev1/ai0,Dev1/ai1@2000;gain=10000;trig=Dev1/ai7  또는  sim://localhost;hum=20;blink=1">
+    <label class="field grow">연결 문자열 (Connection)
+      <input id="connection" class="mono" placeholder="예: Dev1/ai0,Dev1/ai1@2000;gain=10000;trig=Dev1/ai7  또는  sim://localhost;hum=20;blink=1">
     </label>
-    <button class="btn" id="reconnect">연결</button>
-    <button class="btn ghost" id="pause">⏸ 일시정지</button>
-    <button class="btn ghost" id="daq-toggle" hidden>🔧 DAQ 연결 도우미</button>
+    <button class="btn primary" id="reconnect"><svg class="ico"><use href="#i-plug"/></svg>연결</button>
+    <button class="btn" id="pause"><svg class="ico"><use href="#i-pause"/></svg>일시정지</button>
+    <button class="btn ghost" id="daq-toggle" hidden><svg class="ico"><use href="#i-bolt"/></svg>DAQ 연결 도우미</button>
+  </div>
+  <div class="controls" style="margin-top:12px">
+    <label class="field narrow"><span>Epoch <span class="unit">(ms)</span></span><input id="epoch-ms" type="number" min="10" step="10" value="500"></label>
+    <label class="field" style="flex:0 0 170px"><span>아티팩트 제거 <span class="unit">(µV p-p)</span></span><input id="reject-uv" type="number" min="0" step="10" value="0" placeholder="0 = 끔"></label>
+    <p class="muted cap" style="margin:0 0 8px">진폭이 제거 기준을 넘는 sweep(깜빡임 등)은 평균에서 버립니다. 0 = 끔.</p>
   </div>
   <p id="err" class="msg err"></p>
 
   <div id="daq-panel" class="daq-panel" hidden>
-    <div class="row-between">
-      <h3 class="muted">DAQ 연결 도우미 <span class="muted" style="font-size:12px">NI-DAQmx · Grass 등 아날로그 앰프 출력 → DAQ</span></h3>
-      <button class="btn small" id="daq-scan">장치 찾기</button>
+    <div class="card-head">
+      <div>
+        <h2>DAQ 연결 도우미</h2>
+        <p class="card-sub">NI-DAQmx · Grass 등 아날로그 앰프 출력 → DAQ</p>
+      </div>
+      <button class="btn small" id="daq-scan"><svg class="ico"><use href="#i-search"/></svg>장치 찾기</button>
     </div>
-    <p id="daq-info" class="muted cap" style="margin-bottom:12px">‘장치 찾기’를 누르면 이 PC에 연결된 DAQ의 이름·모델·채널을 자동으로 읽어옵니다.</p>
-    <div class="live-controls">
-      <label class="field" style="min-width:220px">장치
+    <p id="daq-info" class="muted cap" style="margin:-6px 0 12px">‘장치 찾기’를 누르면 이 PC에 연결된 DAQ의 이름·모델·채널을 자동으로 읽어옵니다.</p>
+    <div class="controls">
+      <label class="field grow">장치
         <select id="daq-dev"></select>
         <input id="daq-dev-manual" placeholder="장치 이름 (예: Dev1)" hidden>
       </label>
       <label class="field">OD 채널 (우안)<select id="daq-od"></select></label>
       <label class="field">OS 채널 (좌안)<select id="daq-os"></select></label>
       <label class="field">트리거 채널<select id="daq-trig"></select></label>
-      <label class="field"><span>샘플링 <span class="unit">(Hz)</span></span><input id="daq-rate" type="number" min="100" step="100" value="2000" style="width:90px"></label>
-      <label class="field">앰프 게인<input id="daq-gain" type="number" min="1" value="10000" style="width:100px"></label>
-      <label class="field">입력 범위 (±V)<select id="daq-range"></select></label>
+      <label class="field narrow"><span>샘플링 <span class="unit">(Hz)</span></span><input id="daq-rate" type="number" min="100" step="100" value="2000"></label>
+      <label class="field narrow">앰프 게인<input id="daq-gain" type="number" min="1" value="10000"></label>
+      <label class="field narrow">입력 범위 (±V)<select id="daq-range"></select></label>
     </div>
-    <div class="live-controls" style="margin-top:10px">
+    <div class="controls" style="margin-top:10px">
       <label class="check"><input type="checkbox" id="daq-diff"> 차동(differential) 입력</label>
-      <label class="field">전원 노치<select id="daq-notch"><option value="">끔</option><option value="60">60 Hz</option><option value="50">50 Hz</option></select></label>
-      <label class="field"><span>기준선 HP <span class="unit">(Hz)</span></span><input id="daq-hp" type="number" min="0" step="0.1" placeholder="끔" style="width:80px"></label>
-      <label class="field">트리거 임계 (V)<input id="daq-thr" type="number" step="0.1" value="1.0" style="width:80px"></label>
-      <label class="field">트리거 극성<select id="daq-edge"><option value="rise">상승(↑)</option><option value="fall">하강(↓)</option></select></label>
+      <label class="field narrow">전원 노치<select id="daq-notch"><option value="">끔</option><option value="60">60 Hz</option><option value="50">50 Hz</option></select></label>
+      <label class="field narrow"><span>기준선 HP <span class="unit">(Hz)</span></span><input id="daq-hp" type="number" min="0" step="0.1" placeholder="끔"></label>
+      <label class="field narrow">트리거 임계 (V)<input id="daq-thr" type="number" step="0.1" value="1.0"></label>
+      <label class="field narrow">트리거 극성<select id="daq-edge"><option value="rise">상승(↑)</option><option value="fall">하강(↓)</option></select></label>
     </div>
     <p class="muted cap">게인을 모르면 1로 두고 아래 ‘장비 점검’의 CAL 측정으로 실제 게인을 구하세요.
       차동 입력은 채널마다 +/− 두 단자를 씁니다(짝 단자는 DAQ 핀 배치도 참고).
@@ -57,42 +69,46 @@
 </section>
 
 <div class="live-grid">
-  <section class="card">
-    <h3 class="muted" id="meta">device: – · fs: – Hz</h3>
+  <section class="monitor">
+    <div class="monitor-head">
+      <h3>연속 스트림</h3>
+      <span class="meta" id="meta">device: – · fs: – Hz</span>
+      <span class="right meta">ROLL 4 s</span>
+    </div>
     <canvas id="scope" width="520" height="260"></canvas>
-    <p class="muted cap">앰프의 연속 표본 (롤링 4초, 채널별)</p>
+    <div class="monitor-foot">앰프의 연속 표본 (롤링 4초, 채널별)</div>
   </section>
-  <section class="card">
-    <div class="row-between">
-      <h3 class="muted">트리거 동기 평균 <span id="avgn" class="tag">0 sweeps</span></h3>
-      <button class="btn small" id="avg-reset">평균 초기화</button>
+  <section class="monitor">
+    <div class="monitor-head">
+      <h3>트리거 동기 평균</h3>
+      <span id="avgn" class="tag">0 sweeps</span>
+      <span class="right"><button class="btn dark small" id="avg-reset"><svg class="ico"><use href="#i-refresh"/></svg>평균 초기화</button></span>
     </div>
     <canvas id="avg" width="520" height="260"></canvas>
-    <div class="live-controls avg-opts">
-      <label class="field"><span>Epoch <span class="unit">(ms)</span></span><input id="epoch-ms" type="number" min="10" step="10" value="500" style="width:80px"></label>
-      <label class="field"><span>아티팩트 제거 <span class="unit">(µV p-p)</span></span><input id="reject-uv" type="number" min="0" step="10" value="0" placeholder="0 = 끔" style="width:90px"></label>
-    </div>
-    <p class="muted cap">트리거마다 epoch을 잘라 누적 평균 — 잡음이 √N로 감소. 진폭이 제거 기준을 넘는 sweep(깜빡임 등)은 버립니다.</p>
+    <div class="monitor-foot">매 트리거마다 epoch을 잘라 누적 평균 — 잡음이 √N로 감소</div>
   </section>
 </div>
 
 {% if 'run_exam' in perms %}
 <section class="card" id="rec-card">
-  <div class="row-between">
-    <h3 class="muted">검사로 저장 <span class="muted" style="font-size:12px">트리거 동기 평균 파형 → 검사 기록 → 리포트</span></h3>
+  <div class="card-head">
+    <div>
+      <h2>검사로 저장</h2>
+      <p class="card-sub">트리거 동기 평균 파형 → 검사 기록 → 리포트</p>
+    </div>
     <span id="rec-exam" class="tag">새 검사</span>
   </div>
-  <div class="live-controls">
-    <label class="field" style="min-width:220px">환자 (이름/등록번호 검색)
+  <div class="controls">
+    <label class="field grow">환자 (이름/등록번호 검색)
       <input id="rec-patient-q" list="rec-patients" placeholder="검색…" autocomplete="off">
       <datalist id="rec-patients"></datalist>
     </label>
     <label class="field">프로토콜<select id="rec-protocol"></select></label>
     <label class="field">Step<select id="rec-step"></select></label>
     <label class="field">눈<select id="rec-eye"><option value="OD">OD (우)</option><option value="OS">OS (좌)</option></select></label>
-    <label class="field">목표 sweeps<input id="rec-target" type="number" min="1" value="50" style="width:90px"></label>
-    <button class="btn primary" id="rec-save">저장</button>
-    <button class="btn ghost" id="rec-new">새 검사 시작</button>
+    <label class="field narrow">목표 sweeps<input id="rec-target" type="number" min="1" value="50"></label>
+    <button class="btn primary" id="rec-save"><svg class="ico"><use href="#i-download"/></svg>저장</button>
+    <button class="btn" id="rec-new"><svg class="ico"><use href="#i-plus"/></svg>새 검사 시작</button>
   </div>
   <p class="muted cap">Step을 고르면 epoch 길이와 아티팩트 기준이 그 Step에 맞춰집니다 (평균이 비어 있을 때).</p>
   <p id="rec-msg" class="msg"></p>
@@ -100,8 +116,11 @@
 {% endif %}
 
 <section class="card">
-  <div class="row-between">
-    <h3 class="muted">장비 점검 <span class="muted" style="font-size:12px">실제 앰프·DAQ 연결 확인 (bench check)</span></h3>
+  <div class="card-head">
+    <div>
+      <h2>장비 점검</h2>
+      <p class="card-sub">실제 앰프·DAQ 연결 확인 (bench check)</p>
+    </div>
     <label class="field inline">전원 주파수<select id="mains"><option value="60">60 Hz</option><option value="50">50 Hz</option></select></label>
   </div>
   <ol class="steps muted">
@@ -121,8 +140,8 @@
     </div>
     <div class="bench">
       <h4>CAL 게인 <small class="muted">최근 4초</small></h4>
-      <div class="live-controls">
-        <label class="field"><span>CAL 진폭 <span class="unit">(µV)</span></span><input id="cal-uv" type="number" min="1" value="100" style="width:90px"></label>
+      <div class="controls">
+        <label class="field narrow"><span>CAL 진폭 <span class="unit">(µV)</span></span><input id="cal-uv" type="number" min="1" value="100"></label>
         <button class="btn small" id="cal-measure">CAL 측정</button>
         <button class="btn small primary" id="cal-apply" disabled>게인 보정 적용</button>
       </div>
@@ -132,58 +151,43 @@
 </section>
 
 <section class="card">
-  <h3 class="muted">전극 임피던스 <span class="muted" style="font-size:12px">(ISCEV 권고 &lt; 5 kΩ)</span></h3>
+  <div class="card-head">
+    <div>
+      <h2>전극 임피던스</h2>
+      <p class="card-sub">ISCEV 권고 &lt; 5 kΩ · 막대 중앙선 = 5 kΩ</p>
+    </div>
+  </div>
   <div id="imp" class="imp-grid"><span class="muted">–</span></div>
 </section>
 
 <style>
-  .unit { text-transform:none; letter-spacing:0; }
-  .pill-live { font-size:12px; padding:4px 12px; border-radius:999px;
-    background:#fee2e2; color:#991b1b; font-weight:600; }
-  .pill-live.on { background:#dcfce7; color:#166534; }
-  .live-controls { display:flex; gap:12px; align-items:end; flex-wrap:wrap; }
-  .live-controls .field, .field.inline { display:flex; flex-direction:column; gap:5px;
-    font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
-  .field.inline { flex-direction:row; align-items:center; }
+  .unit { text-transform:none; letter-spacing:0; font-weight:400; }
+  .field.inline { flex-direction:row; align-items:center; gap:8px; }
   .check { display:flex; align-items:center; gap:6px; font-size:13px; padding-bottom:9px; }
-  .live-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-  @media (max-width:760px){ .live-grid, .bench-grid{ grid-template-columns:1fr; } }
-  #scope, #avg { width:100%; height:auto; background:#0b1424; border-radius:10px;
-    border:1px solid var(--line); }
-  .avg-opts { margin-top:10px; }
-  .cap { font-size:12px; margin:8px 0 0; }
-  .daq-panel { margin-top:14px; padding-top:14px; border-top:1px dashed var(--line); }
+  .daq-panel { margin-top:16px; padding-top:16px; border-top:1px dashed var(--line); }
   .daq-out { margin-top:12px; gap:12px; }
-  .daq-out code { flex:1; padding:8px 10px; background:#f1f5f9; border-radius:8px;
-    font-size:12px; overflow-wrap:anywhere; }
-  .steps { font-size:13px; margin:6px 0 14px; padding-left:20px; line-height:1.6; }
+  .daq-out code { flex:1; padding:8px 10px; overflow-wrap:anywhere; }
+  .steps { font-size:13px; margin:0 0 14px; padding-left:20px; line-height:1.6; }
   .bench-grid { display:grid; grid-template-columns:1fr 1fr 1.3fr; gap:14px; }
-  .bench { border:1px solid var(--line); border-radius:10px; padding:12px; }
+  @media (max-width:900px){ .bench-grid { grid-template-columns:1fr; } }
+  .bench { border:1px solid var(--line); border-radius:var(--r); padding:12px 14px; background:var(--surface-2); }
   .bench h4 { margin:0 0 8px; font-size:14px; }
   .bench table { width:100%; font-size:13px; border-collapse:collapse; }
-  .bench td, .bench th { padding:3px 4px; font-family:ui-monospace,monospace; white-space:nowrap; }
-  .bench th { font:11px system-ui; color:var(--muted); text-align:left; }
+  .bench td, .bench th { padding:3px 4px; font-family:var(--mono); white-space:nowrap; }
+  .bench th { font:600 11px var(--font); color:var(--muted); text-align:left; }
   .bench td:first-child { font-family:inherit; color:var(--muted); }
-  .chip { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600; }
-  .chip.good { background:#dcfce7; color:#166534; } .chip.warn { background:#fef9c3; color:#854d0e; }
-  .chip.bad { background:#fee2e2; color:#991b1b; }
-  .imp-grid { display:flex; gap:10px; flex-wrap:wrap; }
-  .imp-chip { display:flex; flex-direction:column; align-items:center; gap:2px;
-    min-width:96px; padding:10px; border-radius:10px; border:1px solid var(--line);
-    font-family:ui-monospace,monospace; }
-  .imp-chip b { font-size:18px; } .imp-chip small { color:var(--muted); font-size:11px; }
-  .imp-good { background:#dcfce7; color:#166534; } .imp-good b{ color:#166534; }
-  .imp-warn { background:#fef9c3; color:#854d0e; } .imp-warn b{ color:#854d0e; }
-  .imp-bad  { background:#fee2e2; color:#991b1b; } .imp-bad b{ color:#991b1b; }
+  .chip.good { color:var(--ok); background:var(--ok-bg); border-color:var(--ok-line); }
+  .chip.warn { color:var(--warn); background:var(--warn-bg); border-color:var(--warn-line); }
+  .chip.bad { color:var(--bad); background:var(--bad-bg); border-color:var(--bad-line); }
 </style>
 
 <script src="/static/js/live-tools.js"></script>
 <script>
 const S = (id) => document.getElementById(id);
 const T = window.LiveTools;
-const scope = S("scope").getContext("2d");
-const avgc = S("avg").getContext("2d");
-const COLORS = { OD: "#60a5fa", OS: "#f87171" };
+const scope = hidpiCanvas(S("scope")).ctx;
+const avgc = hidpiCanvas(S("avg")).ctx;
+const COLORS = { OD: "#5aa2ff", OS: "#ff7a6e" };
 const colorOf = (label, c) => COLORS[label] || ["#22d3ee", "#a3e635", "#fbbf24"][c % 3];
 // Per-step artifact limits, mirroring _ARTIFACT in app/acquisition/base.py.
 const STEP_REJECT = { perg: 120, vep_pr: 120, vep_flash: 120 };
@@ -232,33 +236,41 @@ function drawLane(g, top, H, W, series, n, color, label, xLabel) {
   if (!isFinite(ymin)) { ymin = -1; ymax = 1; }
   const pad = (ymax - ymin) * 0.1 || 1; ymin -= pad; ymax += pad;
   const Y = v => top + 8 + (ymax - v) / (ymax - ymin) * ph;
-  g.strokeStyle = "#17233a"; g.lineWidth = 1;
-  for (let k = 0; k <= 4; k++) { const x = padL + pw * k / 4; g.beginPath(); g.moveTo(x, top + 8); g.lineTo(x, top + 8 + ph); g.stroke(); }
-  if (ymin < 0 && ymax > 0) { g.strokeStyle = "#33496b"; g.beginPath(); g.moveTo(padL, Y(0)); g.lineTo(padL + pw, Y(0)); g.stroke(); }
-  g.fillStyle = "#7e90ab"; g.font = "10px ui-monospace,monospace"; g.textAlign = "right";
+  g.lineWidth = 1;
+  g.strokeStyle = "#101924"; g.beginPath();
+  for (let k = 0; k <= 20; k++) { const x = Math.round(padL + pw * k / 20) + .5; g.moveTo(x, top + 8); g.lineTo(x, top + 8 + ph); }
+  g.stroke();
+  g.strokeStyle = "#1a2635"; g.beginPath();
+  for (let k = 0; k <= 4; k++) { const x = Math.round(padL + pw * k / 4) + .5; g.moveTo(x, top + 8); g.lineTo(x, top + 8 + ph); }
+  g.stroke();
+  if (ymin < 0 && ymax > 0) { g.strokeStyle = "#2e4257"; g.beginPath(); g.moveTo(padL, Math.round(Y(0)) + .5); g.lineTo(padL + pw, Math.round(Y(0)) + .5); g.stroke(); }
+  g.fillStyle = "#6f7f92"; g.font = "500 10px ui-monospace,monospace"; g.textAlign = "right";
   g.fillText(ymax.toFixed(0), padL - 4, Y(ymax) + 8); g.fillText(ymin.toFixed(0), padL - 4, Y(ymin));
   g.fillStyle = color; g.font = "bold 11px system-ui"; g.textAlign = "left";
   g.fillText(label, padL + 6, top + 20);
   if (xLabel) { g.fillStyle = "#7e90ab"; g.font = "10px ui-monospace,monospace"; g.textAlign = "center";
     g.fillText(xLabel, W - 24, top + H - 4); }
-  g.strokeStyle = color; g.lineWidth = 1.4; g.beginPath();
+  g.save();
+  g.shadowColor = color; g.shadowBlur = 5;
+  g.strokeStyle = color; g.lineWidth = 1.4; g.lineJoin = "round"; g.beginPath();
   for (let i = 0; i < n; i++) { const x = padL + pw * i / (n - 1 || 1), y = Y(series(i)); i ? g.lineTo(x, y) : g.moveTo(x, y); }
   g.stroke();
+  g.restore();
 }
 
 function render() {
   const W = 520, H = 260, lanes = signals.length, lh = H / lanes;
-  scope.clearRect(0, 0, W, H);
+  scope.fillStyle = "#070b10"; scope.fillRect(0, 0, W, H);
   signals.forEach((lab, c) => drawLane(scope, c * lh, lh, W,
     i => bufs[c][(head - filled + i + CAP * 2) % CAP], filled || 1, colorOf(lab, c), lab,
     c === lanes - 1 ? SECONDS + "s →" : ""));
-  avgc.clearRect(0, 0, W, H);
+  avgc.fillStyle = "#070b10"; avgc.fillRect(0, 0, W, H);
   if (avg.count > 0) {
     signals.forEach((lab, c) => { const m = avg.mean(c);
       drawLane(avgc, c * lh, lh, W, i => m[i], m.length, colorOf(lab, c), lab,
                c === lanes - 1 ? Math.round(avg.len / fs * 1000) + "ms" : ""); });
   } else {
-    avgc.fillStyle = "#7e90ab"; avgc.font = "13px system-ui"; avgc.textAlign = "center";
+    avgc.fillStyle = "#6f7f92"; avgc.font = "500 13px system-ui"; avgc.textAlign = "center";
     avgc.fillText("트리거 대기 중…", W / 2, H / 2);
   }
   requestAnimationFrame(render);
@@ -268,8 +280,17 @@ requestAnimationFrame(render);
 function renderImp(values) {
   S("imp").innerHTML = Object.entries(values).map(([k, v]) => {
     const cls = v <= 5 ? "imp-good" : v <= 10 ? "imp-warn" : "imp-bad";
-    return `<div class="imp-chip ${cls}"><b>${v.toFixed(1)}</b><small>kΩ · ${k}</small></div>`;
+    const pct = Math.min(100, v / 10 * 100);     // bar spans 0–10 kΩ; midline = 5 kΩ
+    return `<div class="imp-chip ${cls}">
+      <div class="imp-top"><span class="imp-name">${escHtml(k)}</span><b>${v.toFixed(1)}<small>kΩ</small></b></div>
+      <div class="imp-bar"><i style="width:${pct}%"></i></div></div>`;
   }).join("");
+}
+
+/* Status pill: LED + text (.on while streaming). */
+function setStatus(text, on) {
+  S("status-text").textContent = text;
+  S("status").classList.toggle("on", !!on);
 }
 
 function setSignals(list) {
@@ -299,12 +320,11 @@ function connect(manual = true) {
   try { localStorage.setItem(SAVED_KEY, JSON.stringify({ driver: d, connection: c })); } catch (e) {}
   const sock = new WebSocket(`${proto}://${location.host}/ws/live?${qs}`);
   ws = sock;
-  const st = S("status");
-  st.textContent = reconnectAttempt ? `재연결 중… (${reconnectAttempt}회)` : "연결 중…";
+  setStatus(reconnectAttempt ? `재연결 중… (${reconnectAttempt}회)` : "연결 중…", false);
   sock.onopen = () => { lastMsgAt = Date.now(); };
   sock.onclose = (ev) => {
     if (ws !== sock) return;           // superseded by a newer connection
-    ws = null; st.classList.remove("on");
+    ws = null; S("status").classList.remove("on");
     if (ev.code === 4401) { location.href = "/login?next=/live"; return; }
     scheduleReconnect();
   };
@@ -315,11 +335,11 @@ function connect(manual = true) {
       S("err").textContent = (m.phase === "read" ? "장치 스트림 오류: " : "드라이버 연결 실패: ")
         + m.message + " — 자동으로 다시 연결합니다.";
       if (m.drivers && !driversLoaded) fillDrivers(m.drivers, S("driver").value);
-      st.textContent = "오류"; st.classList.remove("on"); return;
+      setStatus("오류", false); return;
     }
     if (m.type === "meta") {
       reconnectAttempt = 0;
-      st.textContent = "● 스트리밍"; st.classList.add("on"); S("err").textContent = "";
+      setStatus("스트리밍", true); S("err").textContent = "";
       const newSignals = (m.signals && m.signals.length) ? m.signals : ["ch1"];
       const same = m.fs === fs && newSignals.join() === signals.join();
       periodMs = m.period_ms || periodMs;
@@ -345,7 +365,7 @@ function connect(manual = true) {
 function scheduleReconnect() {
   reconnectAttempt++;
   const delay = Math.min(30000, 1000 * 2 ** Math.min(reconnectAttempt - 1, 5));
-  S("status").textContent = `연결 끊김 — ${Math.round(delay/1000)}초 후 재연결 (${reconnectAttempt}회)`;
+  setStatus(`연결 끊김 — ${Math.round(delay/1000)}초 후 재연결 (${reconnectAttempt}회)`, false);
   reconnectTimer = setTimeout(() => connect(false), delay);
 }
 // Watchdog: the server sends at least a heartbeat every 2 s. Silence means a
@@ -370,7 +390,8 @@ S("epoch-ms").addEventListener("change", resetAverage);
 S("reject-uv").addEventListener("change", resetAverage);
 S("pause").addEventListener("click", (e) => { paused = !paused;
   avg.abort();  // never stitch samples from before and after the pause
-  e.target.textContent = paused ? "▶ 재개" : "⏸ 일시정지"; });
+  S("pause").innerHTML = paused ? '<svg class="ico"><use href="#i-play"/></svg>재개'
+                                : '<svg class="ico"><use href="#i-pause"/></svg>일시정지'; });
 
 /* ---- DAQ connection builder (NI-DAQmx) ------------------------------- */
 let daqDevices = [];

@@ -1,48 +1,68 @@
 {% extends "base.html" %}
-{% block title %}{{ patient.name }} · ERG/VEP{% endblock %}
+{% block title %}{{ patient.name }} · ERG·VEP{% endblock %}
 {% block content %}
-<a class="back" href="/patients">← 환자 목록</a>
-<div class="row-between">
-  <h1 id="p-title">{{ patient.name }} <span class="muted">#{{ patient.mrn }}</span></h1>
-  <div style="display:flex;gap:8px">
+<a class="back" href="/patients"><svg class="ico"><use href="#i-back"/></svg>환자 목록</a>
+<div class="page-head">
+  <div class="patient-head">
+    <span class="patient-avatar" id="p-avatar" aria-hidden="true">{{ patient.name[:1] }}</span>
+    <div>
+      <p class="eyebrow">Patient record</p>
+      <h1 id="p-title">{{ patient.name }} <small class="mono">#{{ patient.mrn }}</small></h1>
+      <div class="chips" id="p-sub"></div>
+    </div>
+  </div>
+  <div class="page-actions">
     {% if 'view_phi' in perms %}
-    <button class="btn" id="phi-btn" type="button">주민번호 전체 보기</button>
+    <button class="btn" id="phi-btn" type="button"><svg class="ico"><use href="#i-lock"/></svg>주민번호 전체 보기</button>
     {% endif %}
     {% if 'edit_patient' in perms %}
-    <button class="btn" id="edit-btn" type="button">정보 수정</button>
+    <button class="btn" id="edit-btn" type="button"><svg class="ico"><use href="#i-edit"/></svg>정보 수정</button>
+    {% endif %}
+    {% if 'edit_patient' in perms %}
+    <a class="btn primary" href="/?patient_id={{ patient.id }}"><svg class="ico"><use href="#i-clip"/></svg>검사 접수</a>
     {% endif %}
   </div>
 </div>
-<p class="muted" id="p-sub"></p>
+
+<section class="card">
+  <div class="card-head">
+    <div>
+      <h2>방문 이력</h2>
+      <p class="card-sub">Visits · 그날의 시력 · 동공 · 검사</p>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>검사일</th><th>담당의</th><th>진단 / 사유</th><th>교정시력 OD / OS</th>
+        <th>동공 OD / OS</th><th>검사</th></tr></thead>
+      <tbody id="visit-rows"></tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <div>
+      <h2>검사 기록</h2>
+      <p class="card-sub">Examinations</p>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>일시</th><th>검사</th><th>프로토콜</th><th>장비</th><th>판독 / 결론</th><th></th></tr></thead>
+      <tbody id="exam-rows"></tbody>
+    </table>
+  </div>
+</section>
 
 <!-- read-only record -->
 <div id="p-view" class="stack-cards"></div>
 
 <!-- edit form (hidden until 수정) -->
 <section class="card hidden" id="p-edit-wrap">
-  <h2>환자 정보 수정</h2>
+  <div class="card-head"><h2>환자 정보 수정</h2></div>
   <form id="p-edit"></form>
 </section>
-
-<div class="row-between" style="margin-top:26px">
-  <h2>방문 이력 (Visits)</h2>
-  {% if 'edit_patient' in perms %}
-  <a class="btn primary" href="/?patient_id={{ patient.id }}">+ 검사 접수</a>
-  {% endif %}
-</div>
-<table class="table">
-  <thead><tr><th>검사일</th><th>담당의</th><th>진단 / 사유</th><th>교정시력 OD / OS</th>
-    <th>동공 OD / OS</th><th>검사</th></tr></thead>
-  <tbody id="visit-rows"></tbody>
-</table>
-
-<div class="row-between" style="margin-top:26px">
-  <h2>검사 기록 (Exams)</h2>
-</div>
-<table class="table">
-  <thead><tr><th>일시</th><th>검사</th><th>프로토콜</th><th>상태 / 결론</th><th></th></tr></thead>
-  <tbody id="exam-rows"></tbody>
-</table>
 
 <script>
 const PID = {{ patient.id }};
@@ -53,7 +73,7 @@ const phiBtn = document.getElementById("phi-btn");
 if (phiBtn) phiBtn.addEventListener("click", async () => {
   try {
     const r = await api(`/api/patients/${PID}/national-id`);
-    phiBtn.textContent = `주민번호: ${r.national_id || "-"}`;
+    phiBtn.innerHTML = `<svg class="ico"><use href="#i-lock"/></svg><span class="mono">${escHtml(r.national_id || "-")}</span>`;
     phiBtn.disabled = true;
   } catch (e) { alert(e.message); }
 });
@@ -61,13 +81,14 @@ if (phiBtn) phiBtn.addEventListener("click", async () => {
 async function loadPatient() {
   patient = await api(`/api/patients/${PID}`);
   document.getElementById("p-title").innerHTML =
-    `${esc(patient.name)} <span class="muted">#${esc(patient.mrn)}</span>`;
-  const bits = [sexLabel(patient.sex)];
-  if (patient.age != null) bits.push(`${patient.age}세`);
+    `${escHtml(patient.name)} <small class="mono">#${escHtml(patient.mrn)}</small>`;
+  document.getElementById("p-avatar").textContent = (patient.name || "?").slice(0, 1);
+  const bits = [sexLabel(patient.sex) + (patient.age != null ? ` · ${patient.age}세` : "")];
   if (patient.birth_date) bits.push(patient.birth_date);
   if (patient.phone) bits.push(patient.phone);
   if (patient.insurance_type) bits.push(patient.insurance_type);
-  document.getElementById("p-sub").textContent = bits.join(" · ");
+  document.getElementById("p-sub").innerHTML =
+    bits.map(b => `<span class="chip">${escHtml(b)}</span>`).join("");
   renderPatientView(document.getElementById("p-view"), patient);
 }
 
@@ -75,7 +96,7 @@ const editBtn = document.getElementById("edit-btn");
 if (editBtn) editBtn.addEventListener("click", () => {
   const wrap = document.getElementById("p-edit-wrap");
   const show = wrap.classList.toggle("hidden") === false;
-  document.getElementById("edit-btn").textContent = show ? "수정 취소" : "정보 수정";
+  editBtn.innerHTML = show ? "수정 취소" : '<svg class="ico"><use href="#i-edit"/></svg>정보 수정';
   document.getElementById("p-view").classList.toggle("hidden", show);
   if (show) {
     const form = document.getElementById("p-edit");
@@ -84,13 +105,13 @@ if (editBtn) editBtn.addEventListener("click", () => {
       ev.preventDefault();
       const msg = form.querySelector("[data-msg]");
       const btn = form.querySelector('button[type="submit"]');
-      if (btn.disabled) return;
+      if (btn.disabled) return;  // no double submit while the first is in flight
       btn.disabled = true;
       try {
         await api(`/api/patients/${PID}`, { method: "PUT", body: collectPatientForm(form) });
         wrap.classList.add("hidden");
         document.getElementById("p-view").classList.remove("hidden");
-        document.getElementById("edit-btn").textContent = "정보 수정";
+        editBtn.innerHTML = '<svg class="ico"><use href="#i-edit"/></svg>정보 수정';
         await loadPatient();
       } catch (e) {
         if (msg) { msg.textContent = e.message; msg.className = "msg err"; }
@@ -106,35 +127,36 @@ async function loadExams() {
                                           { withMeta: true });
   document.getElementById("exam-rows").innerHTML = rows.map(e => `
     <tr>
-      <td>${fmtDateTime(e.performed_at)}</td>
-      <td><span class="tag">${esc(e.test_type)}</span></td>
-      <td>${esc(e.protocol)}</td>
+      <td class="mono">${fmtDateTime(e.performed_at)}</td>
+      <td><span class="tag t-${escHtml(e.test_type)}">${escHtml(e.test_type)}</span></td>
+      <td class="mono">${escHtml(e.protocol)}</td>
+      <td class="mono">${escHtml(e.device || "—")}</td>
       <td>${e.status === "signed"
-            ? `<span class="status-pill signed small" title="${esc(e.signed_by || "")}">✔ 서명</span>`
+            ? `<span class="status-pill signed small" title="${escHtml(e.signed_by || "")}">✔ 서명</span>`
             : `<span class="status-pill open small">미서명</span>`}
-          ${e.impression ? `<div class="muted" style="font-size:12px;margin-top:3px">${esc(e.impression)}</div>` : ""}</td>
-      <td><a class="btn small" href="/reports/${e.id}">리포트</a></td>
+          ${e.impression ? `<span class="cell-sub">${escHtml(e.impression)}</span>` : ""}</td>
+      <td class="actions"><a class="btn small" href="/reports/${e.id}"><svg class="ico"><use href="#i-doc"/></svg>리포트</a></td>
     </tr>`).join("") ||
-    `<tr><td colspan="5" class="muted">검사 기록이 없습니다.</td></tr>`;
+    `<tr><td colspan="6" class="empty">검사 기록이 없습니다.</td></tr>`;
   if (total > rows.length)
     document.getElementById("exam-rows").insertAdjacentHTML("beforeend",
-      `<tr><td colspan="5" class="muted">최근 ${rows.length}건 표시 (전체 ${total}건)</td></tr>`);
+      `<tr><td colspan="6" class="empty">최근 ${rows.length}건 표시 (전체 ${total}건)</td></tr>`);
 }
 
 async function loadVisits() {
   const one = (x, unit) => x == null || x === "" ? "-" : x + unit;
-  const pair = (a, b, unit) => one(a, unit) === "-" && one(b, unit) === "-" ? "-"
+  const pair = (a, b, unit) => one(a, unit) === "-" && one(b, unit) === "-" ? "—"
     : `${one(a, unit)} / ${one(b, unit)}`;
   const rows = await api(`/api/visits?patient_id=${PID}`);
   document.getElementById("visit-rows").innerHTML = rows.map(v => {
-    const done = v.exams.map(e => `<a class="tag" href="/reports/${e.id}">${e.test_type}</a>`).join(" ");
+    const done = v.exams.map(e => `<a class="tag t-${escHtml(e.test_type)}" href="/reports/${e.id}">${escHtml(e.test_type)}</a>`).join(" ");
     const todo = v.tests.filter(t => !v.exams.some(e => e.test_type === t))
-      .map(t => `<span class="muted">${t}</span>`).join(" ");
-    return `<tr><td>${esc(v.visit_date)}</td><td>${esc(v.attending_doctor || "-")}</td>
-      <td>${esc(v.diagnosis || "-")}</td><td>${esc(pair(v.va_od, v.va_os, ""))}</td>
-      <td>${pair(v.pupil_od, v.pupil_os, " mm")}</td>
-      <td>${[done, todo].filter(Boolean).join(" ") || "-"}</td></tr>`;
-  }).join("") || `<tr><td colspan="6" class="muted">접수 기록이 없습니다.</td></tr>`;
+      .map(t => `<span class="tag neutral" title="요청됐지만 아직 검사 전">${escHtml(t)}</span>`).join(" ");
+    return `<tr><td class="mono">${escHtml(v.visit_date)}</td><td>${escHtml(v.attending_doctor || "—")}</td>
+      <td>${escHtml(v.diagnosis || "—")}</td><td class="mono">${escHtml(pair(v.va_od, v.va_os, ""))}</td>
+      <td class="mono">${pair(v.pupil_od, v.pupil_os, " mm")}</td>
+      <td>${[done, todo].filter(Boolean).join(" ") || "—"}</td></tr>`;
+  }).join("") || `<tr><td colspan="6" class="empty">접수 기록이 없습니다.</td></tr>`;
 }
 
 loadPatient();

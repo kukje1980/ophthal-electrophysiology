@@ -1,13 +1,30 @@
 {% extends "base.html" %}
-{% block title %}Dashboard · ERG/VEP{% endblock %}
+{% block title %}대시보드 · ERG·VEP{% endblock %}
 {% block content %}
-<h1>Dashboard</h1>
+<section class="console">
+  {% with ap_id="dash" %}{% include "partials/aperture.html" %}{% endwith %}
+  <div>
+    <p class="eyebrow">System ready</p>
+    <h1 class="console-title">시각 전기생리 검사 시스템</h1>
+    <p class="console-sub">ISCEV 표준 프로토콜 · 원키 측정 · 양안 자동 마커 판독</p>
+    <div class="console-specs">
+      <div class="spec"><span>Driver</span><b data-dev="name">—</b></div>
+      <div class="spec"><span>Amplifier</span><b data-dev="amp">—</b></div>
+      <div class="spec"><span>Stimulator</span><b data-dev="stim">—</b></div>
+      <div class="spec"><span>Impedance max</span><b data-dev="imp">—</b></div>
+    </div>
+  </div>
+  <div class="console-cta">
+    <a class="btn primary lg" href="/"><svg class="ico"><use href="#i-clip"/></svg>검사 접수</a>
+    <a class="btn dark" href="/live"><svg class="ico"><use href="#i-pulse"/></svg>실시간 측정</a>
+  </div>
+</section>
 
 {% if 'manage_system' in perms %}
 <section class="card warn hidden" id="sys-warn">
-  <div class="row-between">
-    <h3 style="margin:0">⚠ 시스템 점검 필요</h3>
-    <a class="btn small" href="/admin">관리자 화면 →</a>
+  <div class="card-head">
+    <div class="card-title"><h2>⚠ 시스템 점검 필요</h2></div>
+    <a class="btn small" href="/admin">관리자 화면 <svg class="ico"><use href="#i-arrow"/></svg></a>
   </div>
   <ul class="warn-list" id="sys-warn-list"></ul>
 </section>
@@ -24,74 +41,107 @@
 </script>
 {% endif %}
 
-<section class="cards">
-  <div class="card stat">
-    <div class="stat-num">{{ patient_count }}</div>
-    <div class="stat-label">Patients</div>
+<section class="kpis">
+  <div class="kpi">
+    <span class="kpi-label"><svg class="ico"><use href="#i-users"/></svg>등록 환자</span>
+    <span class="kpi-value">{{ patient_count }}<small>명</small></span>
+    <span class="kpi-foot">검사 {{ exam_count }}건</span>
   </div>
-  <div class="card stat">
-    <div class="stat-num">{{ exam_count }}</div>
-    <div class="stat-label">Exams</div>
+  <div class="kpi {% if unsigned %}attention{% endif %}">
+    <span class="kpi-label"><svg class="ico"><use href="#i-edit"/></svg>판독 대기</span>
+    <span class="kpi-value">{{ unsigned|length }}<small>건</small></span>
+    <span class="kpi-foot">서명 전 검사</span>
   </div>
-  <div class="card stat {% if unsigned %}attention{% endif %}">
-    <div class="stat-num">{{ unsigned|length }}</div>
-    <div class="stat-label">판독 대기 (미서명)</div>
+  <div class="kpi">
+    <span class="kpi-label"><svg class="ico"><use href="#i-pulse"/></svg>검사 구성</span>
+    {% set groups = recent|groupby('test_type') %}
+    <div class="mix" aria-hidden="true">
+      {% for g in groups %}<i class="t-{{ g.grouper }}" style="flex: {{ g.list|length }}"></i>{% endfor %}
+    </div>
+    <div class="mix-legend">
+      {% for g in groups %}<span><i class="t-{{ g.grouper }}"></i>{{ g.grouper }} {{ g.list|length }}</span>
+      {% else %}<span>검사 기록 없음</span>{% endfor %}
+    </div>
   </div>
-  <div class="card stat">
-    <a class="btn primary" href="/">+ 검사 접수 (환자 등록 · 검사)</a>
+  <div class="kpi">
+    <span class="kpi-label"><svg class="ico"><use href="#i-plug"/></svg>장비 상태</span>
+    <span class="kpi-device" data-dev-led><i class="led"></i><span data-dev="name">—</span></span>
+    <span class="kpi-foot"><span data-dev="state">—</span> · <span data-dev="conn">—</span></span>
   </div>
 </section>
 
 {% if unsigned %}
-<h2>판독 대기 목록 <span class="muted" style="font-size:13px">오래된 순</span></h2>
-<table class="table">
-  <thead>
-    <tr><th>When</th><th>Patient</th><th>Test</th><th>Protocol</th><th>Operator</th><th></th></tr>
-  </thead>
-  <tbody>
-    {% for e in unsigned %}
-    <tr>
-      <td class="utc" data-utc="{{ e.performed_at.isoformat() }}">{{ e.performed_at.strftime("%Y-%m-%d %H:%M") }} UTC</td>
-      <td><a href="/patients/{{ e.patient_id }}">{{ e.patient.name if e.patient else e.patient_id }}</a>
-          <span class="muted">#{{ e.patient.mrn if e.patient else "" }}</span></td>
-      <td><span class="tag">{{ e.test_type }}</span></td>
-      <td>{{ e.protocol }}</td>
-      <td>{{ e.operator or "-" }}</td>
-      <td><a class="btn small primary" href="/reports/{{ e.id }}">판독</a></td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<section class="card">
+  <div class="card-head">
+    <div>
+      <h2>판독 대기 목록</h2>
+      <p class="card-sub">Reading worklist · 오래된 순</p>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr><th>일시</th><th>환자</th><th>검사</th><th>프로토콜</th><th>검사자</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for e in unsigned %}
+        <tr>
+          <td class="mono utc" data-utc="{{ e.performed_at.isoformat() }}">{{ e.performed_at.strftime("%Y-%m-%d %H:%M") }} UTC</td>
+          <td>{% if e.patient %}<a href="/patients/{{ e.patient_id }}">{{ e.patient.name }}</a>
+            <span class="cell-sub mono">#{{ e.patient.mrn }}</span>{% else %}—{% endif %}</td>
+          <td><span class="tag t-{{ e.test_type }}">{{ e.test_type }}</span></td>
+          <td class="mono">{{ e.protocol }}</td>
+          <td>{{ e.operator or "—" }}</td>
+          <td class="actions"><a class="btn small primary" href="/reports/{{ e.id }}">
+            <svg class="ico"><use href="#i-edit"/></svg>판독</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 {% endif %}
 
-<h2>Recent exams</h2>
-{% if recent %}
-<table class="table">
-  <thead>
-    <tr><th>When</th><th>Patient</th><th>Test</th><th>Protocol</th>
-        <th>Status</th><th></th></tr>
-  </thead>
-  <tbody>
-    {% for e in recent %}
-    <tr>
-      <td class="utc" data-utc="{{ e.performed_at.isoformat() }}">{{ e.performed_at.strftime("%Y-%m-%d %H:%M") }} UTC</td>
-      <td><a href="/patients/{{ e.patient_id }}">{{ e.patient.name if e.patient else e.patient_id }}</a></td>
-      <td><span class="tag">{{ e.test_type }}</span></td>
-      <td>{{ e.protocol }}</td>
-      <td>{% if e.status == "signed" %}
-            <span class="status-pill signed small" title="{{ e.signed_by }}">✔ 서명</span>
-          {% else %}
-            <span class="status-pill open small">미서명</span>
-          {% endif %}</td>
-      <td><a class="btn small" href="/reports/{{ e.id }}">Report</a></td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<section class="card">
+  <div class="card-head">
+    <div>
+      <h2>최근 검사</h2>
+      <p class="card-sub">Recent examinations</p>
+    </div>
+    <a class="btn small" href="/patients">환자 목록 <svg class="ico"><use href="#i-arrow"/></svg></a>
+  </div>
+  {% if recent %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr><th>일시</th><th>환자</th><th>검사</th><th>프로토콜</th><th>장비</th><th>판독</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for e in recent %}
+        <tr>
+          <td class="mono utc" data-utc="{{ e.performed_at.isoformat() }}">{{ e.performed_at.strftime("%Y-%m-%d %H:%M") }} UTC</td>
+          <td>{% if e.patient %}<a href="/patients/{{ e.patient_id }}">{{ e.patient.name }}</a>
+            <span class="cell-sub mono">#{{ e.patient.mrn }}</span>{% else %}—{% endif %}</td>
+          <td><span class="tag t-{{ e.test_type }}">{{ e.test_type }}</span></td>
+          <td class="mono">{{ e.protocol }}</td>
+          <td class="mono">{{ e.device or "—" }}</td>
+          <td>{% if e.status == "signed" %}
+                <span class="status-pill signed small" title="{{ e.signed_by }}">✔ 서명</span>
+              {% else %}
+                <span class="status-pill open small">미서명</span>
+              {% endif %}</td>
+          <td class="actions"><a class="btn small" href="/reports/{{ e.id }}">
+            <svg class="ico"><use href="#i-doc"/></svg>리포트</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">아직 검사가 없습니다. 검사 접수에서 환자를 등록하고 검사를 시작하세요.</p>
+  {% endif %}
+</section>
 <script>
 document.querySelectorAll("td.utc").forEach(td => { td.textContent = fmtDateTime(td.dataset.utc); });
 </script>
-{% else %}
-<p class="muted">No exams yet. Register a patient at 검사 접수 and run a study.</p>
-{% endif %}
 {% endblock %}

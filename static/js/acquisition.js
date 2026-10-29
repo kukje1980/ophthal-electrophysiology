@@ -132,16 +132,6 @@ setInterval(_heartbeat, 15000);
 window.addEventListener("online", _heartbeat);
 window.addEventListener("offline", () => netStatus(false));
 
-/* Server timestamps are naive UTC ("2026-10-28T05:59:35"); show them in the
-   PC's local time (a bare ISO string would otherwise be read as local). */
-function fmtDateTime(iso, opts) {
-  if (!iso) return "-";
-  const s = /[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : iso + "Z";
-  const d = new Date(s);
-  return isNaN(d) ? iso : d.toLocaleString("ko-KR", opts || {
-    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-}
-
 function setMsg(id, text, cls) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -149,21 +139,68 @@ function setMsg(id, text, cls) {
   el.className = "msg " + (cls || "");
 }
 
+const escHtml = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/* Uniform clinical timestamp: YYYY-MM-DD HH:MM in the PC's local time
+   (opts.second adds :SS). Server timestamps are naive UTC
+   ("2026-10-28T05:59:35") and would otherwise be read as local time. */
+function fmtDateTime(value, opts) {
+  if (!value) return "—";
+  let d = value;
+  if (!(value instanceof Date)) {
+    const s = String(value);
+    const naive = /^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(s) && !/([zZ]|[+-]\d\d:?\d\d)$/.test(s);
+    d = new Date(naive ? s + "Z" : s);
+  }
+  if (isNaN(d)) return String(value);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+    `${pad(d.getHours())}:${pad(d.getMinutes())}` + (opts && opts.second ? `:${pad(d.getSeconds())}` : "");
+}
+
+/* Fill every [data-dev=…] slot (rail module, dashboard console) from the
+   active device status; .device / [data-dev-led] get ok / err state. */
 async function loadDevicePill() {
-  const pill = document.getElementById("device-pill");
-  if (!pill) return;
+  const slots = (k) => document.querySelectorAll(`[data-dev="${k}"]`);
+  const put = (k, v) => slots(k).forEach((el) => { el.textContent = v; });
+  const leds = document.querySelectorAll("#device-pill, [data-dev-led]");
   try {
     const info = await api("/api/devices");
-    const a = info.active;
-    pill.textContent = `device: ${a.name} (${a.state})`;
-    pill.classList.toggle("ok", a.state === "connected");
+    const a = info.active || {};
+    const ok = a.state === "connected";
+    put("name", a.name || "—");
+    put("state", a.state || "—");
+    put("amp", (a.amplifier && a.amplifier.state) || "—");
+    put("stim", (a.stimulator && a.stimulator.state) || "—");
+    const z = a.impedance && a.impedance.max_kohm;
+    put("imp", z != null ? `${Number(z).toFixed(1)} kΩ` : "—");
+    put("conn", a.connection || "—");
+    leds.forEach((el) => { el.classList.toggle("ok", ok); el.classList.toggle("err", !ok); });
   } catch (e) {
-    pill.textContent = "device: unavailable";
+    put("name", "unavailable");
+    put("state", "offline");
+    leds.forEach((el) => { el.classList.remove("ok"); el.classList.add("err"); });
   }
 }
 
+function startClock() {
+  const el = document.getElementById("clock");
+  if (!el) return;
+  const tick = () => { el.textContent = fmtDateTime(new Date()); };
+  tick();
+  setInterval(tick, 15000);
+}
+
+const EYE_COLOR = () => {
+  const cs = getComputedStyle(document.documentElement);
+  return { OD: cs.getPropertyValue("--od").trim() || "#1f6fe0",
+           OS: cs.getPropertyValue("--os").trim() || "#e0473c" };
+};
+
 /* Group an exam's waveforms by protocol step and draw each step.
 
+   opts.stepLabels: maps step key → human label for the card header.
    opts.editable  : allow cursor editing (click a marker, then click the
                     waveform to move it; edit the ms field; add / delete /
                     auto re-detect). Calls opts.onChange() after every edit.
@@ -181,37 +218,57 @@ function renderExam(exam, container, opts = {}) {
   }
   const stepAnalysis = {};
   for (const s of ((opts.analysis && opts.analysis.steps) || [])) stepAnalysis[s.step] = s;
+  const colors = EYE_COLOR();
 
   for (const step of steps) {
     const wfs = byStep[step].slice().sort((a, b) => (a.eye === "OD" ? -1 : 1) - (b.eye === "OD" ? -1 : 1));
     const traces = wfs.map((wf) => ({
       label: wf.eye,
-      color: wf.eye === "OD" ? "#2563eb" : "#dc2626",
+      color: colors[wf.eye] || colors.OD,
       samples: wf.samples,
       duration_ms: wf.duration_ms,
       measurements: wf.measurements,
       waveform_id: wf.id,
     }));
+    const eyes = wfs.map((wf) => wf.eye);
+    const first = wfs[0] || {};
+    const meta = [
+      first.duration_ms ? `${first.duration_ms} ms` : null,
+      first.sampling_rate ? `${first.sampling_rate} Hz` : null,
+    ].filter(Boolean).join(" · ");
+    const label = opts.stepLabels && opts.stepLabels[step];
 
     const block = document.createElement("section");
     block.className = "card waveform-block";
     block.innerHTML = `
-      <div class="row-between">
-        <h3>${step}</h3>
+      <div class="wf-head">
+        <span class="wf-key">${escHtml(step)}</span>
+        ${label ? `<span class="wf-title">${escHtml(label)}</span>` : ""}
+        ${meta ? `<span class="wf-meta">${meta}</span>` : ""}
         <span class="legend">
-          <i class="dot od"></i>OD <i class="dot os"></i>OS
+          ${eyes.includes("OD") ? '<span><i class="sw od"></i>OD</span>' : ""}
+          ${eyes.includes("OS") ? '<span><i class="sw os"></i>OS</span>' : ""}
           ${opts.editable ? `<span class="edit-hint muted">마커 클릭 → 파형 클릭으로 이동 · * 수동</span>
             <label class="inline edit-snap-label" title="클릭한 곳 ±4 ms 안의 가장 가까운 정점/골로 커서를 옮깁니다">
               <input type="checkbox" class="edit-snap" checked> 피크에 맞춤</label>` : ""}
         </span>
       </div>
-      <canvas width="820" height="300" class="${opts.editable ? "editable" : ""}"></canvas>
-      <p class="msg err wf-msg"></p>
-      <div class="markers"></div>
+      <div class="wf-body">
+        <div class="wf-plot"><canvas width="820" height="300" class="${opts.editable ? "editable" : ""}"></canvas>
+          <p class="msg err wf-msg"></p></div>
+        <div class="wf-markers"><div class="markers"></div></div>
+      </div>
       <div class="inter-wrap"></div>`;
     container.appendChild(block);
 
+    // Match the canvas' logical width to its box (within limits) so axis and
+    // marker text stays legible on narrow screens.
     const canvas = block.querySelector("canvas");
+    const boxW = canvas.parentElement.clientWidth - 28;
+    if (boxW > 0 && boxW < 820) {
+      canvas.width = Math.max(420, Math.round(boxW));
+      canvas.height = canvas.width < 600 ? 280 : 300;
+    }
     const state = { armed: null };
     const redraw = () => {
       drawTraces(canvas, traces, { armed: state.armed });
@@ -313,4 +370,4 @@ function renderExam(exam, container, opts = {}) {
   }
 }
 
-document.addEventListener("DOMContentLoaded", loadDevicePill);
+document.addEventListener("DOMContentLoaded", () => { loadDevicePill(); startClock(); });

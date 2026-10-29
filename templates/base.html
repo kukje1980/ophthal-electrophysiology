@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Ophthalmic Electrophysiology{% endblock %}</title>
+  <title>{% block title %}Visual Electrophysiology{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/img/mark.svg">
   <link rel="stylesheet" href="/static/css/app.css">
   <!-- Shared helpers (api, drawTraces, renderExam) must be defined before the
        inline page scripts in <main> run, so load them in <head>. -->
@@ -13,38 +14,98 @@
   <script src="/static/js/patient-form.js"></script>
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="/">👁 ERG / VEP <span>ISCEV</span></a>
-    <nav>
-      <a href="/">검사 접수</a>
-      <a href="/dashboard">Dashboard</a>
-      <a href="/patients">Patients</a>
-      <a href="/live">Live</a>
-      {% if perms and 'manage_reference' in perms %}<a href="/reference">정상범위</a>{% endif %}
-      {% if perms and 'manage_users' in perms %}<a href="/admin">Admin</a>{% endif %}
-      <a href="/docs" target="_blank">API</a>
+{% include "partials/icons.html" %}
+{% set path = request.url.path %}
+<div class="shell">
+  <aside class="rail">
+    <a class="brand" href="/" aria-label="ERG·VEP home">
+      {% include "partials/mark.html" %}
+      <span class="brand-text">
+        <span class="brand-name">ERG<b>·</b>VEP</span>
+        <span class="brand-sub">Visual Electrophysiology</span>
+      </span>
+    </a>
+
+    <nav class="nav" aria-label="Main">
+      <span class="nav-label">검사</span>
+      <a href="/" class="{{ 'active' if path == '/' }}">
+        <svg class="ico"><use href="#i-clip"/></svg>검사 접수</a>
+      <a href="/dashboard" class="{{ 'active' if path.startswith('/dashboard') }}">
+        <svg class="ico"><use href="#i-dash"/></svg>대시보드 · 판독</a>
+      <a href="/patients" class="{{ 'active' if path.startswith('/patients') or path.startswith('/exam') or path.startswith('/reports') }}">
+        <svg class="ico"><use href="#i-users"/></svg>환자 · 검사</a>
+      <a href="/live" class="{{ 'active' if path.startswith('/live') }}">
+        <svg class="ico"><use href="#i-pulse"/></svg>실시간 측정</a>
+      <a href="/stimulus" class="{{ 'active' if path.startswith('/stimulus') }}">
+        <svg class="ico"><use href="#i-monitor"/></svg>자극기 모니터</a>
+      {% if perms and ('manage_reference' in perms or 'manage_users' in perms) %}
+      <span class="nav-label">관리</span>
+      {% if 'manage_reference' in perms %}
+      <a href="/reference" class="{{ 'active' if path.startswith('/reference') }}">
+        <svg class="ico"><use href="#i-norm"/></svg>정상범위</a>
+      {% endif %}
+      {% if 'manage_users' in perms %}
+      <a href="/admin" class="{{ 'active' if path.startswith('/admin') }}">
+        <svg class="ico"><use href="#i-shield"/></svg>사용자 · 감사</a>
+      {% endif %}
+      {% endif %}
+      <span class="nav-label">시스템</span>
+      <a href="/account" class="{{ 'active' if path.startswith('/account') }}">
+        <svg class="ico"><use href="#i-key"/></svg>내 계정</a>
+      <a href="/docs" target="_blank" rel="noopener">
+        <svg class="ico"><use href="#i-code"/></svg>API 문서<span class="ext">↗</span></a>
     </nav>
-    <span class="device-pill" id="device-pill" title="Acquisition device">
-      device: …
-    </span>
-    {% if user %}
-    <span class="user-box" title="{{ role_label }}">
-      <a class="acct" href="/account"><b>{{ user.full_name or user.username }}</b></a>
-      <small>{{ role_label }}</small>
-      <a class="logout" href="/logout">로그아웃</a>
-    </span>
-    {% endif %}
-  </header>
 
-  <main class="container">
-    {% block content %}{% endblock %}
-  </main>
+    <div class="rail-foot">
+      <div class="device" id="device-pill" title="Acquisition device">
+        <div class="device-head">
+          <i class="led"></i>
+          <span class="device-name" data-dev="name">device …</span>
+          <span class="device-state" data-dev="state">—</span>
+        </div>
+        <div class="device-meta">
+          <div><span>AMP</span><b data-dev="amp">—</b></div>
+          <div><span>STIM</span><b data-dev="stim">—</b></div>
+          <div><span>Z max</span><b data-dev="imp">—</b></div>
+        </div>
+      </div>
+      {% if user %}
+      {% set display_name = user.full_name or user.username %}
+      <div class="user">
+        <span class="avatar" aria-hidden="true">{{ display_name[:1] | upper }}</span>
+        <span class="user-meta">
+          <a href="/account">{{ display_name }}</a>
+          <small>{{ role_label }}</small>
+        </span>
+        <a class="icon-btn" href="/logout" title="로그아웃" aria-label="로그아웃">
+          <svg class="ico"><use href="#i-logout"/></svg></a>
+      </div>
+      {% endif %}
+    </div>
+  </aside>
 
-  <footer class="footer">
-    ISCEV ERG / PERG / VEP / mfERG · simulated acquisition ·
-    real-device ready
-  </footer>
+  <div class="main">
+    <header class="appbar">
+      <div class="std-strip" aria-label="ISCEV standards">
+        <span><b>ffERG</b>2022</span><span><b>PERG</b>2024</span>
+        <span><b>VEP</b>2025</span><span><b>mfERG</b>2021</span>
+      </div>
+      <div class="appbar-right">
+        <span class="clock" id="clock"></span>
+      </div>
+    </header>
 
-  {% block scripts %}{% endblock %}
+    <main class="container">
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+      <span><b>ERG·VEP</b> Visual Electrophysiology System · ISCEV ERG / PERG / VEP / mfERG</span>
+      <span>Simulated acquisition · real-device ready</span>
+    </footer>
+  </div>
+</div>
+
+{% block scripts %}{% endblock %}
 </body>
 </html>

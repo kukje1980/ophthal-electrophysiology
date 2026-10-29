@@ -12,19 +12,49 @@ function _niceStep(range, target) {
   return step * mag;
 }
 
+/* Plot colours come from the stylesheet (--plot-* tokens). */
+function _plotPalette() {
+  const cs = getComputedStyle(document.documentElement);
+  const v = (k, d) => cs.getPropertyValue(k).trim() || d;
+  return {
+    bg: v("--plot-bg", "#ffffff"), minor: v("--plot-minor", "#f2f5f8"),
+    major: v("--plot-major", "#e2e7ed"), zero: v("--plot-zero", "#a9b4c2"),
+    axis: v("--plot-axis", "#6b7789"), ink: v("--plot-ink", "#1b2533"),
+    stim: v("--plot-stim", "#12b4d8"), mono: v("--mono", "ui-monospace, monospace"),
+  };
+}
+
+/* Scale the backing store for crisp lines on HiDPI screens and print; drawing
+   then uses the canvas' original (attribute) size as logical coordinates. */
+function hidpiCanvas(canvas) {
+  if (!canvas.dataset.w) { canvas.dataset.w = canvas.width; canvas.dataset.h = canvas.height; }
+  const W = +canvas.dataset.w, H = +canvas.dataset.h;
+  const dpr = Math.max(2, Math.ceil(window.devicePixelRatio || 1));
+  if (canvas.width !== W * dpr) { canvas.width = W * dpr; canvas.height = H * dpr; }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, W, H };
+}
+
+/* ISCEV negative components (a-wave, N35, N75, N95, N1, …) are labelled
+   below the trace, positive ones (b-wave, OPs, P50, P100, …) above it. */
+const _isNegative = (marker) => /^(a|N)/.test(marker);
+
 /* Draw traces (+ their markers) on a canvas.
 
    opts.armed  = {traceIndex, marker} highlights the cursor that is being
                  repositioned (click-to-place editing).
-   Returns the plot geometry so callers can map pointer positions back to
-   time (also stored on canvas._plot). */
+   Returns the plot geometry in logical canvas units so callers can map
+   pointer positions back to time (also stored on canvas._plot). */
 function drawTraces(canvas, traces, opts = {}) {
-  const ctx = canvas.getContext("2d");
-  const W = canvas.width, H = canvas.height;
-  const padL = 52, padR = 16, padT = 16, padB = 30;
+  const { ctx, W, H } = hidpiCanvas(canvas);
+  const C = _plotPalette();
+  const padL = 50, padR = 14, padT = 20, padB = 34;
   const plotW = W - padL - padR, plotH = H - padT - padB;
 
   ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = C.bg;
+  ctx.fillRect(0, 0, W, H);
 
   let maxT = 0, ymin = Infinity, ymax = -Infinity;
   for (const tr of traces) {
@@ -35,102 +65,168 @@ function drawTraces(canvas, traces, opts = {}) {
     }
   }
   if (!isFinite(ymin)) { ymin = -1; ymax = 1; }
+  if (!maxT) maxT = 1;
   ymin = Math.min(ymin, 0); ymax = Math.max(ymax, 0);
-  const pad = (ymax - ymin) * 0.12 || 1;
+  const pad = (ymax - ymin) * 0.2 || 1;  // headroom for marker labels
   ymin -= pad; ymax += pad;
 
   const X = (t) => padL + (t / maxT) * plotW;
   const Y = (v) => padT + (ymax - v) / (ymax - ymin) * plotH;
   const toTime = (x) => Math.min(maxT, Math.max(0, (x - padL) / plotW * maxT));
-
-  // Grid -----------------------------------------------------------------
-  ctx.font = "11px system-ui, sans-serif";
-  ctx.lineWidth = 1;
+  const crisp = (p) => Math.round(p) + 0.5;
 
   const tStep = _niceStep(maxT, 8);
-  ctx.strokeStyle = "#eef1f6";
-  ctx.fillStyle = "#94a3b8";
-  ctx.textAlign = "center";
-  for (let t = 0; t <= maxT + 1e-6; t += tStep) {
-    const x = X(t);
-    ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH); ctx.stroke();
-    ctx.fillText(Math.round(t), x, H - 10);
-  }
-
   const vStep = _niceStep(ymax - ymin, 6);
-  ctx.textAlign = "right";
-  for (let v = Math.ceil(ymin / vStep) * vStep; v <= ymax; v += vStep) {
-    const y = Y(v);
-    ctx.strokeStyle = Math.abs(v) < 1e-9 ? "#cbd5e1" : "#eef1f6";
-    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
-    ctx.fillStyle = "#94a3b8";
-    ctx.fillText(v.toFixed(vStep < 1 ? 1 : 0), padL - 6, y + 3);
+  const vDec = Math.max(0, -Math.floor(Math.log10(vStep)));
+
+  // Grid: minor (fifths) then major lines, like calibrated chart paper ------
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = C.minor;
+  ctx.beginPath();
+  for (let i = 0; i * tStep / 5 <= maxT + 1e-9; i++) {
+    const x = crisp(X(i * tStep / 5));
+    ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH);
   }
+  for (let i = Math.ceil(ymin / (vStep / 5)); i * vStep / 5 <= ymax + 1e-9; i++) {
+    const y = crisp(Y(i * vStep / 5));
+    ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y);
+  }
+  ctx.stroke();
 
-  // Axis labels ----------------------------------------------------------
-  ctx.fillStyle = "#64748b";
+  ctx.font = `500 10.5px ${C.mono}`;
+  ctx.strokeStyle = C.major;
+  ctx.fillStyle = C.axis;
+  ctx.beginPath();
   ctx.textAlign = "center";
-  ctx.fillText("time (ms)", padL + plotW / 2, H - 0);
-  ctx.save();
-  ctx.translate(12, padT + plotH / 2);
-  ctx.rotate(-Math.PI / 2);
-  ctx.fillText("amplitude (µV)", 0, 0);
-  ctx.restore();
+  for (let i = 0; i * tStep <= maxT + 1e-9; i++) {
+    const t = i * tStep, x = crisp(X(t));
+    ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH);
+    ctx.fillText(String(Math.round(t)), x, padT + plotH + 15);
+  }
+  ctx.textAlign = "right";
+  for (let i = Math.ceil(ymin / vStep); i * vStep <= ymax + 1e-9; i++) {
+    const v = i * vStep, y = crisp(Y(v));
+    ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y);
+    ctx.fillText((Math.abs(v) < 1e-9 ? 0 : v).toFixed(vDec), padL - 8, y + 3.5);
+  }
+  ctx.stroke();
 
-  // Traces + markers -----------------------------------------------------
-  const armed = opts.armed || null;
-  traces.forEach((tr, ti) => {
+  // Zero line + frame ------------------------------------------------------
+  ctx.strokeStyle = C.zero;
+  ctx.beginPath();
+  ctx.moveTo(padL, crisp(Y(0))); ctx.lineTo(padL + plotW, crisp(Y(0)));
+  ctx.stroke();
+  ctx.strokeStyle = C.major;
+  ctx.strokeRect(crisp(padL), crisp(padT), Math.round(plotW) - 1, Math.round(plotH) - 1);
+
+  // Stimulus onset (t = 0) -------------------------------------------------
+  ctx.fillStyle = C.stim;
+  ctx.beginPath();
+  ctx.moveTo(padL - 5, padT - 9); ctx.lineTo(padL + 5, padT - 9); ctx.lineTo(padL, padT - 2);
+  ctx.closePath(); ctx.fill();
+  ctx.font = `700 9.5px ${C.mono}`;
+  ctx.textAlign = "left";
+  ctx.fillText("STIM", padL + 9, padT - 3);
+
+  // Axis titles --------------------------------------------------------------
+  ctx.fillStyle = C.axis;
+  ctx.font = `500 10.5px ${C.mono}`;
+  ctx.textAlign = "right";
+  ctx.fillText("ms", padL + plotW, H - 4);
+  ctx.textAlign = "left";
+  ctx.fillText("µV", 6, padT - 3);
+
+  // Traces -----------------------------------------------------------------
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(padL, padT, plotW, plotH);
+  ctx.clip();
+  for (const tr of traces) {
     const n = tr.samples.length;
     const dt = tr.duration_ms / n;
     ctx.strokeStyle = tr.color;
-    ctx.lineWidth = 1.6;
+    ctx.lineWidth = 1.7;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
     ctx.beginPath();
     for (let i = 0; i < n; i++) {
       const x = X(i * dt), y = Y(tr.samples[i]);
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     }
     ctx.stroke();
+  }
+  ctx.restore();
 
+  // Markers: dot on each trace, then one label per eye stacked away from the
+  // waveform so OD/OS labels for the same component never collide. ---------
+  // Hand-placed cursors are hollow diamonds and labelled with "*"; the cursor
+  // being repositioned gets a dashed vertical guide.
+  const armed = opts.armed || null;
+  const groups = {};
+  traces.forEach((tr, ti) => {
+    const n = tr.samples.length;
+    const dt = tr.duration_ms / n;
     for (const m of tr.measurements || []) {
-      const idx = Math.min(n - 1, Math.round(m.latency_ms / dt));
-      const x = X(m.latency_ms), y = Y(tr.samples[idx]);
-      const isArmed = armed && armed.traceIndex === ti && armed.marker === m.marker;
+      const idx = Math.min(n - 1, Math.max(0, Math.round(m.latency_ms / dt)));
+      const isArmed = !!(armed && armed.traceIndex === ti && armed.marker === m.marker);
+      const manual = m.is_auto === false;
+      const pt = { x: X(m.latency_ms), y: Y(tr.samples[idx]), color: tr.color, ti, manual, isArmed };
       if (isArmed) {
-        // vertical guide for the cursor being repositioned
         ctx.save();
         ctx.setLineDash([4, 4]);
-        ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH); ctx.stroke();
+        ctx.strokeStyle = "#d97706"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(crisp(pt.x), padT); ctx.lineTo(crisp(pt.x), padT + plotH); ctx.stroke();
         ctx.restore();
       }
-      ctx.fillStyle = tr.color;
-      ctx.strokeStyle = tr.color;
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      if (m.is_auto === false) {
-        // hand-placed cursor: hollow diamond
-        ctx.moveTo(x, y - 5); ctx.lineTo(x + 5, y); ctx.lineTo(x, y + 5); ctx.lineTo(x - 5, y);
-        ctx.closePath(); ctx.stroke();
+      if (manual) {
+        const r = isArmed ? 6 : 5;
+        ctx.moveTo(pt.x, pt.y - r); ctx.lineTo(pt.x + r, pt.y); ctx.lineTo(pt.x, pt.y + r); ctx.lineTo(pt.x - r, pt.y);
+        ctx.closePath();
+        ctx.fillStyle = C.bg; ctx.fill();
+        ctx.strokeStyle = tr.color; ctx.lineWidth = 1.8; ctx.stroke();
       } else {
-        ctx.arc(x, y, isArmed ? 4.5 : 3.2, 0, 2 * Math.PI); ctx.fill();
+        ctx.fillStyle = tr.color;
+        ctx.strokeStyle = C.bg;
+        ctx.arc(pt.x, pt.y, isArmed ? 4.8 : 3.6, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
       }
-      ctx.fillStyle = isArmed ? "#b45309" : "#334155";
-      ctx.textAlign = "center";
-      ctx.fillText(m.marker + (m.is_auto === false ? "*" : ""), x, y - 8);
+      (groups[m.marker] = groups[m.marker] || []).push(pt);
     }
   });
+  ctx.font = `700 11px ${C.mono}`;
+  ctx.textAlign = "center";
+  ctx.lineJoin = "round";
+  for (const [marker, pts] of Object.entries(groups)) {
+    const below = _isNegative(marker);
+    pts.sort((p, q) => p.ti - q.ti);
+    // Anchor on the outermost point of the group (lowest trough / highest peak).
+    const edge = below ? Math.max(...pts.map((p) => p.y)) : Math.min(...pts.map((p) => p.y));
+    pts.forEach((pt, k) => {
+      let ly = below ? edge + 17 + k * 13 : edge - 9 - k * 13;
+      ly = Math.min(padT + plotH - 4, Math.max(padT + 11, ly));
+      const label = marker + (pt.manual ? "*" : "");
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = C.bg;
+      ctx.strokeText(label, pt.x, ly);
+      ctx.fillStyle = pt.isArmed ? "#b45309" : pt.color;
+      ctx.fillText(label, pt.x, ly);
+    });
+  }
 
   const geom = { X, Y, toTime, maxT, padL, padT, plotW, plotH };
   canvas._plot = geom;
   return geom;
 }
 
-/* Map a pointer event on a (CSS-scaled) canvas to plot coordinates. */
+/* Map a pointer event on a (CSS-scaled, HiDPI) canvas to the logical plot
+   coordinates drawTraces works in. */
 function canvasPoint(canvas, ev) {
   const r = canvas.getBoundingClientRect();
+  const W = +canvas.dataset.w || canvas.width, H = +canvas.dataset.h || canvas.height;
   return {
-    x: (ev.clientX - r.left) * canvas.width / r.width,
-    y: (ev.clientY - r.top) * canvas.height / r.height,
+    x: (ev.clientX - r.left) * W / r.width,
+    y: (ev.clientY - r.top) * H / r.height,
   };
 }
 
@@ -142,7 +238,7 @@ function nearestMarker(canvas, traces, px, py, tol = 14) {
   traces.forEach((tr, ti) => {
     const n = tr.samples.length, dt = tr.duration_ms / n;
     for (const m of tr.measurements || []) {
-      const idx = Math.min(n - 1, Math.round(m.latency_ms / dt));
+      const idx = Math.min(n - 1, Math.max(0, Math.round(m.latency_ms / dt)));
       const dx = g.X(m.latency_ms) - px, dy = g.Y(tr.samples[idx]) - py;
       const d = Math.hypot(dx, dy * 0.6); // tolerate vertical offset more
       if (d < bestD && Math.abs(dx) <= tol) { bestD = d; best = { traceIndex: ti, marker: m.marker, measurement: m }; }

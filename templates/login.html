@@ -3,27 +3,56 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>로그인 · ERG/VEP</title>
+  <title>로그인 · ERG·VEP</title>
+  <link rel="icon" type="image/svg+xml" href="/static/img/mark.svg">
   <link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body class="login-body">
-  <form class="login-card" method="post" action="/login">
-    <div class="login-brand">👁 ERG / VEP <span>ISCEV</span></div>
-    <h1>로그인</h1>
-    <p class="muted">안과 전기생리 검사 시스템</p>
-    <input type="hidden" name="next" value="{{ next }}">
-    <label>아이디<input name="username" autocomplete="username" autofocus required></label>
-    <label>비밀번호
-      <input name="password" type="password" autocomplete="current-password" required>
-    </label>
-    <label{% if not need_otp %} style="display:none"{% endif %} id="otp-field">
-      인증 코드 (2단계 인증)
-      <input name="otp" inputmode="numeric" autocomplete="one-time-code"
-             maxlength="6" placeholder="6자리"{% if need_otp %} autofocus{% endif %}>
-    </label>
-    {% if error %}<p class="msg err">{{ error }}</p>{% endif %}
-    <button class="btn primary" type="submit">로그인</button>
-    <p class="login-hint muted">최초 관리자 계정: <code>admin</code> · 로그인 후 비밀번호를 변경하세요.</p>
-  </form>
+  <section class="login-hero" aria-hidden="false">
+    <span class="brand">
+      {% include "partials/mark.html" %}
+      <span class="brand-text">
+        <span class="brand-name">ERG<b>·</b>VEP</span>
+        <span class="brand-sub">Visual Electrophysiology</span>
+      </span>
+    </span>
+    {% with ap_id="login" %}{% include "partials/aperture.html" %}{% endwith %}
+    <div class="hero-copy">
+      <p class="eyebrow">Visual Electrophysiology System</p>
+      <h2>망막·시각 경로<br>전기생리 검사 시스템</h2>
+      <p>ISCEV 표준 프로토콜 기반 원키 측정, 양안 자동 마커 판독과
+        검사실 정상범위 판정까지 하나의 워크스테이션에서.</p>
+    </div>
+    <div class="hero-specs">
+      <div class="spec"><span>ISCEV 2022</span><b>ffERG</b></div>
+      <div class="spec"><span>ISCEV 2024</span><b>PERG</b></div>
+      <div class="spec"><span>ISCEV 2025</span><b>VEP</b></div>
+      <div class="spec"><span>ISCEV 2021</span><b>mfERG</b></div>
+    </div>
+  </section>
+
+  <main class="login-panel">
+    <form class="login-card" method="post" action="/login">
+      <div>
+        <p class="eyebrow">Secure sign-in</p>
+        <h1>로그인</h1>
+        <p class="page-sub">검사 워크스테이션 계정으로 로그인하세요.</p>
+      </div>
+      <input type="hidden" name="next" value="{{ next }}">
+      <label>아이디
+        <input name="username" autocomplete="username" autofocus required></label>
+      <label>비밀번호
+        <input name="password" type="password" autocomplete="current-password" required></label>
+      <label{% if not need_otp %} style="display:none"{% endif %} id="otp-field">
+        인증 코드 (2단계 인증)
+        <input name="otp" inputmode="numeric" autocomplete="one-time-code"
+               maxlength="6" placeholder="6자리"{% if need_otp %} autofocus{% endif %}>
+      </label>
+      {% if error %}<p class="msg err">{{ error }}</p>{% endif %}
+      <button class="btn primary" type="submit">로그인</button>
+      <p class="login-hint">최초 관리자 계정: <code>admin</code> · 로그인 후 비밀번호를 변경하세요.</p>
+      <p class="login-foot">접속 기록은 감사 로그에 저장됩니다 · PHI encrypted at rest</p>
+    </form>
+  </main>
 </body>
 </html>
