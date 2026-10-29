@@ -64,12 +64,15 @@ document.getElementById("exam-form").addEventListener("submit", async (ev) => {
   btn.disabled = true; btn.textContent = "Acquiring…";
   setMsg("exam-msg", "Acquiring sweeps from device…", "");
   try {
-    const exam = await api("/api/exams", { method: "POST", body: {
-      patient_id: PATIENT_ID,
-      protocol: protoSel.value,
-      eyes: f.eyes.value.split(","),
-      operator: f.operator.value || null,
-    }});
+    // Acquisition on real hardware can take minutes; a dropped connection is
+    // retried with the same Idempotency-Key, so the exam is stored only once.
+    const exam = await api("/api/exams", { method: "POST", timeout: 15 * 60 * 1000, retries: 40,
+      body: {
+        patient_id: PATIENT_ID,
+        protocol: protoSel.value,
+        eyes: f.eyes.value.split(","),
+        operator: f.operator.value || null,
+      }});
     setMsg("exam-msg", "Acquisition complete.", "ok");
     document.getElementById("result").classList.remove("hidden");
     document.getElementById("report-link").href = `/reports/${exam.id}`;

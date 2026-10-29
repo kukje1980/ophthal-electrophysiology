@@ -3,14 +3,35 @@
 {% block content %}
 <h1>Dashboard</h1>
 
+{% if 'manage_system' in perms %}
+<section class="card warn hidden" id="sys-warn">
+  <div class="row-between">
+    <h3 style="margin:0">⚠ 시스템 점검 필요</h3>
+    <a class="btn small" href="/admin">관리자 화면 →</a>
+  </div>
+  <ul class="warn-list" id="sys-warn-list"></ul>
+</section>
+<script>
+(async () => {
+  try {
+    const s = await api("/api/system/status");
+    if (!s.warnings.length) return;
+    document.getElementById("sys-warn-list").innerHTML =
+      s.warnings.map(w => `<li>${esc(w)}</li>`).join("");
+    document.getElementById("sys-warn").classList.remove("hidden");
+  } catch (e) { /* the dashboard itself must still work */ }
+})();
+</script>
+{% endif %}
+
 <section class="cards">
   <div class="card stat">
     <div class="stat-num">{{ patient_count }}</div>
     <div class="stat-label">Patients</div>
   </div>
   <div class="card stat">
-    <div class="stat-num">{{ recent|length }}</div>
-    <div class="stat-label">Recent exams</div>
+    <div class="stat-num">{{ exam_count }}</div>
+    <div class="stat-label">Exams</div>
   </div>
   <div class="card stat">
     <a class="btn primary" href="/patients">+ New patient / exam</a>

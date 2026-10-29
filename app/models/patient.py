@@ -7,7 +7,7 @@ documentation that ISCEV electrophysiology reports also depend on.
 """
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Column, Date, DateTime, Float, Integer, String
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, Index, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -15,6 +15,11 @@ from app.database import Base
 
 class Patient(Base):
     __tablename__ = "patients"
+    __table_args__ = (
+        # "active patients, newest first" (the patient list) and the trash
+        # are both served straight from this index — no sort of the table.
+        Index("ix_patients_active_created", "deleted_at", "created_at"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
 
@@ -69,6 +74,12 @@ class Patient(Base):
 
     note = Column(String(512), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # -- soft delete --------------------------------------------------------
+    # Records are never physically removed (medical-record retention); a
+    # deleted patient is hidden and can be restored by an administrator.
+    deleted_at = Column(DateTime, nullable=True)
+    deleted_by = Column(String(64), nullable=True)
 
     exams = relationship(
         "Exam", back_populates="patient", cascade="all, delete-orphan"

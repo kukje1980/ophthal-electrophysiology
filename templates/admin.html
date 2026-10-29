@@ -1,7 +1,42 @@
 {% extends "base.html" %}
 {% block title %}관리자 · ERG/VEP{% endblock %}
 {% block content %}
-<h1>관리자 <span class="muted" style="font-size:14px">Users &amp; Audit</span></h1>
+<h1>관리자 <span class="muted" style="font-size:14px">System, Backups, Users &amp; Audit</span></h1>
+
+<section class="card" id="sys-card">
+  <div class="row-between">
+    <h2>시스템 상태</h2>
+    <button class="btn small" id="integrity-btn" type="button">DB 무결성 검사</button>
+  </div>
+  <ul class="warn-list" id="sys-warnings"></ul>
+  <dl class="kv" id="sys-kv"></dl>
+  <p id="sys-msg" class="msg"></p>
+</section>
+
+<section class="card">
+  <div class="row-between">
+    <h2>백업 <span class="muted" style="font-size:12px" id="bk-summary"></span></h2>
+    <button class="btn primary small" id="bk-create" type="button">지금 백업</button>
+  </div>
+  <p class="muted" style="font-size:12px;margin:4px 0 8px">
+    자동 백업: 마지막 백업 후 설정 간격이 지나면 실행되며, 매 백업은 무결성 검사·체크섬으로 검증됩니다.
+    복원 전에는 현재 상태가 <b>pre-restore</b> 사본으로 자동 저장되어 복원도 되돌릴 수 있습니다.
+  </p>
+  <table class="table compact">
+    <thead><tr><th>백업</th><th>종류</th><th>크기</th><th>환자/검사</th><th>검증</th><th>미러</th><th></th></tr></thead>
+    <tbody id="bk-rows"></tbody>
+  </table>
+  <p id="bk-msg" class="msg"></p>
+</section>
+
+<section class="card">
+  <h2>휴지통 <span class="muted" style="font-size:12px">삭제된 기록은 영구 삭제되지 않으며 여기서 복원할 수 있습니다</span></h2>
+  <table class="table compact">
+    <thead><tr><th>종류</th><th>대상</th><th>삭제 일시</th><th>삭제자</th><th></th></tr></thead>
+    <tbody id="trash-rows"></tbody>
+  </table>
+  <p id="trash-msg" class="msg"></p>
+</section>
 
 <section class="card">
   <h2>사용자 계정</h2>
@@ -39,12 +74,143 @@
 <script>
 const ROLE_LABEL = {{ roles | tojson }}.reduce((m,[v,l])=>(m[v]=l,m), {});
 
+const fmtBytes = (n) => n == null ? "-" : n < 1048576 ? (n/1024).toFixed(0) + " KB"
+  : n < 1073741824 ? (n/1048576).toFixed(1) + " MB" : (n/1073741824).toFixed(2) + " GB";
+const fmtTime = (t) => t ? new Date(t).toLocaleString() : "-";
+const TAG_LABEL = { auto: "자동", manual: "수동", "pre-restore": "복원 전 사본",
+                    "pre-migration": "업그레이드 전 사본" };
+
+async function loadSystem() {
+  let s;
+  try { s = await api("/api/system/status"); }
+  catch (e) { return setMsg("sys-msg", e.message, "err"); }
+  const card = document.getElementById("sys-card");
+  card.classList.toggle("warn", s.warnings.length > 0);
+  card.classList.toggle("good", s.warnings.length === 0);
+  document.getElementById("sys-warnings").innerHTML = s.warnings.length
+    ? s.warnings.map(w => `<li>${esc(w)}</li>`).join("")
+    : `<li style="color:#166534">정상 — 경고 없음</li>`;
+  const d = s.database, c = s.counts, b = s.backup;
+  const kv = [
+    ["DB 크기", fmtBytes(d.size) + (d.wal_size ? ` (+WAL ${fmtBytes(d.wal_size)})` : "")],
+    ["디스크 여유", fmtBytes(d.disk_free)],
+    ["저널 모드", d.journal_mode || d.dialect],
+    ["환자", `${c.patients.toLocaleString()} (휴지통 ${c.patients_deleted})`],
+    ["검사", `${c.exams.toLocaleString()} (휴지통 ${c.exams_deleted})`],
+    ["파형", c.waveforms.toLocaleString()],
+    ["감사 로그", c.audit_logs.toLocaleString()],
+    ["마지막 백업", b.last ? `${fmtTime(b.last.created_at)} (${b.last_age_hours}시간 전)` : "없음"],
+    ["백업 위치", b.dir || "-"],
+    ["미러 위치", b.mirror_dir || "미설정"],
+  ];
+  document.getElementById("sys-kv").innerHTML =
+    kv.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("");
+}
+
+document.getElementById("integrity-btn").addEventListener("click", async (e) => {
+  e.target.disabled = true;
+  setMsg("sys-msg", "무결성 검사 중…", "");
+  try {
+    const r = await api("/api/system/integrity", { method: "POST", timeout: 10 * 60 * 1000 });
+    setMsg("sys-msg", r.ok ? "무결성 검사 정상 (ok)" : "무결성 문제 발견: " + r.result,
+           r.ok ? "ok" : "err");
+  } catch (err) { setMsg("sys-msg", err.message, "err"); }
+  finally { e.target.disabled = false; }
+});
+
+async function loadBackups() {
+  let r;
+  try { r = await api("/api/backups"); }
+  catch (e) { return setMsg("bk-msg", e.message, "err"); }
+  const st = r.status;
+  document.getElementById("bk-summary").textContent =
+    `${st.count}개 · ${fmtBytes(st.total_size)} · 주기 ${st.interval_hours}시간` +
+    (st.enabled ? "" : " · 자동 백업 꺼짐");
+  document.getElementById("bk-rows").innerHTML = r.backups.map(b => `
+    <tr>
+      <td>${fmtTime(b.created_at)}<br><small class="muted">${esc(b.name)}</small></td>
+      <td>${esc(TAG_LABEL[b.tag] || b.tag)}</td>
+      <td>${fmtBytes(b.size)}</td>
+      <td>${b.counts ? `${b.counts.patients ?? "-"} / ${b.counts.exams ?? "-"}` : "-"}</td>
+      <td>${b.integrity === "ok" ? "✓" : esc(b.integrity)}</td>
+      <td>${b.mirrored ? "✓" : (b.mirror_error ? "✗" : "-")}</td>
+      <td style="white-space:nowrap">
+        <a class="btn small" href="/api/backups/${encodeURIComponent(b.name)}/download">받기</a>
+        <button class="btn small" data-verify="${esc(b.name)}">검증</button>
+        <button class="btn small" data-restore="${esc(b.name)}">복원</button>
+      </td>
+    </tr>`).join("") || `<tr><td colspan="7" class="muted">백업이 없습니다 — "지금 백업"을 누르세요.</td></tr>`;
+  document.querySelectorAll("[data-verify]").forEach(btn => btn.addEventListener("click", async () => {
+    btn.disabled = true; setMsg("bk-msg", "검증 중…", "");
+    try {
+      const v = await api(`/api/backups/${encodeURIComponent(btn.dataset.verify)}/verify`,
+                          { method: "POST", timeout: 10 * 60 * 1000 });
+      setMsg("bk-msg", v.ok ? `검증 통과: ${v.name} (체크섬·무결성 정상)` :
+             `검증 실패: ${v.name} — 체크섬 ${v.sha256_ok}, 무결성 ${v.integrity}`, v.ok ? "ok" : "err");
+    } catch (e) { setMsg("bk-msg", e.message, "err"); }
+    finally { btn.disabled = false; }
+  }));
+  document.querySelectorAll("[data-restore]").forEach(btn => btn.addEventListener("click", async () => {
+    const name = btn.dataset.restore;
+    const typed = prompt(
+      `데이터베이스 전체를 이 백업 시점으로 되돌립니다.\n` +
+      `현재 상태는 복원 직전에 'pre-restore' 사본으로 자동 저장됩니다.\n` +
+      `다른 사용자의 진행 중인 작업이 중단될 수 있습니다.\n\n` +
+      `계속하려면 백업 이름을 그대로 입력하세요:\n${name}`);
+    if (typed === null) return;
+    if (typed.trim() !== name) return setMsg("bk-msg", "백업 이름이 일치하지 않아 취소했습니다.", "err");
+    btn.disabled = true; setMsg("bk-msg", "복원 중… 창을 닫지 마세요.", "");
+    try {
+      const r = await api(`/api/backups/${encodeURIComponent(name)}/restore`,
+                          { method: "POST", body: { confirm: name }, timeout: 30 * 60 * 1000 });
+      setMsg("bk-msg", `복원 완료: ${r.restored} (복원 전 사본: ${r.pre_restore_backup || "-"})`, "ok");
+      loadAll();
+    } catch (e) { setMsg("bk-msg", e.message, "err"); }
+    finally { btn.disabled = false; }
+  }));
+}
+
+document.getElementById("bk-create").addEventListener("click", async (e) => {
+  e.target.disabled = true; setMsg("bk-msg", "백업 중…", "");
+  try {
+    const b = await api("/api/backups", { method: "POST", timeout: 30 * 60 * 1000 });
+    setMsg("bk-msg", `백업 완료: ${b.name} (${fmtBytes(b.size)}, 무결성 ${b.integrity}` +
+           (b.mirror_error ? `, 미러 실패: ${b.mirror_error}` : b.mirrored ? ", 미러 복사 완료" : "") + ")",
+           b.mirror_error ? "err" : "ok");
+    loadBackups(); loadSystem();
+  } catch (err) { setMsg("bk-msg", err.message, "err"); }
+  finally { e.target.disabled = false; }
+});
+
+async function loadTrash() {
+  let t;
+  try { t = await api("/api/trash"); }
+  catch (e) { return setMsg("trash-msg", e.message, "err"); }
+  const rows = [
+    ...t.patients.map(p => ({ kind: "환자", url: `/api/trash/patients/${p.id}/restore`,
+      label: `${esc(p.name)} <span class="muted">#${esc(p.mrn)}</span>`, at: p.deleted_at, by: p.deleted_by })),
+    ...t.exams.map(e => ({ kind: "검사", url: `/api/trash/exams/${e.id}/restore`,
+      label: `${esc(e.test_type)} · ${esc(e.protocol)} <span class="muted">${esc(e.patient_name || "")} · ${fmtTime(e.performed_at)}</span>`,
+      at: e.deleted_at, by: e.deleted_by })),
+  ];
+  document.getElementById("trash-rows").innerHTML = rows.map(r => `
+    <tr><td>${r.kind}</td><td>${r.label}</td><td>${fmtTime(r.at)}</td><td>${esc(r.by || "-")}</td>
+      <td><button class="btn small" data-untrash="${r.url}">복원</button></td></tr>`).join("")
+    || `<tr><td colspan="5" class="muted">휴지통이 비어 있습니다.</td></tr>`;
+  document.querySelectorAll("[data-untrash]").forEach(btn => btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try { await api(btn.dataset.untrash, { method: "POST" });
+          setMsg("trash-msg", "복원되었습니다.", "ok"); loadTrash(); loadSystem(); }
+    catch (e) { setMsg("trash-msg", e.message, "err"); btn.disabled = false; }
+  }));
+}
+
 async function loadUsers() {
   const rows = await api("/api/users");
   document.getElementById("user-rows").innerHTML = rows.map(u => `
     <tr>
-      <td><b>${u.username}</b></td>
-      <td>${u.full_name || "-"}</td>
+      <td><b>${esc(u.username)}</b></td>
+      <td>${esc(u.full_name || "-")}</td>
       <td>${ROLE_LABEL[u.role] || u.role}</td>
       <td>${u.is_active ? "활성" : "<span class='muted'>비활성</span>"}</td>
       <td>${u.last_login ? new Date(u.last_login).toLocaleString() : "-"}</td>
@@ -66,11 +232,11 @@ async function loadAudit() {
   document.getElementById("audit-rows").innerHTML = rows.map(a => `
     <tr>
       <td>${new Date(a.at).toLocaleString()}</td>
-      <td>${a.username || "-"}</td>
-      <td><span class="tag">${a.action}</span></td>
-      <td>${a.entity ? a.entity + (a.entity_id ? " #" + a.entity_id : "") : "-"}</td>
-      <td>${a.detail || "-"}</td>
-      <td>${a.ip || "-"}</td>
+      <td>${esc(a.username || "-")}</td>
+      <td><span class="tag">${esc(a.action)}</span></td>
+      <td>${a.entity ? esc(a.entity) + (a.entity_id ? " #" + a.entity_id : "") : "-"}</td>
+      <td>${esc(a.detail || "-")}</td>
+      <td>${esc(a.ip || "-")}</td>
     </tr>`).join("") || `<tr><td colspan="6" class="muted">기록 없음</td></tr>`;
 }
 
@@ -85,7 +251,7 @@ document.getElementById("user-form").addEventListener("submit", async (ev) => {
   } catch (e) { setMsg("user-msg", e.message, "err"); }
 });
 
-loadUsers();
-loadAudit();
+function loadAll() { loadSystem(); loadBackups(); loadTrash(); loadUsers(); loadAudit(); }
+loadAll();
 </script>
 {% endblock %}

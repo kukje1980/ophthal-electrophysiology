@@ -188,3 +188,18 @@ kbd { background: #e2e8f0; border-radius: 4px; padding: 1px 5px; font-size: 11px
   .container { max-width: 100%; }
   .card { break-inside: avoid; }
 }
+
+/* Connection / system banners ---------------------------------------- */
+.net-banner { position: sticky; top: 0; z-index: 50; background: #b91c1c; color: #fff;
+  padding: 8px 16px; font-size: 13px; text-align: center; }
+.warn-list { margin: 0; padding-left: 18px; font-size: 13px; color: #854d0e; }
+.warn-list li { margin: 3px 0; }
+.card.warn { background: #fefce8; border-color: #fde68a; }
+.card.good { background: #f0fdf4; border-color: #bbf7d0; }
+.pager { display: flex; align-items: center; gap: 10px; justify-content: flex-end;
+  margin-top: 10px; font-size: 13px; color: var(--muted); }
+.kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 8px 18px; margin: 8px 0 0; font-size: 13px; }
+.kv div { display: flex; flex-direction: column; }
+.kv dt { font-size: 11px; color: var(--muted); }
+.kv dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }

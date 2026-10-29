@@ -6,6 +6,7 @@ from app.models.measurement import Measurement
 from app.models.user import User
 from app.models.audit import AuditLog
 from app.models.reference import ReferenceRange
+from app.models.idempotency import IdempotencyKey
 
 __all__ = ["Patient", "Exam", "Waveform", "Measurement", "User", "AuditLog",
-           "ReferenceRange"]
+           "ReferenceRange", "IdempotencyKey"]

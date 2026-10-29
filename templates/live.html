@@ -94,12 +94,15 @@ let fs = 1000, periodMs = 500, epochLen = 500;
 const SECONDS = 4; let CAP = fs * SECONDS;
 let buf = new Float32Array(CAP).fill(0), head = 0, filled = 0;
 let sumEpoch = new Float32Array(epochLen), avgCount = 0;
-let curEpoch = new Float32Array(epochLen), curFill = 0;
+// curFill = -1 while waiting for a trigger: an epoch may only start at a
+// trigger, otherwise a misaligned sweep would blur the average.
+let curEpoch = new Float32Array(epochLen), curFill = -1;
 let paused = false, ws = null, driversLoaded = false;
+let reconnectTimer = null, reconnectAttempt = 0, lastMsgAt = 0, keepAverage = false;
 
 function resetAverage() {
   sumEpoch = new Float32Array(epochLen); avgCount = 0;
-  curEpoch = new Float32Array(epochLen); curFill = 0;
+  curEpoch = new Float32Array(epochLen); curFill = -1;
   S("avgn").textContent = "0 sweeps";
 }
 
@@ -116,10 +119,11 @@ function feedAverage(samples, triggers) {
   const trig = new Set(triggers || []);
   for (let i=0;i<samples.length;i++){
     if (trig.has(i)) curFill = 0;                 // phase-lock to the trigger
-    if (curFill < epochLen) curEpoch[curFill++] = samples[i];
+    if (curFill < 0) continue;                    // waiting for the next trigger
+    curEpoch[curFill++] = samples[i];
     if (curFill === epochLen){
       for (let j=0;j<epochLen;j++) sumEpoch[j] += curEpoch[j];
-      avgCount++; curFill = 0;
+      avgCount++; curFill = -1;
       S("avgn").textContent = avgCount + " sweeps";
     }
   }
@@ -161,25 +165,47 @@ function renderImp(values) {
   }).join("");
 }
 
-function connect() {
-  if (ws) { try { ws.close(); } catch(e){} }
+/* WebSocket with automatic reconnection. A brief network drop or device
+   hiccup reconnects with backoff and — when the stream geometry is unchanged
+   — keeps the running average, so accumulated sweeps are not lost. */
+function connect(manual = true) {
+  clearTimeout(reconnectTimer);
+  if (ws) { const old = ws; ws = null; old.onclose = null; try { old.close(); } catch(e){} }
+  if (manual) reconnectAttempt = 0;
+  keepAverage = !manual;
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const d = S("driver").value, c = S("connection").value;
   const qs = new URLSearchParams(); if (d) qs.set("driver", d); if (c) qs.set("connection", c);
-  ws = new WebSocket(`${proto}://${location.host}/ws/live?${qs}`);
+  const sock = new WebSocket(`${proto}://${location.host}/ws/live?${qs}`);
+  ws = sock;
   const st = S("status");
-  ws.onopen = () => { st.textContent="● 스트리밍"; st.classList.add("on"); S("err").textContent=""; };
-  ws.onclose = () => { st.textContent="연결 끊김"; st.classList.remove("on"); };
-  ws.onmessage = (ev) => {
+  st.textContent = reconnectAttempt ? `재연결 중… (${reconnectAttempt}회)` : "연결 중…";
+  sock.onopen = () => { lastMsgAt = Date.now(); };
+  sock.onclose = (ev) => {
+    if (ws !== sock) return;           // superseded by a newer connection
+    ws = null; st.classList.remove("on");
+    if (ev.code === 4401) { location.href = "/login?next=/live"; return; }
+    scheduleReconnect();
+  };
+  sock.onmessage = (ev) => {
+    lastMsgAt = Date.now();
     const m = JSON.parse(ev.data);
     if (m.type === "error") {
-      S("err").textContent = "드라이버 연결 실패: " + m.message;
+      S("err").textContent = (m.phase === "read" ? "장치 스트림 오류: " : "드라이버 연결 실패: ")
+        + m.message + " — 자동으로 다시 연결합니다.";
       if (m.drivers && !driversLoaded) fillDrivers(m.drivers, S("driver").value);
       st.textContent="오류"; st.classList.remove("on"); return;
     }
     if (m.type === "meta") {
-      fs = m.fs; CAP = fs*SECONDS; buf = new Float32Array(CAP).fill(0); head=0; filled=0;
-      setEpoch(m.period_ms);
+      reconnectAttempt = 0;
+      st.textContent="● 스트리밍"; st.classList.add("on"); S("err").textContent="";
+      const same = m.fs === fs && (m.period_ms || 500) === periodMs;
+      if (!(keepAverage && same)) {
+        fs = m.fs; CAP = fs*SECONDS; buf = new Float32Array(CAP).fill(0); head=0; filled=0;
+        setEpoch(m.period_ms);
+      } else {
+        curFill = -1;                  // resume averaging at the next trigger
+      }
       activeDevice = m.device;
       S("meta").textContent = `device: ${m.device} · fs: ${m.fs} Hz · ${m.channels.length}ch`;
       if (!driversLoaded) fillDrivers(m.drivers, m.active);
@@ -188,17 +214,34 @@ function connect() {
     } else if (m.type === "imp") { renderImp(m.values); }
   };
 }
+function scheduleReconnect() {
+  reconnectAttempt++;
+  const delay = Math.min(30000, 1000 * 2 ** Math.min(reconnectAttempt - 1, 5));
+  S("status").textContent = `연결 끊김 — ${Math.round(delay/1000)}초 후 재연결 (${reconnectAttempt}회)`;
+  reconnectTimer = setTimeout(() => connect(false), delay);
+}
+// Watchdog: the server sends at least a heartbeat every 2 s. Silence means a
+// half-open connection (e.g. Wi-Fi dropped) that the browser has not noticed.
+setInterval(() => {
+  if (ws && ws.readyState === WebSocket.OPEN && Date.now() - lastMsgAt > 8000) {
+    const dead = ws; ws = null; dead.onclose = null;
+    try { dead.close(); } catch(e){}
+    S("status").classList.remove("on");
+    scheduleReconnect();
+  }
+}, 2000);
 function fillDrivers(drivers, active) {
   S("driver").innerHTML = drivers.map(d =>
     `<option value="${d}"${d===active?" selected":""}>${d}</option>`).join("");
   driversLoaded = true;
 }
 
-S("reconnect").addEventListener("click", () => { driversLoaded=false; resetAverage(); connect(); });
+S("reconnect").addEventListener("click", () => { driversLoaded=false; resetAverage(); connect(true); });
 S("avg-reset").addEventListener("click", resetAverage);
 S("pause").addEventListener("click", (e) => { paused=!paused;
+  curFill = -1;  // never stitch samples from before and after the pause
   e.target.textContent = paused ? "▶ 재개" : "⏸ 일시정지"; });
-connect();
+connect(true);
 
 /* ---- Save the trigger-averaged epoch as an exam step ---------------- */
 let activeDevice = "live-stream", recExamId = null, recPatients = [];
@@ -219,13 +262,19 @@ if (recCard) {
   }
   protoSel.addEventListener("change", fillSteps);
 
-  qInput.addEventListener("input", async () => {
+  let searchSeq = 0;
+  qInput.addEventListener("input", debounce(async () => {
     // a datalist pick fills "이름 (#MRN)" — search on the name part only
     const q = qInput.value.split(" (#")[0].trim(); if (!q) return;
-    recPatients = await api(`/api/patients?q=${encodeURIComponent(q)}`);
+    const seq = ++searchSeq;
+    let found;
+    try { found = await api(`/api/patients?limit=20&q=${encodeURIComponent(q)}`); }
+    catch (e) { return setMsg("rec-msg", "환자 검색 실패: " + e.message, "err"); }
+    if (seq !== searchSeq) return;     // a newer search is already under way
+    recPatients = found;
     S("rec-patients").innerHTML = recPatients.map(p =>
-      `<option value="${p.name} (#${p.mrn})"></option>`).join("");
-  });
+      `<option value="${esc(p.name)} (#${esc(p.mrn)})"></option>`).join("");
+  }, 250));
   function selectedPatient() {
     const v = qInput.value.trim();
     return recPatients.find(p => `${p.name} (#${p.mrn})` === v) ||
@@ -236,14 +285,19 @@ if (recCard) {
     S("rec-exam").textContent = "새 검사"; setMsg("rec-msg", "", ""); });
 
   S("rec-save").addEventListener("click", async () => {
+    const saveBtn = S("rec-save");
+    if (saveBtn.disabled) return;      // no double save while one is in flight
     const p = selectedPatient();
     if (!p) return setMsg("rec-msg", "환자를 검색해 선택하세요.", "err");
     if (avgCount < 1) return setMsg("rec-msg", "아직 평균된 sweep이 없습니다. 트리거를 기다리세요.", "err");
     const target = parseInt(S("rec-target").value) || 1;
     if (avgCount < target && !confirm(`목표 ${target} sweeps 중 ${avgCount}개만 평균됐습니다. 그래도 저장할까요?`)) return;
     const samples = Array.from(sumEpoch, v => +(v / avgCount).toFixed(3));
+    saveBtn.disabled = true;
+    setMsg("rec-msg", "저장 중… (네트워크가 끊겨도 자동으로 재시도하며 중복 저장되지 않습니다)", "");
     try {
-      const exam = await api("/api/exams/record", { method: "POST", body: {
+      // retried saves reuse one Idempotency-Key, so the epoch is stored once
+      const exam = await api("/api/exams/record", { method: "POST", retries: 8, body: {
         patient_id: p.id, protocol: protoSel.value, step_key: stepSel.value,
         eye: S("rec-eye").value, samples, sampling_rate: fs, duration_ms: periodMs,
         n_sweeps: avgCount, exam_id: recExamId, device: activeDevice } });
@@ -253,7 +307,9 @@ if (recCard) {
       S("rec-msg").insertAdjacentHTML("beforeend",
         `<a href="/reports/${exam.id}" target="_blank">리포트 열기</a> · 다음 step/눈을 이어서 저장할 수 있습니다.`);
       resetAverage();
-    } catch (e) { setMsg("rec-msg", e.message, "err"); }
+    } catch (e) {
+      setMsg("rec-msg", e.message + " — 평균 파형은 그대로 유지되니 다시 저장할 수 있습니다.", "err");
+    } finally { saveBtn.disabled = false; }
   });
 
   loadProtocols();

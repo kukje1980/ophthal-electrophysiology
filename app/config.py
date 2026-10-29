@@ -49,5 +49,43 @@ class Settings:
     # Set to "1" behind HTTPS so the session cookie is only sent over TLS.
     SESSION_HTTPS_ONLY: bool = os.getenv("SESSION_HTTPS_ONLY", "0") == "1"
 
+    # Server -----------------------------------------------------------------
+    HOST: str = os.getenv("HOST", "0.0.0.0")
+    PORT: int = int(os.getenv("PORT", "8000"))
+    # Auto-reload is for development only: it restarts the server on every
+    # file change, which must never happen in the middle of an exam.
+    RELOAD: bool = os.getenv("RELOAD", "0") == "1"
+
+    # Database durability / pooling -------------------------------------------
+    # SQLite synchronous level: FULL survives power loss without losing a
+    # committed transaction (WAL mode keeps it fast). NORMAL is faster but a
+    # power cut may drop the last commits.
+    SQLITE_SYNCHRONOUS: str = os.getenv("SQLITE_SYNCHRONOUS", "FULL").upper()
+    DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "10"))
+    DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "20"))
+
+    # Backups ----------------------------------------------------------------
+    BACKUP_ENABLED: bool = os.getenv("BACKUP_ENABLED", "1") == "1"
+    BACKUP_DIR: str = os.getenv("BACKUP_DIR", "./backups")
+    # A second copy on another disk / NAS / USB. Without it a disk failure
+    # loses the database and its backups together.
+    BACKUP_MIRROR_DIR: str = os.getenv("BACKUP_MIRROR_DIR", "")
+    # A backup is taken whenever the newest one is older than this, so a PC
+    # that is switched off at night still gets backed up the next morning.
+    BACKUP_INTERVAL_HOURS: float = float(os.getenv("BACKUP_INTERVAL_HOURS", "6"))
+    # Retention: every backup of the last N days, then the newest per day,
+    # then the newest per month. Pre-restore / pre-migration safety copies
+    # are never pruned automatically.
+    BACKUP_KEEP_ALL_DAYS: int = int(os.getenv("BACKUP_KEEP_ALL_DAYS", "3"))
+    BACKUP_KEEP_DAILY_DAYS: int = int(os.getenv("BACKUP_KEEP_DAILY_DAYS", "30"))
+    BACKUP_KEEP_MONTHLY: int = int(os.getenv("BACKUP_KEEP_MONTHLY", "24"))
+    # Free space that must remain on the backup disk after a backup, so a
+    # backup can never fill the disk the live database is on.
+    BACKUP_MIN_FREE_MB: int = int(os.getenv("BACKUP_MIN_FREE_MB", "500"))
+
+    # Logging ----------------------------------------------------------------
+    LOG_DIR: str = os.getenv("LOG_DIR", "./logs")
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
+
 
 settings = Settings()

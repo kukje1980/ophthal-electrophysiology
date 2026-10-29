@@ -52,7 +52,7 @@ if (phiBtn) phiBtn.addEventListener("click", async () => {
 async function loadPatient() {
   patient = await api(`/api/patients/${PID}`);
   document.getElementById("p-title").innerHTML =
-    `${patient.name} <span class="muted">#${patient.mrn}</span>`;
+    `${esc(patient.name)} <span class="muted">#${esc(patient.mrn)}</span>`;
   const bits = [sexLabel(patient.sex)];
   if (patient.age != null) bits.push(`${patient.age}세`);
   if (patient.birth_date) bits.push(patient.birth_date);
@@ -74,6 +74,9 @@ if (editBtn) editBtn.addEventListener("click", () => {
     form.onsubmit = async (ev) => {
       ev.preventDefault();
       const msg = form.querySelector("[data-msg]");
+      const btn = form.querySelector('button[type="submit"]');
+      if (btn.disabled) return;
+      btn.disabled = true;
       try {
         await api(`/api/patients/${PID}`, { method: "PUT", body: collectPatientForm(form) });
         wrap.classList.add("hidden");
@@ -82,21 +85,27 @@ if (editBtn) editBtn.addEventListener("click", () => {
         await loadPatient();
       } catch (e) {
         if (msg) { msg.textContent = e.message; msg.className = "msg err"; }
+      } finally {
+        btn.disabled = false;
       }
     };
   }
 });
 
 async function loadExams() {
-  const rows = await api(`/api/exams?patient_id=${PID}`);
+  const { data: rows, total } = await api(`/api/exams?patient_id=${PID}&limit=500`,
+                                          { withMeta: true });
   document.getElementById("exam-rows").innerHTML = rows.map(e => `
     <tr>
       <td>${new Date(e.performed_at).toLocaleString()}</td>
-      <td><span class="tag">${e.test_type}</span></td>
-      <td>${e.protocol}</td>
+      <td><span class="tag">${esc(e.test_type)}</span></td>
+      <td>${esc(e.protocol)}</td>
       <td><a class="btn small" href="/reports/${e.id}">리포트</a></td>
     </tr>`).join("") ||
     `<tr><td colspan="4" class="muted">검사 기록이 없습니다.</td></tr>`;
+  if (total > rows.length)
+    document.getElementById("exam-rows").insertAdjacentHTML("beforeend",
+      `<tr><td colspan="4" class="muted">최근 ${rows.length}건 표시 (전체 ${total}건)</td></tr>`);
 }
 
 loadPatient();

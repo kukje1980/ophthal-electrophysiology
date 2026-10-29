@@ -20,6 +20,7 @@ PERMISSIONS = {
     "manage_users",     # create/disable accounts
     "view_audit",       # read the audit log
     "manage_reference", # edit laboratory normative reference ranges
+    "manage_system",    # backups / restore / trash / system status
 }
 
 # Role -> granted permissions.

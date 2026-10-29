@@ -32,10 +32,10 @@ def _ctx(request: Request, user, **extra) -> dict:
 def dashboard(request: Request, db: Session = Depends(get_db),
               user=Depends(current_user)):
     recent = exam_crud.list_recent(db, limit=15)
-    patients = patient_crud.list_all(db)
+    # COUNT queries — never load every patient just to count them
     return templates.TemplateResponse("dashboard.html", _ctx(
-        request, user, recent=recent, patient_count=len(patients),
-        exam_count=len(recent),
+        request, user, recent=recent, patient_count=patient_crud.count(db),
+        exam_count=exam_crud.count(db),
     ))
 
 

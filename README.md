@@ -30,6 +30,9 @@ python run.py
 ```
 
 Open <http://localhost:8000>. Interactive API docs at `/docs`.
+`RELOAD=1 python run.py` enables auto-reload for development only.
+
+Tests: `pip install -r requirements-dev.txt && python -m pytest`.
 
 Typical flow: **Patients → add patient → New exam → pick protocol → Acquire →
 Report**.
@@ -40,11 +43,12 @@ Report**.
 app/
   main.py            FastAPI app
   config.py          settings (env-overridable)
-  database.py        SQLAlchemy engine/session
+  database.py        SQLAlchemy engine/session, durability pragmas, migrations
+  backup.py          backup / verify / restore / retention / scheduler (+ CLI)
   models/            Patient, Exam, Waveform, Measurement
   schemas/           Pydantic I/O
   crud/              DB access + acquire→store→auto-mark pipeline
-  routers/           patients, exams, protocols, devices, pages (HTML)
+  routers/           patients, exams, protocols, devices, system, pages (HTML)
   iscev/             protocol catalogue, reference ranges, marker detection
   acquisition/       device abstraction (the hardware seam)
     amplifier.py     biopotential amplifier contract
@@ -165,6 +169,104 @@ live impedance to the **Live** page, which shows a scrolling oscilloscope,
 transport `read` loop; the host side (ring buffer, epoching, averaging, live
 view) is already provided.
 
+## Reliability & data safety (안정성 · 데이터 보존)
+
+The system is built to run for years on a clinic network without slowing
+down or losing data.
+
+### Data durability
+
+- **SQLite in WAL mode with `synchronous=FULL`** — a committed record
+  survives a crash or power cut (verified by killing the server with
+  `kill -9` mid-use), and readers never block writers. `foreign_keys=ON`
+  stops orphaned waveforms; `busy_timeout` makes concurrent users wait for the
+  write lock instead of failing. On a clean shutdown the WAL is folded back
+  into the database file.
+- **Nothing is physically deleted.** Deleting a patient or exam moves it to
+  the **trash (휴지통)**; an admin restores it at `/admin`. Medical records
+  must be retained (의료법), and accidental deletion is the most common way
+  data is lost.
+- **Safe schema upgrades** — when a new version adds columns, a
+  `pre-migration` backup is written first; the server refuses to upgrade
+  without it.
+- **Input bounds** — sample arrays, text fields and NaN/Infinity values are
+  validated, and audit/exam notes are clipped to their columns, so years of
+  accumulated data never trip a length or serialisation error.
+
+### Backups (백업)
+
+| | |
+|--|--|
+| Schedule | automatic whenever the newest backup is older than `BACKUP_INTERVAL_HOURS` (default 6 h) — a PC switched off overnight is backed up the next morning |
+| Consistency | SQLite online-backup API: a consistent snapshot while the server keeps running |
+| Verification | every backup is `integrity_check`ed and SHA-256 summed before it is kept; a failed check is reported as possible corruption |
+| Atomic | written to a temp file, fsync'ed, renamed — a crash never leaves a half backup |
+| Second copy | `BACKUP_MIRROR_DIR` (NAS / USB / second disk) receives a checksum-verified copy |
+| Retention | every backup of the last 3 days, newest per day for 30 days, newest per month for 24 months; `pre-restore` / `pre-migration` copies are never pruned |
+| Disk guard | a backup never leaves less than `BACKUP_MIN_FREE_MB` free, so it cannot fill the database's disk |
+| Restore | verifies the backup, saves a `pre-restore` copy of the current state (so a restore can be undone), then restores in place |
+
+Manage backups at **/admin** (create, download, verify, restore — restore
+requires typing the backup name), or from the command line, which also works
+when the server is down:
+
+```bash
+python -m app.backup create
+python -m app.backup list
+python -m app.backup verify oep_20261028-143000_auto.db.gz
+python -m app.backup restore oep_20261028-143000_auto.db.gz
+```
+
+> **Keep the encryption key with the backups.** National ids are encrypted
+> with `PHI_ENCRYPTION_KEY` (or a key derived from `SECRET_KEY`). A backup
+> restored without the same key has unreadable national ids. Store the key
+> separately and securely (it is deliberately *not* inside the backup).
+> `PHI_ENCRYPTION_KEY` accepts several comma-separated keys (newest first)
+> for rotation, and the derived key stays a decrypt-only fallback, so setting
+> a key later does not break existing records. The admin page warns when
+> stored records fail to decrypt.
+
+### Speed as data grows
+
+- Lists are **paginated** (`limit` / `offset`, total in `X-Total-Count`):
+  the patient list fetches one page of 50, so 5 000+ patients load as fast
+  as 50. The dashboard uses `COUNT(*)` instead of loading every row.
+- **Indexes** on the columns lists sort and filter by (patients by creation
+  date, exams by patient + date); missing indexes are added to existing
+  databases on start.
+- Exams load waveforms and measurements in 3 queries (not one per trace);
+  reference ranges are read once per exam, not once per marker.
+- `PRAGMA optimize` runs with each scheduled backup; the audit CSV export
+  streams in batches, so years of logs export without loading into memory.
+- **gzip** compresses JSON responses (waveform reports) over slow links.
+
+### Network resilience (네트워크 안정성)
+
+- Every browser request has a **timeout** and is **retried with backoff** on
+  network errors / gateway errors; a red banner shows while the server is
+  unreachable, and form input is kept.
+- **Writes are idempotent**: each save carries an `Idempotency-Key`, stored
+  in the same transaction as the record. If the response is lost and the
+  browser retries, the server returns the record already saved — an exam
+  step or a patient is never stored twice.
+- The **live stream reconnects automatically** (exponential backoff, plus a
+  watchdog for half-open connections), and keeps the running average across
+  a brief drop. Driver calls run on a dedicated thread, so a slow device
+  cannot stall the server for other users.
+- One acquisition at a time per rig: a concurrent exam gets `409` +
+  `Retry-After` and the browser waits its turn.
+- `GET /health` (no login) reports whether the database answers — for
+  monitoring tools and the browser's connection indicator.
+
+### Operations
+
+- Logs go to `logs/app.log`, rotated at 10 MB × 10 files; unhandled errors
+  return an error id that matches the logged traceback.
+- **/admin → 시스템 상태** shows database size, disk space, record counts,
+  last backup and warnings (default `SECRET_KEY`, no mirror, stale or failed
+  backup, low disk, key mismatch); admins also see the warnings on the
+  dashboard.
+
 ## Security & access control
 
 The application requires a login and enforces role-based access:
@@ -204,6 +306,17 @@ The application requires a login and enforces role-based access:
 | `PHI_ENCRYPTION_KEY` | derived from `SECRET_KEY` | Fernet key for PHI at rest |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | `admin` / `admin1234` | seeded initial admin |
 | `SESSION_HTTPS_ONLY` | `0` | set `1` behind HTTPS |
+| `HOST` / `PORT` | `0.0.0.0` / `8000` | listen address |
+| `RELOAD` | `0` | `1` = auto-reload (development only) |
+| `SQLITE_SYNCHRONOUS` | `FULL` | `NORMAL` is faster but a power cut may lose the last commits |
+| `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` | `10` / `20` | connection pool |
+| `BACKUP_ENABLED` | `1` | automatic backups |
+| `BACKUP_DIR` | `./backups` | backup location |
+| `BACKUP_MIRROR_DIR` | — | second copy on another disk / NAS (**strongly recommended**) |
+| `BACKUP_INTERVAL_HOURS` | `6` | maximum age of the newest backup |
+| `BACKUP_KEEP_ALL_DAYS` / `BACKUP_KEEP_DAILY_DAYS` / `BACKUP_KEEP_MONTHLY` | `3` / `30` / `24` | retention |
+| `BACKUP_MIN_FREE_MB` | `500` | free space a backup must leave on its disk |
+| `LOG_DIR` / `LOG_LEVEL` | `./logs` / `INFO` | rotating log file |
 
 > **Note:** reference ranges in `app/iscev/reference.py` are representative
 > demonstration values. Each laboratory must substitute its own normative
