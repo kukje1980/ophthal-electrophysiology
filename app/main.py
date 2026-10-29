@@ -18,8 +18,8 @@ from app.config import settings
 from app.database import SessionLocal, checkpoint, engine, init_db
 from app.logging_setup import setup_logging
 from app.routers import (
-    account, audit, auth, devices, exams, live, pages, patients, protocols,
-    reference, system, users, visits,
+    account, audit, auth, devices, exams, live, measurements, pages, patients,
+    protocols, reference, system, users, visits,
 )
 
 log = logging.getLogger("app")
@@ -107,7 +107,7 @@ async def _lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title=settings.APP_TITLE, version="0.1.0", lifespan=_lifespan)
+    app = FastAPI(title=settings.APP_TITLE, version="0.2.0", lifespan=_lifespan)
 
     @app.exception_handler(RequestValidationError)
     async def _invalid(request: Request, exc: RequestValidationError):
@@ -168,6 +168,7 @@ def create_app() -> FastAPI:
     # JSON API
     app.include_router(patients.router)
     app.include_router(exams.router)
+    app.include_router(measurements.router)
     app.include_router(protocols.router)
     app.include_router(devices.router)
     app.include_router(users.router)

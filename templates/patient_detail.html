@@ -40,7 +40,7 @@
   <h2>검사 기록 (Exams)</h2>
 </div>
 <table class="table">
-  <thead><tr><th>일시</th><th>검사</th><th>프로토콜</th><th></th></tr></thead>
+  <thead><tr><th>일시</th><th>검사</th><th>프로토콜</th><th>상태 / 결론</th><th></th></tr></thead>
   <tbody id="exam-rows"></tbody>
 </table>
 
@@ -109,12 +109,16 @@ async function loadExams() {
       <td>${fmtDateTime(e.performed_at)}</td>
       <td><span class="tag">${esc(e.test_type)}</span></td>
       <td>${esc(e.protocol)}</td>
+      <td>${e.status === "signed"
+            ? `<span class="status-pill signed small" title="${esc(e.signed_by || "")}">✔ 서명</span>`
+            : `<span class="status-pill open small">미서명</span>`}
+          ${e.impression ? `<div class="muted" style="font-size:12px;margin-top:3px">${esc(e.impression)}</div>` : ""}</td>
       <td><a class="btn small" href="/reports/${e.id}">리포트</a></td>
     </tr>`).join("") ||
-    `<tr><td colspan="4" class="muted">검사 기록이 없습니다.</td></tr>`;
+    `<tr><td colspan="5" class="muted">검사 기록이 없습니다.</td></tr>`;
   if (total > rows.length)
     document.getElementById("exam-rows").insertAdjacentHTML("beforeend",
-      `<tr><td colspan="4" class="muted">최근 ${rows.length}건 표시 (전체 ${total}건)</td></tr>`);
+      `<tr><td colspan="5" class="muted">최근 ${rows.length}건 표시 (전체 ${total}건)</td></tr>`);
 }
 
 async function loadVisits() {

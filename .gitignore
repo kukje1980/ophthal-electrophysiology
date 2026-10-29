@@ -29,3 +29,5 @@ backups/
 logs/
 *.db-wal
 *.db-shm
+# Tests
+.pytest_cache/

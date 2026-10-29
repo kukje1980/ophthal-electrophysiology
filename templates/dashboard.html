@@ -33,25 +33,56 @@
     <div class="stat-num">{{ exam_count }}</div>
     <div class="stat-label">Exams</div>
   </div>
+  <div class="card stat {% if unsigned %}attention{% endif %}">
+    <div class="stat-num">{{ unsigned|length }}</div>
+    <div class="stat-label">판독 대기 (미서명)</div>
+  </div>
   <div class="card stat">
     <a class="btn primary" href="/">+ 검사 접수 (환자 등록 · 검사)</a>
   </div>
 </section>
 
+{% if unsigned %}
+<h2>판독 대기 목록 <span class="muted" style="font-size:13px">오래된 순</span></h2>
+<table class="table">
+  <thead>
+    <tr><th>When</th><th>Patient</th><th>Test</th><th>Protocol</th><th>Operator</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for e in unsigned %}
+    <tr>
+      <td class="utc" data-utc="{{ e.performed_at.isoformat() }}">{{ e.performed_at.strftime("%Y-%m-%d %H:%M") }} UTC</td>
+      <td><a href="/patients/{{ e.patient_id }}">{{ e.patient.name if e.patient else e.patient_id }}</a>
+          <span class="muted">#{{ e.patient.mrn if e.patient else "" }}</span></td>
+      <td><span class="tag">{{ e.test_type }}</span></td>
+      <td>{{ e.protocol }}</td>
+      <td>{{ e.operator or "-" }}</td>
+      <td><a class="btn small primary" href="/reports/{{ e.id }}">판독</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
 <h2>Recent exams</h2>
 {% if recent %}
 <table class="table">
   <thead>
-    <tr><th>When</th><th>Test</th><th>Protocol</th>
-        <th>Device</th><th></th></tr>
+    <tr><th>When</th><th>Patient</th><th>Test</th><th>Protocol</th>
+        <th>Status</th><th></th></tr>
   </thead>
   <tbody>
     {% for e in recent %}
     <tr>
       <td class="utc" data-utc="{{ e.performed_at.isoformat() }}">{{ e.performed_at.strftime("%Y-%m-%d %H:%M") }} UTC</td>
+      <td><a href="/patients/{{ e.patient_id }}">{{ e.patient.name if e.patient else e.patient_id }}</a></td>
       <td><span class="tag">{{ e.test_type }}</span></td>
       <td>{{ e.protocol }}</td>
-      <td>{{ e.device }}</td>
+      <td>{% if e.status == "signed" %}
+            <span class="status-pill signed small" title="{{ e.signed_by }}">✔ 서명</span>
+          {% else %}
+            <span class="status-pill open small">미서명</span>
+          {% endif %}</td>
       <td><a class="btn small" href="/reports/{{ e.id }}">Report</a></td>
     </tr>
     {% endfor %}

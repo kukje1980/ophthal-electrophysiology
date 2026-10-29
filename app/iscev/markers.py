@@ -9,10 +9,14 @@ Amplitudes follow common clinical conventions:
   * trough markers are measured from the pre-stimulus baseline,
   * a peak that follows a named trough (e.g. b after a, P100 after N75)
     is measured peak-to-trough from that preceding component.
+
+The same measurement rules are applied when an operator moves a cursor by
+hand (:func:`remeasure`), so automatic and manual markers are always
+comparable.
 """
 from __future__ import annotations
 
-from typing import List
+from typing import Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 
@@ -55,8 +59,78 @@ _OVERRIDE = {
 }
 
 
-def _config(step_key: str, marker: str) -> dict:
+def marker_config(step_key: str, marker: str) -> dict:
+    """Search window / polarity / amplitude reference for a marker on a step
+    (empty dict when the marker is unknown)."""
     return _OVERRIDE.get((step_key, marker), _DEFAULT.get(marker, {}))
+
+
+_config = marker_config  # backwards-compatible alias
+
+
+def known_markers() -> List[str]:
+    """Every marker name the detector knows about."""
+    return sorted(_DEFAULT.keys())
+
+
+def _time_axis(n: int, duration_ms: float) -> np.ndarray:
+    return np.linspace(0, duration_ms, n, endpoint=False)
+
+
+def _baseline(y: np.ndarray, duration_ms: float) -> float:
+    """Pre-stimulus baseline: mean of the first 5 ms (or first 5 samples)."""
+    n = len(y)
+    base_n = max(1, int(n * 5.0 / duration_ms)) if duration_ms else 1
+    return float(np.mean(y[:base_n]))
+
+
+def _index_at(t: np.ndarray, latency_ms: float) -> int:
+    """Sample index nearest to a latency (clamped into the trace)."""
+    if len(t) < 2:
+        return 0
+    dt = float(t[1] - t[0])
+    return int(np.clip(round(latency_ms / dt), 0, len(t) - 1))
+
+
+def _measure_all(y: np.ndarray, duration_ms: float, step_key: str,
+                 positions: Iterable[Tuple[str, float]],
+                 ref_lookup=None, manual: Optional[set] = None) -> List[dict]:
+    """Amplitude + classification for markers at known latencies.
+
+    ``positions`` are (marker, latency_ms) pairs. Amplitude is measured from
+    the referenced preceding component when it is present, else from the
+    pre-stimulus baseline — identical for auto-detected and hand-placed
+    cursors so the two are always comparable.
+    """
+    t = _time_axis(len(y), duration_ms)
+    baseline = _baseline(y, duration_ms)
+    manual = manual or set()
+
+    values: Dict[str, float] = {}
+    pos_list = list(positions)
+    for marker, lat in pos_list:
+        values[marker] = float(y[_index_at(t, lat)])
+
+    results = []
+    for marker, lat in pos_list:
+        cfg = marker_config(step_key, marker)
+        ref_marker = cfg.get("from")
+        if ref_marker and ref_marker in values:
+            amplitude = abs(values[marker] - values[ref_marker])
+        else:
+            amplitude = abs(values[marker] - baseline)
+        idx = _index_at(t, lat)
+        latency = float(t[idx])
+        ref = ref_lookup(step_key, marker) if ref_lookup else None
+        results.append({
+            "marker": marker,
+            "latency_ms": round(latency, 2),
+            "amplitude_uv": round(amplitude, 2),
+            "flag": classify(step_key, marker, latency, amplitude, ref=ref),
+            "is_auto": marker not in manual,
+        })
+    results.sort(key=lambda r: r["latency_ms"])
+    return results
 
 
 def detect_markers(samples: List[float], duration_ms: float,
@@ -67,26 +141,17 @@ def detect_markers(samples: List[float], duration_ms: float,
     ``ref_lookup(step_key, marker)`` may return a laboratory limits dict (or
     None to fall back to the built-in demonstration ranges).
 
-    Returns a list of dicts: {marker, latency_ms, amplitude_uv, flag}.
+    Returns a list of dicts: {marker, latency_ms, amplitude_uv, flag, is_auto}.
     """
     y = np.asarray(samples, dtype=float)
     n = len(y)
     if n == 0:
         return []
 
-    t = np.linspace(0, duration_ms, n, endpoint=False)
-    # Pre-stimulus baseline: mean of the first 5 ms (or first 5 samples).
-    base_n = max(1, int(n * 5.0 / duration_ms)) if duration_ms else 1
-    baseline = float(np.mean(y[:base_n]))
-
-    found = {}  # marker -> (idx, value)
-    results: List[dict] = []
-
-    # Detect in a stable order so "from" references already exist.
-    order = sorted(markers, key=lambda m: _config(step_key, m).get("win", (0, 0))[0])
-
-    for marker in order:
-        cfg = _config(step_key, marker)
+    t = _time_axis(n, duration_ms)
+    positions: List[Tuple[str, float]] = []
+    for marker in markers:
+        cfg = marker_config(step_key, marker)
         if not cfg:
             continue
         w0, w1 = cfg["win"]
@@ -95,30 +160,23 @@ def detect_markers(samples: List[float], duration_ms: float,
             continue
         idxs = np.where(mask)[0]
         seg = y[idxs]
-        if cfg["pol"] == "neg":
-            local = int(np.argmin(seg))
-        else:
-            local = int(np.argmax(seg))
-        idx = int(idxs[local])
-        value = float(y[idx])
-        latency = float(t[idx])
+        local = int(np.argmin(seg)) if cfg["pol"] == "neg" else int(np.argmax(seg))
+        positions.append((marker, float(t[int(idxs[local])])))
 
-        ref_marker = cfg.get("from")
-        if ref_marker and ref_marker in found:
-            ref_value = found[ref_marker][1]
-            amplitude = abs(value - ref_value)
-        else:
-            amplitude = abs(value - baseline)
+    return _measure_all(y, duration_ms, step_key, positions, ref_lookup)
 
-        found[marker] = (idx, value)
-        ref = ref_lookup(step_key, marker) if ref_lookup else None
-        results.append({
-            "marker": marker,
-            "latency_ms": round(latency, 2),
-            "amplitude_uv": round(amplitude, 2),
-            "flag": classify(step_key, marker, latency, amplitude, ref=ref),
-        })
 
-    # Keep chronological order in the output for display.
-    results.sort(key=lambda r: r["latency_ms"])
-    return results
+def remeasure(samples: List[float], duration_ms: float, step_key: str,
+              positions: Iterable[Tuple[str, float]], ref_lookup=None,
+              manual: Optional[set] = None) -> List[dict]:
+    """Re-measure amplitudes and flags for markers at operator-chosen
+    latencies (e.g. after a cursor was moved). ``manual`` names the markers
+    that were placed by hand so ``is_auto`` is reported correctly.
+
+    Moving one marker also re-measures the components that reference it
+    (e.g. moving N75 changes the P100 peak-to-trough amplitude).
+    """
+    y = np.asarray(samples, dtype=float)
+    if len(y) == 0:
+        return []
+    return _measure_all(y, duration_ms, step_key, positions, ref_lookup, manual)

@@ -2,7 +2,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
@@ -46,7 +46,14 @@ def dashboard(request: Request, db: Session = Depends(get_db),
     return templates.TemplateResponse("dashboard.html", _ctx(
         request, user, recent=recent, patient_count=patient_crud.count(db),
         exam_count=exam_crud.count(db),
+        unsigned=exam_crud.list_unsigned(db, limit=30),
     ))
+
+
+@router.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    """No icon shipped yet; answer 204 so browsers stop logging a 404."""
+    return Response(status_code=204)
 
 
 @router.get("/patients", response_class=HTMLResponse)
