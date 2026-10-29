@@ -1,0 +1,679 @@
+{% extends "base.html" %}
+{% block title %}검사 접수 · ERG/VEP{% endblock %}
+{% block content %}
+{% set can_edit = 'edit_patient' in perms %}
+{% set can_run = 'run_exam' in perms %}
+<div class="row-between">
+  <h1>검사 접수 <span class="muted" style="font-size:14px">Reception</span></h1>
+  <span class="muted" id="today-label"></span>
+</div>
+
+<section class="card rx-search-card">
+  <div class="rx-search">
+    <input id="q" autocomplete="off" spellcheck="false" autofocus
+           placeholder="ID · 이름 · 생년월일로 찾기  (예: 1 · 김 · 680302)  — 바코드 스캔 가능"
+           role="combobox" aria-expanded="false" aria-controls="results" aria-autocomplete="list">
+    <ul id="results" class="rx-results" role="listbox" hidden></ul>
+  </div>
+  <p class="muted rx-hint">↑↓ 이동 · <kbd>Enter</kbd> 선택 · <kbd>Esc</kbd> 닫기 — 앞글자가 맞는 환자를 최대 20명까지 보여줍니다</p>
+</section>
+
+<section class="card" id="patient-card">
+  <div class="row-between">
+    <h2 class="rx-h">① 환자</h2>
+    <div class="rx-actions" id="p-actions"></div>
+  </div>
+  <div id="p-empty" class="rx-empty">
+    위에서 환자를 찾으세요.
+    {% if can_edit %}처음 오신 분이면 <button class="btn small" id="new-btn" type="button">＋ 신규 환자 등록</button>{% endif %}
+  </div>
+  <div id="p-existing" hidden></div>
+  {% if can_edit %}
+  <form id="p-new" hidden autocomplete="off" novalidate>
+    <div class="rx-grid4">
+      <label class="pfield"><span>ID (차트번호) <em>*</em></span><input name="mrn"></label>
+      <label class="pfield"><span>이름 <em>*</em></span><input name="name"></label>
+      <label class="pfield"><span>생년월일 <em>*</em></span>
+        <input name="birth" placeholder="680302 또는 19680302" inputmode="numeric">
+        <small id="birth-read" class="rx-read"></small></label>
+      <div class="pfield"><span>성별 <em>*</em></span>
+        <div class="seg" id="sex-seg">
+          <label><input type="radio" name="sex" value="M"><span>남</span></label>
+          <label><input type="radio" name="sex" value="F"><span>여</span></label>
+        </div>
+        <small class="rx-read muted">키보드 1·3 = 남, 2·4 = 여</small></div>
+    </div>
+    <div id="dup-warn" class="rx-warn" hidden></div>
+    <details class="rx-more">
+      <summary>추가 정보 (연락처 · 의뢰 · 과거력) — 선택 사항</summary>
+      <div class="pgrid" id="p-extra"></div>
+    </details>
+  </form>
+  {% endif %}
+</section>
+
+{% if can_edit %}
+<section class="card rx-locked" id="visit-card">
+  <div class="row-between">
+    <h2 class="rx-h">② 이번 검사</h2>
+    <span class="muted rx-note" id="prefill-note">먼저 환자를 선택하거나 등록하세요.</span>
+  </div>
+  <form id="v-form" autocomplete="off" novalidate>
+    <div class="rx-grid3">
+      <label class="pfield"><span>검사일</span><input type="date" name="visit_date"></label>
+      <label class="pfield"><span>담당의 <em>*</em></span>
+        <input name="attending_doctor" list="dl-doctors" placeholder="입력하거나 목록에서 선택"></label>
+      <label class="pfield"><span>검사자</span><input name="operator"></label>
+      <label class="pfield span3"><span>진단명 / 검사 사유 <em>*</em></span>
+        <input name="diagnosis" list="dl-dx" placeholder="예: 망막색소변성 — 입력하면 자주 쓰는 진단이 뜹니다"></label>
+    </div>
+
+    <div class="pfield rx-tests"><span>검사 항목 <em>*</em></span>
+      <div class="chips" id="tests">
+        <label class="chip"><input type="checkbox" value="ffERG"><span><b>ffERG</b> 전시야 망막전위도</span></label>
+        <label class="chip"><input type="checkbox" value="PERG"><span><b>PERG</b> 패턴 망막전위도</span></label>
+        <label class="chip"><input type="checkbox" value="VEP"><span><b>VEP</b> 시유발전위</span></label>
+        <label class="chip"><input type="checkbox" value="mfERG"><span><b>mfERG</b> 다국소 망막전위도</span></label>
+      </div>
+    </div>
+
+    <table class="rx-eyes">
+      <thead><tr><th></th><th>OD (우안)</th><th>OS (좌안)</th></tr></thead>
+      <tbody>
+        <tr><th>교정시력</th>
+          <td><input name="va_od" placeholder="1.0 / 0.5 / CF / HM"><button type="button" class="hint" data-f="va_od" hidden></button></td>
+          <td><input name="va_os" placeholder="1.0 / 0.5 / CF / HM"><button type="button" class="hint" data-f="va_os" hidden></button></td></tr>
+        <tr><th>동공 (mm)</th>
+          <td><input name="pupil_od" type="number" min="0" max="12" step="0.5" placeholder="산동 후 크기"><button type="button" class="hint" data-f="pupil_od" hidden></button></td>
+          <td><input name="pupil_os" type="number" min="0" max="12" step="0.5" placeholder="산동 후 크기"><button type="button" class="hint" data-f="pupil_os" hidden></button></td></tr>
+      </tbody>
+    </table>
+
+    <details class="rx-more" id="cond">
+      <summary>검사 조건 <span class="muted" id="cond-sum"></span></summary>
+      <div class="rx-grid4">
+        <label class="pfield"><span>암순응 (분)</span><input name="dark_adapt_min" type="number" min="0" max="240"></label>
+        <label class="pfield"><span>명순응 (분)</span><input name="light_adapt_min" type="number" min="0" max="240"></label>
+        <label class="pfield"><span>전극</span><input name="electrode" list="dl-electrode"></label>
+        <label class="pfield"><span>굴절교정 (패턴검사)</span><input name="refraction" placeholder="예: +1.50 근거리 보정"></label>
+      </div>
+      <p class="muted rx-read">ISCEV는 리포트에 순응 시간·동공 크기·전극·굴절교정을 기록하도록 권고합니다. 직전 접수의 값이 기본으로 들어갑니다.</p>
+    </details>
+
+    <label class="pfield"><span>특이사항</span><input name="note" placeholder="협조도, 고정 상태 등"></label>
+
+    <div class="pactions rx-submit">
+      {% if can_run %}<button class="btn primary rx-big" id="save-start" type="button">저장하고 검사 시작 ▶</button>{% endif %}
+      <button class="btn" id="save-only" type="button">저장만 (대기)</button>
+      <button class="btn ghost" id="cancel-edit" type="button" hidden>편집 취소</button>
+      <span id="v-msg" class="msg"></span>
+    </div>
+  </form>
+</section>
+{% endif %}
+
+<section class="card">
+  <div class="row-between">
+    <h2 class="rx-h">오늘 접수 <span class="tag" id="today-count">0</span></h2>
+    <button class="btn small" id="today-refresh" type="button">새로고침</button>
+  </div>
+  <table class="table compact">
+    <thead><tr><th>접수</th><th>ID</th><th>이름</th><th>성별·나이</th><th>검사 항목</th>
+      <th>담당의</th><th>상태</th><th></th></tr></thead>
+    <tbody id="today-rows"></tbody>
+  </table>
+</section>
+
+<datalist id="dl-doctors"></datalist>
+<datalist id="dl-dx"></datalist>
+<datalist id="dl-electrode"></datalist>
+
+<style>
+  .rx-search { position:relative; }
+  .rx-search input { width:100%; font-size:18px; padding:14px 16px; border-radius:10px;
+    border:2px solid var(--line); }
+  .rx-search input:focus { outline:none; border-color:var(--primary); }
+  .rx-hint { font-size:12px; margin:8px 2px 0; }
+  .rx-results { position:absolute; z-index:20; left:0; right:0; top:calc(100% + 4px);
+    margin:0; padding:4px; list-style:none; background:#fff; border:1px solid var(--line);
+    border-radius:10px; box-shadow:0 12px 32px rgba(15,23,42,.14); max-height:440px; overflow:auto; }
+  .rx-hit { display:grid; grid-template-columns:96px 1fr 92px 104px 1.4fr; gap:10px;
+    align-items:center; padding:9px 10px; border-radius:8px; cursor:pointer; font-size:14px; }
+  .rx-hit.on { background:#eff6ff; }
+  .rx-hit .mrn { font-family:ui-monospace,monospace; font-weight:600; }
+  .rx-hit .nm { font-weight:600; }
+  .rx-hit .lv { color:var(--muted); font-size:12px; }
+  .rx-hit mark { background:#fde68a; color:inherit; border-radius:2px; }
+  .rx-none { padding:10px; color:var(--muted); font-size:13px; }
+  .rx-new { padding:10px; border-top:1px solid var(--line); margin-top:4px; color:var(--primary);
+    font-weight:600; cursor:pointer; border-radius:8px; }
+  .rx-new.on { background:#eff6ff; }
+  .rx-h { margin:0; font-size:17px; }
+  .rx-empty { color:var(--muted); font-size:14px; padding:6px 0 2px; }
+  .rx-actions { display:flex; gap:8px; }
+  .rx-pt { display:flex; flex-direction:column; gap:4px; margin-top:6px; }
+  .rx-pt-name { font-size:22px; font-weight:700; }
+  .rx-pt-meta { font-size:14px; }
+  .rx-pt-hist { font-size:13px; color:var(--muted); }
+  .rx-pt-hist b { color:var(--ink); font-weight:600; }
+  .rx-badge { display:inline-block; font-size:11px; font-weight:700; padding:2px 8px;
+    border-radius:999px; margin-left:8px; vertical-align:middle; }
+  .rx-badge.new { background:#dcfce7; color:#166534; } .rx-badge.ret { background:#e0e7ff; color:#3730a3; }
+  .rx-grid4 { display:grid; grid-template-columns:repeat(4, 1fr); gap:12px 16px; margin-top:12px; }
+  .rx-grid3 { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px 16px; margin-top:12px; }
+  .rx-grid3 .span3 { grid-column:1 / -1; }
+  .rx-read { font-size:12px; min-height:16px; }
+  .rx-read.ok { color:#166534; } .rx-read.err { color:#991b1b; }
+  .rx-warn { margin-top:10px; padding:10px 12px; border-radius:8px; background:#fef9c3;
+    color:#854d0e; font-size:13px; display:flex; gap:10px; align-items:center; }
+  .seg { display:flex; gap:6px; }
+  .seg label { flex:1; }
+  .seg input { position:absolute; opacity:0; pointer-events:none; }
+  .seg span { display:block; text-align:center; padding:9px 0; border:1px solid var(--line);
+    border-radius:8px; cursor:pointer; font-size:14px; }
+  .seg input:checked + span { background:var(--primary); border-color:var(--primary); color:#fff; font-weight:600; }
+  .seg input:focus-visible + span { outline:2px solid #93c5fd; outline-offset:1px; }
+  .rx-more { margin-top:14px; border:1px dashed var(--line); border-radius:10px; padding:10px 14px; }
+  .rx-more summary { cursor:pointer; font-size:13px; color:var(--primary); font-weight:600; }
+  .rx-more[open] summary { margin-bottom:10px; }
+  .rx-tests { margin-top:14px; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; }
+  .chip input { position:absolute; opacity:0; pointer-events:none; }
+  .chip span { display:inline-block; padding:8px 14px; border:1px solid var(--line); border-radius:999px;
+    cursor:pointer; font-size:13px; user-select:none; }
+  .chip input:checked + span { background:#eff6ff; border-color:var(--primary); color:var(--primary-d); }
+  .chip input:checked + span::before { content:"✓ "; font-weight:700; }
+  .chip input:focus-visible + span { outline:2px solid #93c5fd; outline-offset:1px; }
+  .rx-eyes { margin-top:14px; border-collapse:separate; border-spacing:10px 6px; margin-left:-10px; }
+  .rx-eyes th { font-size:12px; color:var(--muted); text-align:left; font-weight:600; }
+  .rx-eyes thead th { color:var(--ink); }
+  .rx-eyes td input { width:170px; }
+  .hint { display:block; margin-top:3px; border:0; background:none; padding:0; color:var(--primary);
+    font-size:11px; cursor:pointer; text-align:left; }
+  .rx-submit { margin-top:16px; }
+  .rx-big { font-size:16px; padding:12px 20px; }
+  .rx-note { font-size:12px; }
+  .rx-locked { opacity:.5; }
+  .rx-locked form { pointer-events:none; }
+  .invalid { border-color:#dc2626 !important; background:#fef2f2; }
+  .rx-tests.invalid-group .chip span { border-color:#dc2626; }
+  .state { font-size:12px; font-weight:600; padding:2px 8px; border-radius:999px; }
+  .state.wait { background:#fef9c3; color:#854d0e; } .state.done { background:#dcfce7; color:#166534; }
+  .t-done { color:#166534; font-weight:600; } .t-todo { color:var(--muted); }
+  .rx-row-actions { display:flex; gap:6px; justify-content:flex-end; }
+  tr.editing td { background:#eff6ff; }
+  @media (max-width:760px) {
+    .rx-grid4, .rx-grid3 { grid-template-columns:1fr 1fr; }
+    .rx-hit { grid-template-columns:80px 1fr; }
+    .rx-hit .bd, .rx-hit .lv { grid-column:2; }
+  }
+</style>
+
+<script src="/static/js/reception-tools.js"></script>
+<script>
+const R = window.ReceptionTools;
+const $ = (id) => document.getElementById(id);
+const CAN_EDIT = {{ 'true' if can_edit else 'false' }};
+const CAN_RUN = {{ 'true' if can_run else 'false' }};
+const ME = {{ (user.full_name or user.username) | tojson }};
+const TEST_LABEL = { ffERG: "ffERG", PERG: "PERG", VEP: "VEP", mfERG: "mfERG" };
+// extra registration fields reuse the shared patient field spec (patient-form.js)
+const EXTRA = ["phone", "referring_doctor", "referral_clinic", "chief_complaint",
+  "diabetes", "hypertension", "allergies", "family_ocular_history",
+  "ocular_history_od", "ocular_history_os", "note"];
+const EXTRA_SPEC = PATIENT_GROUPS.flatMap(g => g.fields).filter(f => EXTRA.includes(f.n));
+// form.name / form.reset are the form's own properties, so fields go through namedItem
+const pf = (n) => $("p-new").elements.namedItem(n);
+const vf = (n) => $("v-form").elements.namedItem(n);
+
+let mode = "none";          // none | existing | new
+let patient = null;         // selected existing patient (search hit shape)
+let editingVisit = null;    // a visit from today's list being edited
+let opts = { doctors: [], diagnoses: [], electrodes: [], defaults: {} };
+
+$("today-label").textContent = new Date().toLocaleDateString("ko-KR",
+  { year: "numeric", month: "long", day: "numeric", weekday: "short" });
+
+/* ---- search box --------------------------------------------------------- */
+const qIn = $("q"), resEl = $("results");
+let hits = [], active = -1, lastQ = "", seq = 0, ctrl = null, timer = null, pending = null;
+
+function itemCount() { return hits.length + (CAN_EDIT && lastQ ? 1 : 0); }
+
+async function runSearch(q) {
+  q = q.trim(); lastQ = q;
+  if (!q) { hits = []; closeResults(); return; }
+  const my = ++seq;
+  if (ctrl) ctrl.abort();
+  ctrl = new AbortController();
+  pending = (async () => {
+    try {
+      const r = await fetch(`/api/patients/search?q=${encodeURIComponent(q)}`, { signal: ctrl.signal });
+      if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+      const data = await r.json();
+      if (my !== seq) return;            // a newer query superseded this one
+      hits = data; active = itemCount() ? 0 : -1;
+      renderResults();
+    } catch (e) {
+      if (e.name !== "AbortError" && my === seq) { hits = []; renderResults(e.message); }
+    }
+  })();
+  await pending; pending = null;
+}
+
+function lastVisitText(h) {
+  if (!h.visit_count) return "방문 기록 없음";
+  return `최근 ${h.last_visit} (${R.sinceLabel(h.last_visit)}) · ${h.visit_count}회`;
+}
+
+function renderResults(error) {
+  if (!lastQ) return closeResults();
+  const rows = hits.map((h, i) => `
+    <li role="option" class="rx-hit${i === active ? " on" : ""}" data-i="${i}" id="opt-${i}">
+      <span class="mrn">${R.highlight(h.mrn, lastQ)}</span>
+      <span class="nm">${R.highlight(h.name, lastQ)}</span>
+      <span>${R.esc(R.sexAge(h)) || "-"}</span>
+      <span class="bd">${h.birth_date || "-"}</span>
+      <span class="lv">${R.esc(lastVisitText(h))}${h.last_diagnosis ? " · " + R.esc(h.last_diagnosis) : ""}</span>
+    </li>`).join("");
+  const none = !hits.length ? `<li class="rx-none">${error ? "검색 오류: " + R.esc(error) : "일치하는 환자가 없습니다."}</li>` : "";
+  const add = CAN_EDIT ? `<li role="option" class="rx-new${active === hits.length ? " on" : ""}" data-i="${hits.length}" id="opt-${hits.length}">
+      ＋ ‘${R.esc(lastQ)}’ 신규 환자로 등록</li>` : "";
+  resEl.innerHTML = rows + none + add;
+  resEl.hidden = false; qIn.setAttribute("aria-expanded", "true");
+  if (active >= 0) qIn.setAttribute("aria-activedescendant", `opt-${active}`);
+  const on = resEl.querySelector(".on"); if (on) on.scrollIntoView({ block: "nearest" });
+}
+function closeResults() { resEl.hidden = true; qIn.setAttribute("aria-expanded", "false"); }
+
+qIn.addEventListener("input", () => {
+  clearTimeout(timer);
+  timer = setTimeout(() => runSearch(qIn.value), 120);  // search when typing pauses
+});
+qIn.addEventListener("keydown", async (e) => {
+  const n = itemCount();
+  if (e.key === "ArrowDown" && n) { e.preventDefault(); active = (active + 1) % n; renderResults(); }
+  else if (e.key === "ArrowUp" && n) { e.preventDefault(); active = (active - 1 + n) % n; renderResults(); }
+  else if (e.key === "Escape") { closeResults(); }
+  else if (e.key === "Enter") {
+    e.preventDefault();
+    // a barcode scanner types the ID and presses Enter at once: search now
+    clearTimeout(timer);
+    const q = qIn.value.trim();
+    if (!q) return;
+    if (q !== lastQ) await runSearch(q); else if (pending) await pending;
+    const exact = hits.findIndex(h => h.mrn === q);
+    choose(exact >= 0 ? exact : active);
+  }
+});
+qIn.addEventListener("focus", () => { if (lastQ && qIn.value.trim() === lastQ) renderResults(); });
+qIn.addEventListener("blur", () => setTimeout(closeResults, 100));
+resEl.addEventListener("mousedown", (e) => {
+  const li = e.target.closest("[data-i]"); if (!li) return;
+  e.preventDefault(); choose(+li.dataset.i);
+});
+
+function choose(i) {
+  if (i < 0) return;
+  closeResults();
+  if (i < hits.length) return selectPatient(hits[i]);
+  if (CAN_EDIT) startNew(lastQ);
+}
+
+/* ---- patient card ------------------------------------------------------- */
+function showPatientPane(which) {
+  $("p-empty").hidden = which !== "empty";
+  $("p-existing").hidden = which !== "existing";
+  if ($("p-new")) $("p-new").hidden = which !== "new";
+  const vc = $("visit-card"); if (vc) vc.classList.toggle("rx-locked", which === "empty");
+}
+
+function renderPatientSummary(p, isEditing) {
+  const ret = p.visit_count > 0;
+  $("p-existing").innerHTML = `
+    <div class="rx-pt">
+      <div class="rx-pt-name">${R.esc(p.name)} <span class="muted" style="font-size:16px">#${R.esc(p.mrn)}</span>
+        <span class="rx-badge ${ret ? "ret" : "new"}">${ret ? "재방문" : "첫 방문"}</span></div>
+      <div class="rx-pt-meta">${R.esc(R.sexAge(p)) || "-"} · ${p.birth_date || "생년월일 미입력"}</div>
+      <div class="rx-pt-hist">${ret
+        ? `최근 방문 <b>${p.last_visit}</b> (${R.sinceLabel(p.last_visit)}) · 총 <b>${p.visit_count}회</b>` +
+          (p.last_diagnosis ? ` · 지난 진단 <b>${R.esc(p.last_diagnosis)}</b>` : "") +
+          (p.last_doctor ? ` · 담당 ${R.esc(p.last_doctor)}` : "")
+        : "이전 방문 기록이 없습니다."}</div>
+    </div>`;
+  $("p-actions").innerHTML = `<a class="btn small" href="/patients/${p.id}" target="_blank">이전 검사·정보 보기 ↗</a>
+    <button class="btn small" type="button" id="change-pt">${isEditing ? "닫기" : "다른 환자"}</button>`;
+  $("change-pt").onclick = resetAll;
+}
+
+async function selectPatient(h, visits) {
+  if (!CAN_EDIT) { location.href = `/patients/${h.id}`; return; }
+  mode = "existing"; patient = h; editingVisit = null;
+  qIn.value = ""; lastQ = ""; hits = [];
+  renderPatientSummary(h, false);
+  showPatientPane("existing");
+  resetVisitForm();
+  if (!visits) { try { visits = await api(`/api/visits?patient_id=${h.id}`); } catch (e) { visits = []; } }
+  prefillFromLast(visits[0]);
+  markEditingRow();
+  focusFirstVisitGap();
+}
+
+async function selectPatientById(id) {
+  try {
+    const [p, visits] = await Promise.all([api(`/api/patients/${id}`), api(`/api/visits?patient_id=${id}`)]);
+    const last = visits[0];
+    await selectPatient({ ...p, visit_count: visits.length, last_visit: last && last.visit_date,
+      last_diagnosis: last && last.diagnosis, last_doctor: last && last.attending_doctor }, visits);
+  } catch (e) { setMsg("v-msg", "환자를 불러오지 못했습니다: " + e.message, "err"); }
+}
+
+/* new-patient form */
+const pNew = $("p-new");
+if (pNew) {
+  $("p-extra").innerHTML = EXTRA_SPEC.map(f => _field(f, "")).join("");
+  $("new-btn").addEventListener("click", () => startNew(""));
+  pf("birth").addEventListener("input", readBirth);
+  $("sex-seg").addEventListener("keydown", (e) => {
+    const s = R.sexFromKey(e.key); if (!s) return;
+    e.preventDefault(); pNew.querySelector(`input[name=sex][value=${s}]`).checked = true;
+    pNew.querySelector(`input[name=sex][value=${s}]`).focus();
+  });
+  pf("mrn").addEventListener("change", checkDuplicate);
+  pNew.addEventListener("input", (e) => e.target.classList.remove("invalid"));
+  pNew.addEventListener("submit", (e) => e.preventDefault());
+}
+
+function readBirth() {
+  const el = $("birth-read"), v = pf("birth").value.trim();
+  if (!v) { el.textContent = ""; el.className = "rx-read"; return null; }
+  const iso = R.parseBirth(v);
+  el.textContent = iso ? `→ ${iso} · ${R.ageOn(iso)}세` : "날짜를 확인하세요 (예: 680302)";
+  el.className = "rx-read " + (iso ? "ok" : "err");
+  return iso;
+}
+
+async function checkDuplicate() {
+  const warn = $("dup-warn"), id = pf("mrn").value.trim();
+  warn.hidden = true;
+  if (!id) return;
+  try {
+    const found = (await api(`/api/patients/search?q=${encodeURIComponent(id)}`)).find(h => h.mrn === id);
+    if (!found) return;
+    warn.innerHTML = `이미 등록된 ID입니다: <b>${R.esc(found.name)}</b> (${found.birth_date || "-"}, ${R.esc(R.sexAge(found))})
+      <button class="btn small" type="button" id="use-dup">이 환자로 선택</button>`;
+    warn.hidden = false;
+    $("use-dup").onclick = () => selectPatient(found);
+  } catch (e) { /* the save itself will report a duplicate */ }
+}
+
+function startNew(q) {
+  mode = "new"; patient = null; editingVisit = null;
+  pNew.reset(); $("dup-warn").hidden = true; readBirth();
+  pNew.querySelectorAll(".invalid").forEach(el => el.classList.remove("invalid"));
+  const pre = R.classifyQuery(q);
+  if (pre.mrn) pf("mrn").value = pre.mrn;
+  if (pre.name) pf("name").value = pre.name;
+  if (pre.birth) { pf("birth").value = pre.birth; readBirth(); }
+  qIn.value = ""; lastQ = ""; hits = [];
+  $("p-actions").innerHTML = `<button class="btn small" type="button" id="cancel-new">취소</button>`;
+  $("cancel-new").onclick = resetAll;
+  showPatientPane("new");
+  resetVisitForm();
+  $("prefill-note").textContent = "신규 환자 — 이번 검사 정보를 입력하세요.";
+  markEditingRow();
+  if (pre.mrn) checkDuplicate();
+  const first = ["mrn", "name", "birth"].find(n => !pf(n).value.trim());
+  (first ? pf(first) : pNew.querySelector("input[name=sex]")).focus();
+}
+
+function collectPatient() {
+  const f = pNew, need = [];
+  const mrn = pf("mrn").value.trim(), name = pf("name").value.trim(), birth = readBirth();
+  const sex = (f.querySelector("input[name=sex]:checked") || {}).value;
+  if (!mrn) need.push([pf("mrn"), "ID"]);
+  if (!name) need.push([pf("name"), "이름"]);
+  if (!birth) need.push([pf("birth"), "생년월일"]);
+  if (!sex) need.push([f.querySelector("input[name=sex]"), "성별"]);
+  if (need.length) throw formError(need);
+  const out = { mrn, name, birth_date: birth, sex };
+  for (const s of EXTRA_SPEC) {
+    let v = f.elements[s.n].value;
+    if (v === "" || v == null) continue;
+    if (s.t === "bool") v = v === "true";
+    out[s.n] = v;
+  }
+  return out;
+}
+
+/* ---- visit form ----------------------------------------------------------- */
+const vForm = $("v-form");
+const testBoxes = () => [...document.querySelectorAll("#tests input")];
+
+function formError(list) {
+  list.forEach(([el]) => (el.closest(".seg") || el).classList.add("invalid"));
+  const e = new Error("필수 항목을 입력하세요: " + list.map(x => x[1]).join(", "));
+  e.focus = list[0][0];
+  return e;
+}
+
+function resetVisitForm() {
+  if (!vForm) return;
+  vForm.reset();
+  vForm.querySelectorAll(".invalid").forEach(el => el.classList.remove("invalid"));
+  $("tests").closest(".rx-tests").classList.remove("invalid-group");
+  vForm.querySelectorAll(".hint").forEach(b => { b.hidden = true; b.textContent = ""; });
+  vf("visit_date").value = R.localISODate();
+  vf("operator").value = ME;
+  applyDefaults();
+  $("prefill-note").textContent = "";
+  setEditing(false);
+  updateCondSummary();
+  setMsg("v-msg", "", "");
+}
+
+function applyDefaults() {  // recording conditions used at the last reception
+  const d = opts.defaults || {};
+  if (d.dark_adapt_min != null) vf("dark_adapt_min").value = d.dark_adapt_min;
+  if (d.light_adapt_min != null) vf("light_adapt_min").value = d.light_adapt_min;
+  if (d.electrode) vf("electrode").value = d.electrode;
+}
+
+/* Carry forward what usually stays the same; offer (not fill) the last
+   acuity and pupil size, which must be measured again each visit. */
+function prefillFromLast(v) {
+  if (!v) { $("prefill-note").textContent = "첫 방문 — 이번 검사 정보를 입력하세요."; return; }
+  for (const n of ["attending_doctor", "diagnosis", "electrode", "refraction",
+                   "dark_adapt_min", "light_adapt_min"])
+    if (v[n] != null && v[n] !== "") vf(n).value = v[n];
+  testBoxes().forEach(b => { b.checked = (v.tests || []).includes(b.value); });
+  for (const n of ["va_od", "va_os", "pupil_od", "pupil_os"]) {
+    const b = vForm.querySelector(`.hint[data-f=${n}]`);
+    if (v[n] == null || v[n] === "") continue;
+    b.textContent = `지난번 ${v[n]}${n.startsWith("pupil") ? " mm" : ""} — 누르면 입력`;
+    b.dataset.v = v[n]; b.hidden = false;
+  }
+  $("prefill-note").textContent = `지난 접수(${v.visit_date}) 값으로 채웠습니다 — 확인 후 수정하세요.`;
+  updateCondSummary();
+}
+
+function fillVisit(v) {  // load a saved visit for editing
+  for (const n of ["visit_date", "attending_doctor", "diagnosis", "operator", "va_od", "va_os",
+                   "pupil_od", "pupil_os", "dark_adapt_min", "light_adapt_min", "electrode",
+                   "refraction", "note"])
+    vf(n).value = v[n] == null ? "" : v[n];
+  testBoxes().forEach(b => { b.checked = (v.tests || []).includes(b.value); });
+  updateCondSummary();
+}
+
+function focusFirstVisitGap() {
+  const order = ["attending_doctor", "diagnosis"];
+  const gap = order.find(n => !vf(n).value.trim());
+  if (gap) return vf(gap).focus();
+  if (!testBoxes().some(b => b.checked)) return testBoxes()[0].focus();
+  vf("va_od").focus();
+}
+
+function updateCondSummary() {
+  if (!vForm) return;
+  const f = vForm, bits = [];
+  if (vf("dark_adapt_min").value) bits.push(`암순응 ${vf("dark_adapt_min").value}분`);
+  if (vf("light_adapt_min").value) bits.push(`명순응 ${vf("light_adapt_min").value}분`);
+  if (vf("electrode").value) bits.push(`전극 ${vf("electrode").value}`);
+  if (vf("refraction").value) bits.push(`굴절교정 ${vf("refraction").value}`);
+  $("cond-sum").textContent = bits.length ? "— " + bits.join(" · ") : "— 미입력";
+}
+
+function collectVisit() {
+  const f = vForm, need = [];
+  const tests = testBoxes().filter(b => b.checked).map(b => b.value);
+  if (!vf("attending_doctor").value.trim()) need.push([vf("attending_doctor"), "담당의"]);
+  if (!vf("diagnosis").value.trim()) need.push([vf("diagnosis"), "진단명"]);
+  if (!tests.length) {
+    $("tests").closest(".rx-tests").classList.add("invalid-group");
+    need.push([testBoxes()[0], "검사 항목"]);
+  }
+  if (need.length) throw formError(need);
+  const txt = (n) => vf(n).value.trim() || null;
+  const num = (n) => vf(n).value === "" ? null : Number(vf(n).value);
+  return {
+    visit_date: vf("visit_date").value || null, attending_doctor: txt("attending_doctor"),
+    diagnosis: txt("diagnosis"), tests, operator: txt("operator"),
+    va_od: txt("va_od"), va_os: txt("va_os"), pupil_od: num("pupil_od"), pupil_os: num("pupil_os"),
+    dark_adapt_min: num("dark_adapt_min"), light_adapt_min: num("light_adapt_min"),
+    electrode: txt("electrode"), refraction: txt("refraction"), note: txt("note"),
+  };
+}
+
+function setEditing(on) {
+  if (!vForm) return;
+  $("save-only").textContent = on ? "수정 저장" : "저장만 (대기)";
+  if ($("save-start")) $("save-start").textContent = on ? "수정 저장하고 검사 ▶" : "저장하고 검사 시작 ▶";
+  $("cancel-edit").hidden = !on;
+}
+
+async function save(start) {
+  setMsg("v-msg", "", "");
+  try {
+    let pData = null;
+    if (mode === "new") pData = collectPatient();
+    else if (mode !== "existing") throw new Error("먼저 환자를 선택하거나 등록하세요.");
+    const visit = collectVisit();
+    let res;
+    if (editingVisit) {
+      const v = await api(`/api/visits/${editingVisit.id}`, { method: "PUT", body: visit });
+      res = { patient: patient, visit: v };
+    } else {
+      res = await api("/api/reception", { method: "POST",
+        body: pData ? { patient: pData, visit } : { patient_id: patient.id, visit } });
+    }
+    if (start) { location.href = `/exam/new?patient_id=${res.patient.id}&visit_id=${res.visit.id}`; return; }
+    const name = res.patient.name, tests = res.visit.tests.join(", "), wasEdit = !!editingVisit;
+    resetAll();
+    setMsg("v-msg", `${wasEdit ? "수정됨" : "접수됨"}: ${name} (${tests})`, "ok");
+    loadToday(); loadOptions();
+  } catch (e) {
+    setMsg("v-msg", e.message, "err");
+    if (e.focus) e.focus.focus();
+    if (/이미 등록된/.test(e.message)) checkDuplicate();
+  }
+}
+
+if (vForm) {
+  if ($("save-start")) $("save-start").addEventListener("click", () => save(true));
+  $("save-only").addEventListener("click", () => save(false));
+  $("cancel-edit").addEventListener("click", resetAll);
+  vForm.addEventListener("submit", (e) => { e.preventDefault(); save(CAN_RUN); });
+  vForm.addEventListener("input", (e) => {
+    e.target.classList.remove("invalid");
+    if (e.target.closest("#tests")) $("tests").closest(".rx-tests").classList.remove("invalid-group");
+    updateCondSummary();
+  });
+  vForm.addEventListener("click", (e) => {
+    const b = e.target.closest(".hint"); if (!b) return;
+    vf(b.dataset.f).value = b.dataset.v; b.hidden = true;
+  });
+}
+
+function resetAll() {
+  mode = "none"; patient = null; editingVisit = null;
+  $("p-actions").innerHTML = "";
+  showPatientPane("empty");
+  resetVisitForm();
+  if (vForm) $("prefill-note").textContent = "먼저 환자를 선택하거나 등록하세요.";
+  markEditingRow();
+  qIn.value = ""; lastQ = ""; hits = []; closeResults();
+  qIn.focus();
+}
+
+/* ---- options (doctor / diagnosis / electrode suggestions) ---------------- */
+async function loadOptions() {
+  try { opts = await api("/api/visits/options"); } catch (e) { return; }
+  const fill = (id, list) => { $(id).innerHTML = list.map(v => `<option value="${R.esc(v)}">`).join(""); };
+  fill("dl-doctors", opts.doctors); fill("dl-dx", opts.diagnoses); fill("dl-electrode", opts.electrodes);
+  if (vForm && mode === "none") { applyDefaults(); updateCondSummary(); }
+}
+
+/* ---- today's worklist ----------------------------------------------------- */
+let today = [];
+async function loadToday() {
+  try { today = await api(`/api/visits?on=${R.localISODate()}`); }
+  catch (e) { $("today-rows").innerHTML = `<tr><td colspan="8" class="msg err">${R.esc(e.message)}</td></tr>`; return; }
+  $("today-count").textContent = today.length;
+  $("today-rows").innerHTML = today.map((v, i) => {
+    const done = new Set(v.exams.map(e => e.test_type));
+    const tests = v.tests.map(t => `<span class="${done.has(t) ? "t-done" : "t-todo"}">${done.has(t) ? "✓" : "·"} ${TEST_LABEL[t] || t}</span>`).join(" ");
+    const state = v.exams.length ? `<span class="state done">검사 ${v.exams.length}건</span>` : `<span class="state wait">대기</span>`;
+    const time = fmtDateTime(v.created_at, { hour: "2-digit", minute: "2-digit" });
+    const acts = [
+      CAN_RUN ? `<a class="btn small primary" href="/exam/new?patient_id=${v.patient.id}&visit_id=${v.id}">검사 ▶</a>` : "",
+      CAN_EDIT ? `<button class="btn small" type="button" data-edit="${i}">수정</button>` : "",
+      CAN_EDIT && !v.exams.length ? `<button class="btn small ghost" type="button" data-del="${i}" title="접수 취소">✕</button>` : "",
+    ].join("");
+    return `<tr data-vid="${v.id}"><td>${time}</td><td>${R.esc(v.patient.mrn)}</td>
+      <td><a href="/patients/${v.patient.id}">${R.esc(v.patient.name)}</a></td>
+      <td>${R.esc(R.sexAge(v.patient)) || "-"}</td><td>${tests || "-"}</td>
+      <td>${R.esc(v.attending_doctor || "-")}</td><td>${state}</td>
+      <td><div class="rx-row-actions">${acts}</div></td></tr>`;
+  }).join("") || `<tr><td colspan="8" class="muted">오늘 접수된 환자가 없습니다.</td></tr>`;
+  markEditingRow();
+}
+
+$("today-rows").addEventListener("click", async (e) => {
+  const ed = e.target.closest("[data-edit]"), del = e.target.closest("[data-del]");
+  if (ed) {
+    const v = today[+ed.dataset.edit];
+    const p = { ...v.patient, visit_count: 0 };
+    mode = "existing"; patient = p; editingVisit = v;
+    renderPatientSummary(p, true);
+    try {   // fill the history line from the search summary
+      const h = (await api(`/api/patients/search?q=${encodeURIComponent(p.mrn)}`)).find(x => x.id === p.id);
+      if (h && editingVisit === v) { patient = h; renderPatientSummary(h, true); }
+    } catch (err) {}
+    showPatientPane("existing");
+    resetVisitForm(); fillVisit(v); setEditing(true);
+    $("prefill-note").textContent = `${v.visit_date} 접수 수정 중`;
+    markEditingRow();
+    vf("va_od").focus();
+  } else if (del) {
+    const v = today[+del.dataset.del];
+    if (!confirm(`${v.patient.name} 님의 접수를 취소할까요?`)) return;
+    try { await api(`/api/visits/${v.id}`, { method: "DELETE" }); if (editingVisit && editingVisit.id === v.id) resetAll(); loadToday(); }
+    catch (err) { alert(err.message); }
+  }
+});
+$("today-refresh").addEventListener("click", loadToday);
+function markEditingRow() {
+  document.querySelectorAll("#today-rows tr").forEach(tr =>
+    tr.classList.toggle("editing", !!editingVisit && +tr.dataset.vid === editingVisit.id));
+}
+
+/* ---- start ------------------------------------------------------------------ */
+showPatientPane("empty");
+loadOptions().then(() => {
+  const pid = new URLSearchParams(location.search).get("patient_id");
+  if (pid) selectPatientById(pid);
+});
+loadToday();
+</script>
+{% endblock %}

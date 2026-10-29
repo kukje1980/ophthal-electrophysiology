@@ -1,8 +1,8 @@
 """Real-time waveform streaming to the browser over a WebSocket.
 
-Streams samples from the selected amplifier driver, marks trigger positions
-(for trigger-synchronised averaging on the client) and periodically reports
-live electrode impedance.
+Streams samples from the selected amplifier driver (one row per signal
+channel, e.g. OD and OS), marks trigger positions (for trigger-synchronised
+averaging on the client) and periodically reports live electrode impedance.
 
 Robustness: driver calls (open / read / close) run on one dedicated worker
 thread, so a slow serial port, DAQ or network device can never stall the
@@ -16,8 +16,10 @@ import math
 import time
 from concurrent.futures import ThreadPoolExecutor
 
+import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from app.acquisition.hw_streams import discover_nidaq
 from app.acquisition.streaming import get_live_stream, list_stream_drivers
 
 router = APIRouter(tags=["live"])
@@ -25,6 +27,12 @@ log = logging.getLogger("app.live")
 
 PUSH_INTERVAL_S = 0.05   # ~20 pushes / second
 HEARTBEAT_S = 2.0        # send something at least this often
+
+
+@router.get("/api/live/daq")
+def daq_devices():
+    """NI-DAQmx devices attached to this PC, for the connection builder."""
+    return discover_nidaq()
 
 
 @router.websocket("/ws/live")
@@ -58,7 +66,8 @@ async def live_stream(ws: WebSocket):
         period = stream.trigger_period_samples
         await ws.send_json({
             "type": "meta", "fs": stream.sampling_rate, "device": stream.name,
-            "channels": stream.channels, "drivers": list_stream_drivers(),
+            "channels": stream.channels, "signals": stream.signals,
+            "drivers": list_stream_drivers(),
             "active": stream.name,
             "period_ms": (period / stream.sampling_rate * 1000.0) if period else None,
         })
@@ -68,7 +77,7 @@ async def live_stream(ws: WebSocket):
         last_send = time.monotonic()
         while True:
             try:
-                chunk = await call(stream.read)
+                chunk = np.atleast_2d(await call(stream.read))  # (signals, n)
             except Exception as e:  # noqa: BLE001 - device unplugged, transport dropped…
                 log.warning("live stream %s read failed: %s", stream.name, e)
                 await ws.send_json({"type": "error", "phase": "read",
@@ -77,19 +86,20 @@ async def live_stream(ws: WebSocket):
                 await ws.close(code=1011)
                 return
             now = time.monotonic()
-            if chunk.size:
+            n = chunk.shape[1]
+            if n:
                 triggers = []
                 if period:  # periodic trigger (simulator)
                     k = math.ceil(total / period) * period
-                    while k < total + chunk.size:
+                    while k < total + n:
                         triggers.append(int(k - total))
                         k += period
                 else:       # event-based triggers detected by the driver
                     triggers = list(getattr(stream, "last_triggers", []))
-                total += int(chunk.size)
+                total += n
                 await ws.send_json({
                     "type": "data",
-                    "samples": [round(float(v), 2) for v in chunk],
+                    "samples": [[round(float(v), 2) for v in row] for row in chunk],
                     "triggers": triggers,
                 })
                 last_send = now

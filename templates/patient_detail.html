@@ -25,10 +25,19 @@
 </section>
 
 <div class="row-between" style="margin-top:26px">
-  <h2>검사 기록 (Exams)</h2>
-  {% if 'run_exam' in perms %}
-  <a class="btn primary" href="/exam/new?patient_id={{ patient.id }}">+ 새 검사</a>
+  <h2>방문 이력 (Visits)</h2>
+  {% if 'edit_patient' in perms %}
+  <a class="btn primary" href="/?patient_id={{ patient.id }}">+ 검사 접수</a>
   {% endif %}
+</div>
+<table class="table">
+  <thead><tr><th>검사일</th><th>담당의</th><th>진단 / 사유</th><th>교정시력 OD / OS</th>
+    <th>동공 OD / OS</th><th>검사</th></tr></thead>
+  <tbody id="visit-rows"></tbody>
+</table>
+
+<div class="row-between" style="margin-top:26px">
+  <h2>검사 기록 (Exams)</h2>
 </div>
 <table class="table">
   <thead><tr><th>일시</th><th>검사</th><th>프로토콜</th><th></th></tr></thead>
@@ -97,7 +106,7 @@ async function loadExams() {
                                           { withMeta: true });
   document.getElementById("exam-rows").innerHTML = rows.map(e => `
     <tr>
-      <td>${new Date(e.performed_at).toLocaleString()}</td>
+      <td>${fmtDateTime(e.performed_at)}</td>
       <td><span class="tag">${esc(e.test_type)}</span></td>
       <td>${esc(e.protocol)}</td>
       <td><a class="btn small" href="/reports/${e.id}">리포트</a></td>
@@ -108,7 +117,24 @@ async function loadExams() {
       `<tr><td colspan="4" class="muted">최근 ${rows.length}건 표시 (전체 ${total}건)</td></tr>`);
 }
 
+async function loadVisits() {
+  const one = (x, unit) => x == null || x === "" ? "-" : x + unit;
+  const pair = (a, b, unit) => one(a, unit) === "-" && one(b, unit) === "-" ? "-"
+    : `${one(a, unit)} / ${one(b, unit)}`;
+  const rows = await api(`/api/visits?patient_id=${PID}`);
+  document.getElementById("visit-rows").innerHTML = rows.map(v => {
+    const done = v.exams.map(e => `<a class="tag" href="/reports/${e.id}">${e.test_type}</a>`).join(" ");
+    const todo = v.tests.filter(t => !v.exams.some(e => e.test_type === t))
+      .map(t => `<span class="muted">${t}</span>`).join(" ");
+    return `<tr><td>${esc(v.visit_date)}</td><td>${esc(v.attending_doctor || "-")}</td>
+      <td>${esc(v.diagnosis || "-")}</td><td>${esc(pair(v.va_od, v.va_os, ""))}</td>
+      <td>${pair(v.pupil_od, v.pupil_os, " mm")}</td>
+      <td>${[done, todo].filter(Boolean).join(" ") || "-"}</td></tr>`;
+  }).join("") || `<tr><td colspan="6" class="muted">접수 기록이 없습니다.</td></tr>`;
+}
+
 loadPatient();
+loadVisits();
 loadExams();
 </script>
 {% endblock %}

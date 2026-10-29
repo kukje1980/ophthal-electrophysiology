@@ -76,6 +76,7 @@ const ROLE_LABEL = {{ roles | tojson }}.reduce((m,[v,l])=>(m[v]=l,m), {});
 
 const fmtBytes = (n) => n == null ? "-" : n < 1048576 ? (n/1024).toFixed(0) + " KB"
   : n < 1073741824 ? (n/1048576).toFixed(1) + " MB" : (n/1073741824).toFixed(2) + " GB";
+// backup times are local; database times are UTC (fmtDateTime)
 const fmtTime = (t) => t ? new Date(t).toLocaleString() : "-";
 const TAG_LABEL = { auto: "자동", manual: "수동", "pre-restore": "복원 전 사본",
                     "pre-migration": "업그레이드 전 사본" };
@@ -190,11 +191,11 @@ async function loadTrash() {
     ...t.patients.map(p => ({ kind: "환자", url: `/api/trash/patients/${p.id}/restore`,
       label: `${esc(p.name)} <span class="muted">#${esc(p.mrn)}</span>`, at: p.deleted_at, by: p.deleted_by })),
     ...t.exams.map(e => ({ kind: "검사", url: `/api/trash/exams/${e.id}/restore`,
-      label: `${esc(e.test_type)} · ${esc(e.protocol)} <span class="muted">${esc(e.patient_name || "")} · ${fmtTime(e.performed_at)}</span>`,
+      label: `${esc(e.test_type)} · ${esc(e.protocol)} <span class="muted">${esc(e.patient_name || "")} · ${fmtDateTime(e.performed_at)}</span>`,
       at: e.deleted_at, by: e.deleted_by })),
   ];
   document.getElementById("trash-rows").innerHTML = rows.map(r => `
-    <tr><td>${r.kind}</td><td>${r.label}</td><td>${fmtTime(r.at)}</td><td>${esc(r.by || "-")}</td>
+    <tr><td>${r.kind}</td><td>${r.label}</td><td>${fmtDateTime(r.at)}</td><td>${esc(r.by || "-")}</td>
       <td><button class="btn small" data-untrash="${r.url}">복원</button></td></tr>`).join("")
     || `<tr><td colspan="5" class="muted">휴지통이 비어 있습니다.</td></tr>`;
   document.querySelectorAll("[data-untrash]").forEach(btn => btn.addEventListener("click", async () => {
@@ -213,7 +214,7 @@ async function loadUsers() {
       <td>${esc(u.full_name || "-")}</td>
       <td>${ROLE_LABEL[u.role] || u.role}</td>
       <td>${u.is_active ? "활성" : "<span class='muted'>비활성</span>"}</td>
-      <td>${u.last_login ? new Date(u.last_login).toLocaleString() : "-"}</td>
+      <td>${u.last_login ? fmtDateTime(u.last_login) : "-"}</td>
       <td>
         <button class="btn small" data-toggle="${u.id}" data-active="${u.is_active}">
           ${u.is_active ? "비활성화" : "활성화"}</button>
@@ -231,7 +232,7 @@ async function loadAudit() {
   const rows = await api("/api/audit?limit=100");
   document.getElementById("audit-rows").innerHTML = rows.map(a => `
     <tr>
-      <td>${new Date(a.at).toLocaleString()}</td>
+      <td>${fmtDateTime(a.at, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</td>
       <td>${esc(a.username || "-")}</td>
       <td><span class="tag">${esc(a.action)}</span></td>
       <td>${a.entity ? esc(a.entity) + (a.entity_id ? " #" + a.entity_id : "") : "-"}</td>

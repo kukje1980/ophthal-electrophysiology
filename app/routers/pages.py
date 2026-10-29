@@ -1,4 +1,6 @@
 """HTML pages (server-rendered shells; data is fetched via the JSON API)."""
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -6,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.crud import exam as exam_crud
 from app.crud import patient as patient_crud
+from app.crud import visit as visit_crud
 from app.database import get_db
 from app.iscev import TEST_TYPES
 from app.security import ROLES, current_user, has_permission
@@ -29,6 +32,13 @@ def _ctx(request: Request, user, **extra) -> dict:
 
 
 @router.get("/", response_class=HTMLResponse)
+def reception_page(request: Request, user=Depends(current_user)):
+    """검사 접수 — the start screen: find or register the patient, record
+    this visit's details, then start the exam."""
+    return templates.TemplateResponse("reception.html", _ctx(request, user))
+
+
+@router.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request, db: Session = Depends(get_db),
               user=Depends(current_user)):
     recent = exam_crud.list_recent(db, limit=15)
@@ -62,13 +72,17 @@ def stimulus_monitor(request: Request, user=Depends(current_user)):
 
 
 @router.get("/exam/new", response_class=HTMLResponse)
-def exam_new(patient_id: int, request: Request,
+def exam_new(patient_id: int, request: Request, visit_id: Optional[int] = None,
              db: Session = Depends(get_db), user=Depends(current_user)):
     p = patient_crud.get(db, patient_id)
     if not p:
         raise HTTPException(404, "Patient not found")
+    visit = visit_crud.get(db, visit_id) if visit_id else None
+    if visit is not None and visit.patient_id != p.id:
+        visit = None
     return templates.TemplateResponse("exam.html", _ctx(
-        request, user, patient=p, test_types=TEST_TYPES,
+        request, user, patient=p, test_types=TEST_TYPES, visit=visit,
+        visit_tests=[t for t in (visit.tests or "").split(",") if t] if visit else [],
     ))
 
 
@@ -80,7 +94,7 @@ def report_view(exam_id: int, request: Request,
     if not e:
         raise HTTPException(404, "Exam not found")
     return templates.TemplateResponse("report.html", _ctx(
-        request, user, exam_id=exam_id, embed=False,
+        request, user, exam_id=exam_id, patient_id=e.patient_id, embed=False,
     ))
 
 

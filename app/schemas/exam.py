@@ -19,6 +19,7 @@ class ExamCreate(BaseModel):
     eyes: List[Eye] = Field(["OD", "OS"], min_length=1, max_length=2)
     operator: Optional[str] = Field(None, max_length=64)
     note: Optional[str] = Field(None, max_length=512)
+    visit_id: Optional[int] = None  # reception this exam belongs to
 
 
 class ExamRecord(BaseModel):
@@ -33,7 +34,9 @@ class ExamRecord(BaseModel):
     sampling_rate: float = Field(..., gt=0, le=1_000_000)  # Hz of the provided samples
     duration_ms: float = Field(..., gt=0, le=600_000)      # length of the provided epoch
     n_sweeps: int = Field(1, ge=1)
+    n_rejected: int = Field(0, ge=0)  # epochs dropped by artifact rejection
     exam_id: Optional[int] = None
+    visit_id: Optional[int] = None  # reception, when a new exam is created
     device: Optional[str] = Field(None, max_length=64)
     operator: Optional[str] = Field(None, max_length=64)
     note: Optional[str] = Field(None, max_length=512)
@@ -44,6 +47,7 @@ class ExamSummary(BaseModel):
 
     id: int
     patient_id: int
+    visit_id: Optional[int] = None
     test_type: str
     protocol: str
     device: Optional[str] = None

@@ -10,13 +10,16 @@ Coverage:
   * ``biosemi-tcp``  — BioSemi ActiveTwo / ActiView raw TCP stream. Functional.
   * ``serial-csv``   — generic serial device emitting ASCII sample lines.
                        Functional.
+  * ``nidaq``        — NI-DAQmx analog input for an analog preamplifier
+                       (OD/OS channels + trigger line). Functional;
+                       :func:`discover_nidaq` lists the attached devices.
   * ``gtec`` / ``ced`` — vendor-SDK devices; skeletons (SDK required).
 """
 from __future__ import annotations
 
 import numpy as np
 
-from app.acquisition.streaming import SampleStream, register_stream
+from app.acquisition.streaming import SampleStream, register_stream, split_options
 
 
 class LSLSampleStream(SampleStream):
@@ -154,34 +157,33 @@ class SerialCsvStream(SampleStream):
 
 def _parse_daq(conn: str):
     """Parse 'Dev1/ai0,Dev1/ai1@2000;gain=10000;trig=Dev1/ai2;thr=1.0'."""
-    parts = [p for p in conn.split(";") if p.strip()]
-    head = parts[0] if parts else "Dev1/ai0@2000"
-    chans, _, rate = head.partition("@")
+    head, opts = split_options(conn)
+    chans, _, rate = (head or "Dev1/ai0@2000").partition("@")
     channels = [c.strip() for c in chans.split(",") if c.strip()] or ["Dev1/ai0"]
     rate = float(rate) if rate else 2000.0
-    opts = {}
-    for p in parts[1:]:
-        if "=" in p:
-            k, v = p.split("=", 1)
-            opts[k.strip()] = v.strip()
     return channels, rate, opts
 
 
 class NiDaqSampleStream(SampleStream):
     """National Instruments DAQ analog input — the digitiser for an analog
     preamplifier such as a Grass (P511 / CP511 / Model 15). Wire the Grass BNC
-    outputs to the DAQ analog inputs; optionally feed the stimulator TTL into a
-    spare analog input as the trigger.
+    outputs to the DAQ analog inputs (first = OD, second = OS); optionally
+    feed the stimulator TTL into a spare analog input as the trigger.
 
-    connection: ``<sig chans>@<rate>[;gain=G][;trig=<chan>][;thr=<volts>]``
+    connection: ``<sig chans>@<rate>[;gain=G[,G2]][;trig=<chan>][;thr=<volts>]``
+                ``[;edge=rise|fall][;eyes=OD,OS][;range=<volts>]``
                 ``[;diff=1][;notch=60][;hp=0.3]``
       e.g. ``Dev1/ai0,Dev1/ai1@2000;gain=10000;trig=Dev1/ai7;thr=1.0;diff=1;notch=60``
 
-    ``gain`` is the Grass amplifier gain, used to refer samples back to input
-    microvolts (µV = DAQ_volts / gain × 1e6). ``diff=1`` selects differential
-    inputs (common-mode noise rejection; wire +/- pairs). ``notch`` adds a
-    stateful mains notch (Hz) and ``hp`` a DC-blocking high-pass (Hz) to the
-    streamed signal. Requires ``nidaqmx`` + NI-DAQmx.
+    ``gain`` is the Grass amplifier gain — one value for all channels or one
+    per channel — used to refer samples back to input microvolts
+    (µV = DAQ_volts / gain × 1e6). ``eyes`` labels the signal channels
+    (default OD, OS). ``range`` is the DAQ input range in volts (default ±5).
+    ``edge=fall`` detects an active-low trigger. ``diff=1`` selects
+    differential signal inputs (common-mode noise rejection; wire +/- pairs;
+    the trigger stays single-ended).
+    ``notch`` adds a stateful mains notch (Hz) and ``hp`` a DC-blocking
+    high-pass (Hz) to each channel. Requires ``nidaqmx`` + NI-DAQmx.
     """
 
     name = "nidaq"
@@ -193,29 +195,45 @@ class NiDaqSampleStream(SampleStream):
         from app.acquisition.filters import DCBlock, FilterChain, Notch
 
         sig, rate, opts = _parse_daq(self.connection)
-        self._gain = float(opts.get("gain", 1.0))
+        gains = [float(g) for g in opts.get("gain", "1").split(",") if g.strip()]
+        if len(gains) == 1:
+            gains *= len(sig)
+        if len(gains) != len(sig):
+            raise ValueError("gain= needs one value or one per signal channel")
+        self._gain = np.asarray(gains, dtype=float)[:, None]
         self.sampling_rate = rate
         trig = opts.get("trig")
         self._thr = float(opts.get("thr", 1.0))
+        self._falling = opts.get("edge") == "fall"
+        self._last_trig_v = None
+        vmax = float(opts.get("range", 5.0))
         term = (TerminalConfiguration.DIFF if opts.get("diff") in ("1", "true")
                 else TerminalConfiguration.RSE)
         notch = float(opts["notch"]) if opts.get("notch") else None
         hp = float(opts["hp"]) if opts.get("hp") else None
-        self._filters = FilterChain(
+        # filters are stateful, so each channel gets its own chain
+        self._filters = [FilterChain(
             DCBlock(rate, hp) if hp else None,
             Notch(rate, notch) if notch else None,
-        )
+        ) for _ in sig]
 
-        chans = list(sig)
-        self._trig_index = None
-        if trig:
-            self._trig_index = len(chans)
-            chans.append(trig)
+        labels = [e.strip() for e in opts.get("eyes", "").split(",") if e.strip()]
+        default = ["OD", "OS"]
+        self.signals = [labels[i] if i < len(labels)
+                        else default[i] if i < len(default) else f"ch{i + 1}"
+                        for i in range(len(sig))]
 
         self._task = nidaqmx.Task()
-        for ch in chans:
+        for ch in sig:
             self._task.ai_channels.add_ai_voltage_chan(
-                ch, terminal_config=term, min_val=-5.0, max_val=5.0)
+                ch, terminal_config=term, min_val=-vmax, max_val=vmax)
+        self._trig_index = None
+        if trig:  # a TTL is ground-referenced (single-ended) and up to 5 V
+            self._trig_index = len(sig)
+            tmax = max(vmax, 5.0)
+            self._task.ai_channels.add_ai_voltage_chan(
+                trig, terminal_config=TerminalConfiguration.RSE,
+                min_val=-tmax, max_val=tmax)
         self._task.timing.cfg_samp_clk_timing(
             rate, sample_mode=AcquisitionType.CONTINUOUS,
             samps_per_chan=int(rate))
@@ -224,31 +242,85 @@ class NiDaqSampleStream(SampleStream):
         self._task.start()
         self.running = True
 
+    def _edges(self, trig_row: np.ndarray) -> list:
+        """Trigger edges in this chunk, including one that falls between the
+        previous chunk's last sample and this chunk's first."""
+        prev = np.empty_like(trig_row)
+        prev[0] = trig_row[0] if self._last_trig_v is None else self._last_trig_v
+        prev[1:] = trig_row[:-1]
+        self._last_trig_v = float(trig_row[-1])
+        if self._falling:
+            hit = (prev > self._thr) & (trig_row <= self._thr)
+        else:
+            hit = (prev < self._thr) & (trig_row >= self._thr)
+        return [int(i) for i in np.where(hit)[0]]
+
     def read(self) -> np.ndarray:
         n = self._task.in_stream.avail_samp_per_chan
         if n <= 0:
             self.last_triggers = []
-            return np.empty(0)
+            return np.empty((self._nsig, 0))
         data = self._task.read(number_of_samples_per_channel=int(n))
-        arr = np.asarray(data, dtype=float)
-        if arr.ndim == 1:  # single channel
-            sig, trig_row = arr, None
-        else:
-            sig = arr[0]  # first signal channel (e.g. OD) for display
-            trig_row = arr[self._trig_index] if self._trig_index is not None else None
-        if trig_row is not None and trig_row.size > 1:
-            rising = np.where((trig_row[:-1] < self._thr) &
-                              (trig_row[1:] >= self._thr))[0] + 1
-            self.last_triggers = [int(i) for i in rising]
+        arr = np.atleast_2d(np.asarray(data, dtype=float))  # (channels, n)
+        sig = arr[:self._nsig]
+        if self._trig_index is not None and arr.shape[1]:
+            self.last_triggers = self._edges(arr[self._trig_index])
         else:
             self.last_triggers = []
-        return self._filters.process(sig / self._gain * 1e6)  # volts -> µV
+        uv = sig / self._gain * 1e6  # volts -> input µV
+        return np.vstack([f.process(row) for f, row in zip(self._filters, uv)])
 
     def close(self) -> None:
         try:
             self._task.close()
         finally:
             self.running = False
+
+
+def discover_nidaq() -> dict:
+    """List the NI-DAQmx devices attached to this PC (for the connection
+    builder on the Live page). Never raises: when the ``nidaqmx`` package or
+    the NI-DAQmx runtime is missing, ``available`` is False with a reason."""
+    try:
+        import nidaqmx.system  # lazy
+    except ImportError:
+        return {"available": False, "devices": [],
+                "reason": "nidaqmx 패키지가 없습니다 — pip install nidaqmx 후 "
+                          "ni.com의 NI-DAQmx 드라이버(런타임)를 설치하세요."}
+    try:
+        system = nidaqmx.system.System.local()
+        devices = [_describe_nidaq(d) for d in system.devices]
+    except Exception as e:  # noqa: BLE001 - runtime missing / driver error
+        return {"available": False, "devices": [],
+                "reason": f"NI-DAQmx 드라이버(런타임)에 접근할 수 없습니다: "
+                          f"{type(e).__name__}: {e}"}
+    try:
+        v = system.driver_version
+        version = f"{v.major_version}.{v.minor_version}.{v.update_version}"
+    except Exception:  # noqa: BLE001
+        version = None
+    return {"available": True, "driver_version": version, "devices": devices}
+
+
+def _describe_nidaq(dev) -> dict:
+    def attr(name, default=None):
+        try:
+            return getattr(dev, name)
+        except Exception:  # noqa: BLE001 - property unsupported on this model
+            return default
+
+    serial = attr("dev_serial_num")
+    rngs = list(attr("ai_voltage_rngs") or [])
+    return {
+        "name": dev.name,
+        "product_type": attr("product_type", ""),
+        "serial": f"{serial:X}" if isinstance(serial, int) else serial,
+        "simulated": bool(attr("dev_is_simulated", False)),
+        "ai_channels": [c.name for c in (attr("ai_physical_chans") or [])],
+        "ai_max_single_rate": attr("ai_max_single_chan_rate"),
+        "ai_max_multi_rate": attr("ai_max_multi_chan_rate"),
+        "ai_ranges_v": [rngs[i:i + 2] for i in range(0, len(rngs) - 1, 2)],
+    }
 
 
 class GtecStream(SampleStream):

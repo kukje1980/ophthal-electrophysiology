@@ -1,8 +1,26 @@
 {% extends "base.html" %}
 {% block title %}New exam · {{ patient.name }}{% endblock %}
 {% block content %}
-<a class="back" href="/patients/{{ patient.id }}">← {{ patient.name }}</a>
-<h1>New exam <span class="muted">{{ patient.name }}</span></h1>
+<a class="back" href="{{ '/' if visit else '/patients/' ~ patient.id }}">← {{ '검사 접수' if visit else patient.name }}</a>
+<h1>New exam <span class="muted">{{ patient.name }} #{{ patient.mrn }}</span></h1>
+
+{% if visit %}
+<section class="card visit-banner">
+  <div class="row-between">
+    <div>
+      <b>접수 {{ visit.visit_date }}</b> · 담당 {{ visit.attending_doctor or '-' }} ·
+      {{ visit.diagnosis or '-' }}
+    </div>
+    <a class="btn small" href="/live?patient_id={{ patient.id }}&visit_id={{ visit.id }}">실시간 기록 (Live) →</a>
+  </div>
+  <div class="muted" style="font-size:13px;margin-top:6px">
+    검사 항목:
+    {% for t in visit_tests %}<span class="tag">{{ t }}</span> {% endfor %}
+    {% if visit.va_od or visit.va_os %} · 교정시력 OD {{ visit.va_od or '-' }} / OS {{ visit.va_os or '-' }}{% endif %}
+    {% if visit.pupil_od or visit.pupil_os %} · 동공 {{ visit.pupil_od or '-' }} / {{ visit.pupil_os or '-' }} mm{% endif %}
+  </div>
+</section>
+{% endif %}
 
 <section class="card">
   <form id="exam-form" class="form-grid">
@@ -19,7 +37,7 @@
         <option value="OS">OS only</option>
       </select>
     </label>
-    <label>Operator<input name="operator" value="{{ '' }}"></label>
+    <label>Operator<input name="operator" value="{{ (visit.operator if visit and visit.operator else (user.full_name or user.username)) }}"></label>
     <button class="btn primary" id="run-btn" type="submit">▶ Acquire</button>
     <button class="btn" id="stim-btn" type="button">🖥 Stimulus monitor</button>
   </form>
@@ -37,6 +55,8 @@
 <script>
 const TEST_TYPES = {{ test_types | tojson }};
 const PATIENT_ID = {{ patient.id }};
+const VISIT_ID = {{ visit.id if visit else 'null' }};
+const VISIT_TESTS = {{ visit_tests | tojson }};
 
 const ttSel = document.getElementById("test-type");
 const protoSel = document.getElementById("protocol");
@@ -48,6 +68,8 @@ function fillProtocols() {
 }
 ttSel.innerHTML = Object.keys(TEST_TYPES).map(t =>
   `<option value="${t}">${t}</option>`).join("");
+// start on the first test requested at reception
+if (VISIT_TESTS.length && TEST_TYPES[VISIT_TESTS[0]]) ttSel.value = VISIT_TESTS[0];
 ttSel.addEventListener("change", fillProtocols);
 fillProtocols();
 
@@ -72,6 +94,7 @@ document.getElementById("exam-form").addEventListener("submit", async (ev) => {
         protocol: protoSel.value,
         eyes: f.eyes.value.split(","),
         operator: f.operator.value || null,
+        visit_id: VISIT_ID,
       }});
     setMsg("exam-msg", "Acquisition complete.", "ok");
     document.getElementById("result").classList.remove("hidden");

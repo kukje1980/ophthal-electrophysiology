@@ -19,7 +19,7 @@ from app.database import SessionLocal, checkpoint, engine, init_db
 from app.logging_setup import setup_logging
 from app.routers import (
     account, audit, auth, devices, exams, live, pages, patients, protocols,
-    reference, system, users,
+    reference, system, users, visits,
 )
 
 log = logging.getLogger("app")
@@ -176,6 +176,7 @@ def create_app() -> FastAPI:
     app.include_router(live.router)  # WebSocket live stream
     app.include_router(reference.router)
     app.include_router(system.router)  # health, backups, trash
+    app.include_router(visits.router)
     # Auth + HTML pages
     app.include_router(auth.router)
     app.include_router(pages.router)

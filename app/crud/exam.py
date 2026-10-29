@@ -14,7 +14,7 @@ from app.acquisition import get_active_device
 from app.crud import idempotency
 from app.crud import reference as reference_crud
 from app.iscev import detect_markers, get_protocol
-from app.models import Exam, Measurement, Patient, Waveform
+from app.models import Exam, Measurement, Patient, Visit, Waveform
 from app.schemas import ExamCreate, ExamRecord
 
 NOTE_MAX = 512  # Exam.note column length
@@ -66,6 +66,16 @@ def _ref_lookup(db: Session, patient_id: int):
     return reference_crud.make_lookup(db, patient.age if patient else None)
 
 
+def _check_visit(db: Session, visit_id: Optional[int], patient_id: int):
+    """The reception an exam is filed under must belong to the same patient."""
+    if visit_id is None:
+        return None
+    visit = db.get(Visit, visit_id)
+    if visit is None or visit.patient_id != patient_id:
+        raise KeyError("Visit not found for this patient")
+    return visit_id
+
+
 def _store_trace(db: Session, exam_id: int, eye: str, step: dict,
                  samples, sampling_rate: float, duration_ms: float,
                  ref_lookup) -> Waveform:
@@ -99,22 +109,24 @@ def run_exam(db: Session, data: ExamCreate, idem_key: Optional[str] = None) -> E
     path works for the simulator and for any real driver.
     """
     protocol = get_protocol(data.protocol)
+    visit_id = _check_visit(db, data.visit_id, data.patient_id)
     if not _DEVICE_LOCK.acquire(timeout=DEVICE_WAIT_S):
         raise DeviceBusy("장비가 다른 검사를 수행 중입니다.")
     try:
-        return _run_exam_locked(db, data, protocol, idem_key)
+        return _run_exam_locked(db, data, protocol, visit_id, idem_key)
     finally:
         _DEVICE_LOCK.release()
 
 
 def _run_exam_locked(db: Session, data: ExamCreate, protocol: dict,
-                     idem_key: Optional[str]) -> Exam:
+                     visit_id: Optional[int], idem_key: Optional[str]) -> Exam:
     device = get_active_device()
     device.configure(protocol)
     ref_lookup = _ref_lookup(db, data.patient_id)
 
     exam = Exam(
         patient_id=data.patient_id,
+        visit_id=visit_id,
         test_type=protocol["test_type"],
         protocol=data.protocol,
         device=device.name,
@@ -156,6 +168,7 @@ def record_step(db: Session, data: ExamRecord, idem_key: Optional[str] = None) -
     else:
         exam = Exam(
             patient_id=data.patient_id, test_type=protocol["test_type"],
+            visit_id=_check_visit(db, data.visit_id, data.patient_id),
             protocol=data.protocol, device=data.device or "live-stream",
             operator=data.operator, status="completed", note=data.note,
         )
@@ -172,7 +185,8 @@ def record_step(db: Session, data: ExamRecord, idem_key: Optional[str] = None) -
     _store_trace(db, exam.id, data.eye, step, y.round(3).tolist(),
                  step["sampling_rate"], step["duration_ms"],
                  _ref_lookup(db, data.patient_id))
-    note = f"n={data.n_sweeps} sweeps (live)"
+    rejected = f", {data.n_rejected} rejected" if data.n_rejected else ""
+    note = f"n={data.n_sweeps} sweeps{rejected} (live)"
     if exam.note and note not in exam.note:
         merged = f"{exam.note}; {note}"
         # many appended steps must never overflow the column

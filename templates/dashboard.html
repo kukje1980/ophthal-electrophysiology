@@ -34,7 +34,7 @@
     <div class="stat-label">Exams</div>
   </div>
   <div class="card stat">
-    <a class="btn primary" href="/patients">+ New patient / exam</a>
+    <a class="btn primary" href="/">+ 검사 접수 (환자 등록 · 검사)</a>
   </div>
 </section>
 
@@ -48,7 +48,7 @@
   <tbody>
     {% for e in recent %}
     <tr>
-      <td>{{ e.performed_at.strftime("%Y-%m-%d %H:%M") }}</td>
+      <td class="utc" data-utc="{{ e.performed_at.isoformat() }}">{{ e.performed_at.strftime("%Y-%m-%d %H:%M") }} UTC</td>
       <td><span class="tag">{{ e.test_type }}</span></td>
       <td>{{ e.protocol }}</td>
       <td>{{ e.device }}</td>
@@ -57,7 +57,10 @@
     {% endfor %}
   </tbody>
 </table>
+<script>
+document.querySelectorAll("td.utc").forEach(td => { td.textContent = fmtDateTime(td.dataset.utc); });
+</script>
 {% else %}
-<p class="muted">No exams yet. Create a patient and run a study.</p>
+<p class="muted">No exams yet. Register a patient at 검사 접수 and run a study.</p>
 {% endif %}
 {% endblock %}

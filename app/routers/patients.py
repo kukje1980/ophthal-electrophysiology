@@ -9,7 +9,7 @@ from app.crud import idempotency
 from app.crud import patient as crud
 from app.crud import user as audit_crud
 from app.database import get_db
-from app.schemas import PatientCreate, PatientOut, PatientUpdate
+from app.schemas import PatientCreate, PatientOut, PatientSearchOut, PatientUpdate
 from app.security import decrypt_phi, require_permission
 
 router = APIRouter(prefix="/api/patients", tags=["patients"])
@@ -56,6 +56,17 @@ def list_patients(response: Response, q: Optional[str] = Query(None, max_length=
     rows, total = crud.search(db, q, limit=limit, offset=offset)
     response.headers["X-Total-Count"] = str(total)
     return rows
+
+
+@router.get("/search", response_model=List[PatientSearchOut])
+def search_patients(q: str = Query(..., max_length=128), limit: int = Query(20, ge=1, le=50),
+                    db: Session = Depends(get_db),
+                    _=Depends(require_permission("view_patient"))):
+    """Reception-desk picker: the top matches with their visit history."""
+    hits = crud.quick_search(db, q, limit)
+    summary = crud.visit_summary(db, [p.id for p in hits])
+    return [{**PatientSearchOut.model_validate(p).model_dump(), **summary[p.id]}
+            for p in hits]
 
 
 @router.get("/{patient_id}", response_model=PatientOut)

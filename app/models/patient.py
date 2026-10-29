@@ -25,10 +25,10 @@ class Patient(Base):
 
     # -- demographics -----------------------------------------------------
     mrn = Column(String(32), unique=True, index=True, nullable=False)  # chart no
-    name = Column(String(128), nullable=False)
+    name = Column(String(128), nullable=False, index=True)
     name_en = Column(String(128), nullable=True)
     national_id = Column(String(32), nullable=True)  # 주민등록번호 (mask/encrypt in prod)
-    birth_date = Column(Date, nullable=True)
+    birth_date = Column(Date, nullable=True, index=True)
     sex = Column(String(1), nullable=True)  # M / F / O
 
     # -- contact ----------------------------------------------------------
@@ -73,7 +73,7 @@ class Patient(Base):
     pupil_os = Column(String(32), nullable=True)
 
     note = Column(String(512), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
     # -- soft delete --------------------------------------------------------
     # Records are never physically removed (medical-record retention); a
@@ -83,6 +83,9 @@ class Patient(Base):
 
     exams = relationship(
         "Exam", back_populates="patient", cascade="all, delete-orphan"
+    )
+    visits = relationship(
+        "Visit", back_populates="patient", cascade="all, delete-orphan"
     )
 
     @property
