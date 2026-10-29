@@ -65,8 +65,7 @@ const PATIENT_GROUPS = [
 ];
 
 const YN = [["true","있음"],["false","없음"]];
-const _esc = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")
-  .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+/* _esc (HTML escaping) is provided by acquisition.js, loaded first. */
 
 function _field(f, val, phOverride) {
   val = (val == null) ? "" : val;
@@ -146,7 +145,7 @@ function renderPatientView(containerEl, p) {
       return `<div class="pv"><dt>${f.l}</dt><dd>${_esc(String(v))}</dd></div>`;
     });
     if (!rows.length) return "";
-    return `<section class="card pcard"><h3 class="pgh">${g.title}</h3>
+    return `<section class="panel pcard"><div class="panel-h"><span class="t">${g.title}</span></div>
       <dl class="pvlist">${rows.join("")}</dl></section>`;
   }).join("");
 }

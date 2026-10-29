@@ -1,42 +1,163 @@
 {% extends "base.html" %}
-{% block title %}Dashboard · ERG/VEP{% endblock %}
+{% block title %}홈 · ERG/VEP{% endblock %}
+{% block ptitle %}홈{% endblock %}
+{% block psub %}Workstation overview{% endblock %}
 {% block content %}
-<h1>Dashboard</h1>
 
-<section class="cards">
-  <div class="card stat">
-    <div class="stat-num">{{ patient_count }}</div>
-    <div class="stat-label">Patients</div>
+<section class="tiles">
+  <a class="tile link" href="/patients">
+    <span class="k"><svg><use href="#i-users"/></svg>등록 환자</span>
+    <span class="v">{{ patient_count }}<small>명</small></span>
+    <span class="d">환자 관리 · 신규 등록</span>
+  </a>
+  <div class="tile">
+    <span class="k"><svg><use href="#i-wave"/></svg>최근 검사</span>
+    <span class="v">{{ recent|length }}<small>건</small></span>
+    <span class="d">최근 15건 기준</span>
   </div>
-  <div class="card stat">
-    <div class="stat-num">{{ recent|length }}</div>
-    <div class="stat-label">Recent exams</div>
+  <div class="tile" id="dev-tile">
+    <span class="k"><svg><use href="#i-cpu"/></svg>장비</span>
+    <span class="v" id="dev-name" style="font-size:20px">…</span>
+    <span class="d" id="dev-detail">연결 상태 확인 중</span>
   </div>
-  <div class="card stat">
-    <a class="btn primary" href="/patients">+ New patient / exam</a>
+  <div class="tile good" id="imp-tile">
+    <span class="k"><svg><use href="#i-activity"/></svg>전극 임피던스</span>
+    <span class="v" id="imp-val">–<small>kΩ</small></span>
+    <span class="d">ISCEV 권고 &lt; 5 kΩ</span>
   </div>
 </section>
 
-<h2>Recent exams</h2>
-{% if recent %}
-<table class="table">
-  <thead>
-    <tr><th>When</th><th>Test</th><th>Protocol</th>
-        <th>Device</th><th></th></tr>
-  </thead>
-  <tbody>
-    {% for e in recent %}
-    <tr>
-      <td>{{ e.performed_at.strftime("%Y-%m-%d %H:%M") }}</td>
-      <td><span class="tag">{{ e.test_type }}</span></td>
-      <td>{{ e.protocol }}</td>
-      <td>{{ e.device }}</td>
-      <td><a class="btn small" href="/reports/{{ e.id }}">Report</a></td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p class="muted">No exams yet. Create a patient and run a study.</p>
-{% endif %}
+<div class="ws ws-2r">
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-h"><span class="t">검사 시작</span><span class="sub">ISCEV protocol quick launch</span>
+        <span class="grow"></span>
+        <div class="tools"><a class="btn small primary" href="/patients"><svg><use href="#i-plus"/></svg>환자 선택 / 등록</a></div>
+      </div>
+      <div class="panel-b">
+        <div class="protos">
+          <a class="proto" href="/patients" title="Full-field ERG">
+            <svg class="glyph" viewBox="0 0 220 54" preserveAspectRatio="none">
+              <path class="g" d="M0 27H220M55 0V54M110 0V54M165 0V54"/>
+              <path d="M4 27H40C46 27 50 40 58 42C66 44 72 8 90 6C108 4 118 27 140 27H216"/>
+            </svg>
+            <span class="name">ffERG · Full-field ERG</span>
+            <span class="std">DA 0.01 · DA 3 · DA 10 · OP · LA 3 · 30 Hz</span>
+          </a>
+          <a class="proto" href="/patients" title="Pattern ERG">
+            <svg class="glyph" viewBox="0 0 220 54" preserveAspectRatio="none">
+              <path class="g" d="M0 27H220M55 0V54M110 0V54M165 0V54"/>
+              <path d="M4 27H38C46 27 50 36 60 36C70 36 78 6 92 6C106 6 118 44 134 44C150 44 160 27 180 27H216"/>
+            </svg>
+            <span class="name">PERG · Pattern ERG</span>
+            <span class="std">N35 · P50 · N95 · 0.8° · 15° field</span>
+          </a>
+          <a class="proto" href="/patients" title="Visual evoked potential">
+            <svg class="glyph" viewBox="0 0 220 54" preserveAspectRatio="none">
+              <path class="g" d="M0 27H220M55 0V54M110 0V54M165 0V54"/>
+              <path d="M4 27H46C56 27 60 40 74 40C86 40 92 4 110 4C128 4 134 46 152 46C166 46 172 27 190 27H216"/>
+            </svg>
+            <span class="name">VEP · Pattern-reversal / Flash</span>
+            <span class="std">N75 · P100 · N145 · 1.0° / 0.25°</span>
+          </a>
+          <a class="proto" href="/patients" title="Multifocal ERG">
+            <svg class="glyph" viewBox="0 0 220 54" preserveAspectRatio="xMidYMid meet">
+              <g class="hx" transform="translate(110 27)">
+                <path d="M-7 -12l7 -4 7 4v8l-7 4-7 -4z"/><path d="M7 -12l7 -4 7 4v8l-7 4-7 -4z"/><path d="M-21 -12l7 -4 7 4v8l-7 4-7 -4z"/>
+                <path d="M0 0l7 -4 7 4v8l-7 4-7 -4z"/><path d="M-14 0l7 -4 7 4v8l-7 4-7 -4z"/><path d="M14 0l7 -4 7 4v8l-7 4-7 -4z"/><path d="M-28 0l7 -4 7 4v8l-7 4-7 -4z"/>
+                <path d="M-7 12l7 -4 7 4v8l-7 4-7 -4z"/><path d="M7 12l7 -4 7 4v8l-7 4-7 -4z"/><path d="M-21 12l7 -4 7 4v8l-7 4-7 -4z"/>
+              </g>
+              <path d="M150 27H166C170 27 172 36 178 36C184 36 186 10 194 10C202 10 204 27 216 27"/>
+            </svg>
+            <span class="name">mfERG · Multifocal ERG</span>
+            <span class="std">61 / 103 hexagons · N1 · P1 · N2</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-h"><span class="t">최근 검사</span><span class="sub">Recent exams</span>
+        <span class="grow"></span><span class="tools muted">{{ recent|length }}건</span></div>
+      <div class="panel-b tight">
+      {% if recent %}
+      <table class="table">
+        <thead>
+          <tr><th>일시</th><th>검사</th><th>프로토콜</th><th>장비</th><th>상태</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for e in recent %}
+          <tr>
+            <td class="num">{{ e.performed_at.strftime("%Y-%m-%d %H:%M") }}</td>
+            <td><span class="tag">{{ e.test_type }}</span></td>
+            <td>{{ e.protocol }}</td>
+            <td class="mono muted">{{ e.device }}</td>
+            <td><span class="badge flag-norm">{{ e.status }}</span></td>
+            <td style="text-align:right"><a class="btn small" href="/reports/{{ e.id }}"><svg><use href="#i-file"/></svg>리포트</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="empty">아직 검사가 없습니다. 환자를 등록하고 검사를 시작하세요.</p>
+      {% endif %}
+      </div>
+    </section>
+  </div>
+
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-h"><span class="t">시스템</span><span class="sub">Acquisition device</span></div>
+      <div class="panel-b">
+        <dl class="kv" id="dev-kv"><dt>상태</dt><dd class="muted">조회 중…</dd></dl>
+      </div>
+      <div class="panel-f row">
+        <a class="btn small" href="/live"><svg><use href="#i-activity"/></svg>실시간 스트림</a>
+        <a class="btn small" href="/stimulus"><svg><use href="#i-monitor"/></svg>자극 모니터</a>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="panel-h"><span class="t">표준</span><span class="sub">ISCEV standards</span></div>
+      <div class="panel-b tight">
+        <table class="table compact">
+          <tbody>
+            <tr><td><span class="tag">ffERG</span></td><td class="mono muted">ISCEV ffERG 2022</td></tr>
+            <tr><td><span class="tag">PERG</span></td><td class="mono muted">ISCEV PERG 2024</td></tr>
+            <tr><td><span class="tag">VEP</span></td><td class="mono muted">ISCEV VEP 2025 · N145</td></tr>
+            <tr><td><span class="tag">mfERG</span></td><td class="mono muted">ISCEV mfERG 2021</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(async function () {
+  try {
+    const info = await api("/api/devices");
+    const a = info.active, ok = a.state === "connected";
+    document.getElementById("dev-name").textContent = a.name;
+    document.getElementById("dev-detail").innerHTML =
+      `<i class="led ${ok ? "on" : "off"}"></i> ${a.state} · ${_esc(a.connection || "")}`;
+    document.getElementById("dev-tile").classList.add(ok ? "good" : "bad");
+    const z = a.impedance || {};
+    const zv = z.max_kohm;
+    document.getElementById("imp-val").innerHTML = `${zv != null ? zv.toFixed(1) : "–"}<small>kΩ</small>`;
+    const it = document.getElementById("imp-tile");
+    it.classList.remove("good"); it.classList.add(zv == null ? "warn" : zv <= 5 ? "good" : zv <= 10 ? "warn" : "bad");
+    const rows = [
+      ["Driver", a.name], ["Connection", a.connection || "–"], ["State", a.state],
+      ["Amplifier", a.amplifier ? `${a.amplifier.name} · ${a.amplifier.state}` : "–"],
+      ["Stimulator", a.stimulator ? `${a.stimulator.name} · ${a.stimulator.state}` : "–"],
+      ["Protocol", a.protocol_loaded ? "loaded" : "not loaded"],
+      ["Drivers", (info.drivers || []).join(", ")],
+    ];
+    document.getElementById("dev-kv").innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${_esc(v)}</dd>`).join("");
+  } catch (e) {
+    document.getElementById("dev-name").textContent = "unavailable";
+    document.getElementById("dev-kv").innerHTML = `<dt>상태</dt><dd class="muted">${_esc(e.message)}</dd>`;
+  }
+})();
+</script>
 {% endblock %}

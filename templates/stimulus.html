@@ -1,9 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Stimulus monitor · ERG/VEP{% endblock %}
+{% block title %}자극 모니터 · ERG/VEP{% endblock %}
+{% block ptitle %}자극 모니터{% endblock %}
+{% block psub %}Stimulus monitor{% endblock %}
 {% block content %}
-<div class="row-between no-print stim-toolbar">
-  <a class="back" href="javascript:history.back()">← Back</a>
-  <div class="stim-controls">
+<section class="panel no-print">
+  <div class="panel-h"><span class="t">자극 설정</span><span class="sub">Stimulus parameters</span>
+    <span class="grow"></span>
+    <div class="tools">
+      <button class="btn small" id="toggle"><svg><use href="#i-pause"/></svg>Pause</button>
+      <button class="btn small" id="fs"><svg><use href="#i-full"/></svg>Full screen</button>
+    </div></div>
+  <div class="panel-b stim-controls">
     <label>Mode
       <select id="mode">
         <option value="pattern">Pattern reversal</option>
@@ -21,21 +28,19 @@
     <label>Check (deg)<input id="check_deg" type="number" step="0.05" value="1.0"></label>
     <label>Contrast<input id="contrast" type="number" step="0.01" min="0" max="1" value="0.97"></label>
     <label>Rate (Hz)<input id="rate_hz" type="number" step="0.5" value="2"></label>
-    <button class="btn" id="toggle">⏸ Pause</button>
-    <button class="btn" id="fs">⛶ Full screen</button>
+    <span class="grow"></span>
+    <span class="muted" style="font-size:11.5px">Keys: <kbd>Space</kbd> pause · <kbd>F</kbd> flash · <kbd>P</kbd> pattern</span>
   </div>
-</div>
+</section>
 
 <div class="stim-stage" id="stage">
   <canvas id="stim-canvas" width="960" height="600"></canvas>
   <div class="stim-readout" id="readout"></div>
 </div>
 
-<p class="muted no-print" style="font-size:12px">
-  This is the patient-facing <b>monitor stimulator</b> surface. In a real rig
-  it runs full-screen on the stimulus display; the amplifier records each
-  reversal/flash via the trigger. Keys: <kbd>Space</kbd> pause · <kbd>F</kbd>
-  flash · <kbd>P</kbd> pattern.
+<p class="muted no-print" style="font-size:12px;margin-top:10px">
+  환자용 <b>모니터 자극기</b> 화면입니다. 실제 장비에서는 자극 디스플레이에 전체 화면으로 표시되고,
+  앰프는 트리거를 통해 각 reversal/flash를 기록합니다.
 </p>
 
 <script>
@@ -207,7 +212,7 @@ function render(now) {
 
 $("toggle").addEventListener("click", () => {
   running = !running;
-  $("toggle").textContent = running ? "⏸ Pause" : "▶ Resume";
+  $("toggle").innerHTML = running ? '<svg><use href="#i-pause"/></svg>Pause' : '<svg><use href="#i-play"/></svg>Resume';
 });
 $("fs").addEventListener("click", () => {
   if (!document.fullscreenElement) $("stage").requestFullscreen?.();

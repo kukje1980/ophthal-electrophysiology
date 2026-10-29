@@ -1,84 +1,160 @@
 {% extends "base.html" %}
-{% block title %}New exam · {{ patient.name }}{% endblock %}
+{% block title %}검사 · {{ patient.name }}{% endblock %}
+{% block crumbs %}<a href="/patients">환자</a><span class="sep">/</span><a href="/patients/{{ patient.id }}">{{ patient.name }}</a><span class="sep">/</span>{% endblock %}
+{% block ptitle %}새 검사{% endblock %}
+{% block psub %}Acquisition{% endblock %}
 {% block content %}
-<a class="back" href="/patients/{{ patient.id }}">← {{ patient.name }}</a>
-<h1>New exam <span class="muted">{{ patient.name }}</span></h1>
 
-<section class="card">
-  <form id="exam-form" class="form-grid">
-    <label>Test type
-      <select id="test-type" name="test_type"></select>
-    </label>
-    <label>Protocol
-      <select id="protocol" name="protocol"></select>
-    </label>
-    <label>Eyes
-      <select id="eyes" name="eyes">
-        <option value="OD,OS">Both (OD + OS)</option>
-        <option value="OD">OD only</option>
-        <option value="OS">OS only</option>
-      </select>
-    </label>
-    <label>Operator<input name="operator" value="{{ '' }}"></label>
-    <button class="btn primary" id="run-btn" type="submit">▶ Acquire</button>
-    <button class="btn" id="stim-btn" type="button">🖥 Stimulus monitor</button>
-  </form>
-  <p id="exam-msg" class="msg"></p>
-</section>
+<div class="ws ws-2">
+  <aside class="stack">
+    <section class="panel">
+      <div class="panel-h"><span class="t">환자</span><span class="sub">Patient</span></div>
+      <div class="panel-b" style="padding:10px 14px">
+        <div class="row"><span style="font-weight:700;font-size:15px">{{ patient.name }}</span>
+          <span class="chip">MRN <b>{{ patient.mrn }}</b></span></div>
+        <div class="chips row wrap" style="margin-top:6px;gap:6px">
+          {% if patient.sex %}<span class="chip"><b>{{ {'M':'남','F':'여','O':'기타'}[patient.sex] }}</b></span>{% endif %}
+          {% if patient.age is defined and patient.age is not none %}<span class="chip"><b>{{ patient.age }}</b>세</span>{% endif %}
+          {% if patient.pupil_od or patient.pupil_os %}<span class="chip">동공 <b>{{ patient.pupil_od or '–' }}</b> / <b>{{ patient.pupil_os or '–' }}</b></span>{% endif %}
+        </div>
+      </div>
+    </section>
 
-<section id="result" class="hidden">
-  <div class="row-between">
-    <h2>Result</h2>
-    <a id="report-link" class="btn" href="#">Open full report →</a>
+    <section class="panel">
+      <div class="panel-h"><span class="t">검사 설정</span><span class="sub">Protocol</span></div>
+      <div class="panel-b" style="display:flex;flex-direction:column;gap:12px">
+        <div class="fld"><span class="fld-l">검사 종류 · Test type</span>
+          <div class="seg block" id="test-type"></div></div>
+        <label class="fld"><span class="fld-l">프로토콜 · Protocol</span>
+          <select id="protocol" name="protocol"></select></label>
+        <div class="fld"><span class="fld-l">단계 · Steps <span class="mono dim" id="std-label"></span></span>
+          <ol class="steps" id="steps"></ol></div>
+        <div class="fld"><span class="fld-l">검사 눈 · Eyes</span>
+          <div class="seg block" id="eyes">
+            <button type="button" class="od on" data-eye="OD"><i class="dot od"></i>OD 우안</button>
+            <button type="button" class="os on" data-eye="OS"><i class="dot os"></i>OS 좌안</button>
+          </div></div>
+        <label class="fld"><span class="fld-l">검사자 · Operator</span>
+          <input id="operator" name="operator" value="{{ user.full_name or user.username if user else '' }}"></label>
+      </div>
+      <div class="panel-f" style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn primary big" id="run-btn" type="button"><svg><use href="#i-play"/></svg>Acquire</button>
+        <button class="btn" id="stim-btn" type="button" style="width:100%"><svg><use href="#i-monitor"/></svg>자극 모니터 열기</button>
+        <p id="exam-msg" class="msg" style="margin:0"></p>
+      </div>
+    </section>
+  </aside>
+
+  <div class="stack">
+    <div class="scope-empty" id="scope-empty">
+      <div class="msg-box"><b>Ready</b>프로토콜을 선택하고 Acquire를 누르세요</div>
+    </div>
+    <section id="result" class="hidden">
+      <div class="page-head" style="margin-bottom:10px">
+        <div class="row"><span class="led on"></span><h2 style="margin:0" id="result-title">결과</h2><span class="muted" id="result-sub"></span></div>
+        <div class="actions">
+          <button class="btn" id="again-btn" type="button"><svg><use href="#i-refresh"/></svg>다시 측정</button>
+          <a id="report-link" class="btn primary" href="#"><svg><use href="#i-file"/></svg>전체 리포트 열기</a>
+        </div>
+      </div>
+      <div id="waveforms"></div>
+    </section>
   </div>
-  <div id="waveforms"></div>
-</section>
+</div>
 
 <script>
 const TEST_TYPES = {{ test_types | tojson }};
 const PATIENT_ID = {{ patient.id }};
-
-const ttSel = document.getElementById("test-type");
+const ttSeg = document.getElementById("test-type");
 const protoSel = document.getElementById("protocol");
+const stepsEl = document.getElementById("steps");
+const scopeEmpty = document.getElementById("scope-empty");
+let testType = Object.keys(TEST_TYPES)[0];
+let protoCache = {};
+
+ttSeg.innerHTML = Object.keys(TEST_TYPES).map(t =>
+  `<button type="button" data-tt="${t}" class="${t === testType ? "on" : ""}">${t}</button>`).join("");
+ttSeg.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-tt]"); if (!b) return;
+  testType = b.dataset.tt;
+  ttSeg.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+  fillProtocols();
+});
 
 function fillProtocols() {
-  const list = TEST_TYPES[ttSel.value] || [];
-  protoSel.innerHTML = list.map(p =>
-    `<option value="${p.key}">${p.label}</option>`).join("");
+  const list = TEST_TYPES[testType] || [];
+  protoSel.innerHTML = list.map(p => `<option value="${p.key}">${p.label}</option>`).join("");
+  loadSteps();
 }
-ttSel.innerHTML = Object.keys(TEST_TYPES).map(t =>
-  `<option value="${t}">${t}</option>`).join("");
-ttSel.addEventListener("change", fillProtocols);
+
+async function loadSteps() {
+  const key = protoSel.value;
+  stepsEl.innerHTML = `<li><span class="i">…</span><span class="muted">불러오는 중</span></li>`;
+  try {
+    const p = protoCache[key] || (protoCache[key] = await api(`/api/protocols/${encodeURIComponent(key)}`));
+    document.getElementById("std-label").textContent = p.standard ? `· ${p.standard}` : "";
+    stepsEl.innerHTML = p.steps.map((s, i) => `
+      <li data-step="${s.key}"><span class="i">${String(i + 1).padStart(2, "0")}</span>
+        <span><span class="k">${s.key}</span><span class="l">${s.label}</span></span>
+        <span class="m">${s.duration_ms} ms · ${s.sampling_rate} Hz</span></li>`).join("");
+  } catch (e) { stepsEl.innerHTML = `<li><span class="i">!</span><span class="muted">${e.message}</span></li>`; }
+}
+protoSel.addEventListener("change", loadSteps);
 fillProtocols();
+
+const eyesSeg = document.getElementById("eyes");
+eyesSeg.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-eye]"); if (!b) return;
+  const on = eyesSeg.querySelectorAll("button.on");
+  if (b.classList.contains("on") && on.length === 1) return;  // keep at least one eye
+  b.classList.toggle("on");
+});
+const selectedEyes = () => Array.from(eyesSeg.querySelectorAll("button.on")).map(b => b.dataset.eye);
 
 document.getElementById("stim-btn").addEventListener("click", () => {
   const url = `/stimulus?protocol=${encodeURIComponent(protoSel.value)}`;
-  window.open(url, "stimulus-monitor",
-    "width=1000,height=720,menubar=no,toolbar=no");
+  window.open(url, "stimulus-monitor", "width=1000,height=720,menubar=no,toolbar=no");
 });
 
-document.getElementById("exam-form").addEventListener("submit", async (ev) => {
-  ev.preventDefault();
-  const f = ev.target;
+document.getElementById("again-btn").addEventListener("click", () => {
+  document.getElementById("result").classList.add("hidden");
+  scopeEmpty.classList.remove("hidden");
+  stepsEl.querySelectorAll("li").forEach(li => li.classList.remove("run", "done"));
+});
+
+async function acquire() {
   const btn = document.getElementById("run-btn");
-  btn.disabled = true; btn.textContent = "Acquiring…";
-  setMsg("exam-msg", "Acquiring sweeps from device…", "");
+  btn.disabled = true; btn.innerHTML = `<svg><use href="#i-pause"/></svg>Acquiring…`;
+  setMsg("exam-msg", "장비에서 sweep을 수집하는 중…", "");
+  document.getElementById("result").classList.add("hidden");
+  scopeEmpty.classList.remove("hidden"); scopeEmpty.classList.add("acquiring");
+  scopeEmpty.querySelector(".msg-box").innerHTML = `<b>Acquiring</b>${protoSel.options[protoSel.selectedIndex].text} · ${selectedEyes().join(" + ")}`;
+  const lis = Array.from(stepsEl.querySelectorAll("li"));
+  lis.forEach(li => li.classList.remove("run", "done"));
+  // visual step progress while the device runs the protocol
+  let k = 0; const tick = setInterval(() => { if (k < lis.length) { lis[k].classList.add("run"); if (k) lis[k-1].classList.replace("run","done"); k++; } }, 350);
   try {
     const exam = await api("/api/exams", { method: "POST", body: {
-      patient_id: PATIENT_ID,
-      protocol: protoSel.value,
-      eyes: f.eyes.value.split(","),
-      operator: f.operator.value || null,
+      patient_id: PATIENT_ID, protocol: protoSel.value,
+      eyes: selectedEyes(), operator: document.getElementById("operator").value || null,
     }});
-    setMsg("exam-msg", "Acquisition complete.", "ok");
+    clearInterval(tick); lis.forEach(li => { li.classList.remove("run"); li.classList.add("done"); });
+    setMsg("exam-msg", `수집 완료 · 검사 #${exam.id}`, "ok");
+    scopeEmpty.classList.add("hidden");
     document.getElementById("result").classList.remove("hidden");
+    document.getElementById("result-title").textContent = `${exam.test_type} 결과`;
+    document.getElementById("result-sub").textContent = `검사 #${exam.id} · ${fmtDT(exam.performed_at, true)}`;
     document.getElementById("report-link").href = `/reports/${exam.id}`;
-    renderExam(exam, document.getElementById("waveforms"));
+    await renderExam(exam, document.getElementById("waveforms"), protoCache[exam.protocol]);
   } catch (e) {
+    clearInterval(tick); lis.forEach(li => li.classList.remove("run", "done"));
     setMsg("exam-msg", e.message, "err");
+    scopeEmpty.querySelector(".msg-box").innerHTML = `<b style="color:var(--bad)">Error</b>${_esc(e.message)}`;
   } finally {
-    btn.disabled = false; btn.textContent = "▶ Acquire";
+    scopeEmpty.classList.remove("acquiring");
+    btn.disabled = false; btn.innerHTML = `<svg><use href="#i-play"/></svg>Acquire`;
   }
-});
+}
+document.getElementById("run-btn").addEventListener("click", acquire);
 </script>
 {% endblock %}

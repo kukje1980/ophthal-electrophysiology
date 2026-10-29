@@ -3,14 +3,28 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>로그인 · ERG/VEP</title>
+  <title>로그인 · ERG/VEP Workstation</title>
   <link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body class="login-body">
+  <svg class="login-bg" viewBox="0 0 1200 600" preserveAspectRatio="none" aria-hidden="true">
+    <g class="grid">
+      <line x1="0" y1="100" x2="1200" y2="100"/><line x1="0" y1="200" x2="1200" y2="200"/><line x1="0" y1="300" x2="1200" y2="300"/>
+      <line x1="0" y1="400" x2="1200" y2="400"/><line x1="0" y1="500" x2="1200" y2="500"/>
+      <line x1="150" y1="0" x2="150" y2="600"/><line x1="300" y1="0" x2="300" y2="600"/><line x1="450" y1="0" x2="450" y2="600"/>
+      <line x1="600" y1="0" x2="600" y2="600"/><line x1="750" y1="0" x2="750" y2="600"/><line x1="900" y1="0" x2="900" y2="600"/><line x1="1050" y1="0" x2="1050" y2="600"/>
+    </g>
+    <path class="trace" d="M0 420 H180 C200 420 210 470 240 480 C270 490 290 300 330 290 C370 280 390 420 430 420 H560 C580 420 590 465 620 475 C650 485 670 310 710 300 C750 290 770 420 810 420 H940 C960 420 970 468 1000 478 C1030 488 1050 305 1090 295 C1130 285 1150 420 1200 420"/>
+    <path class="trace os" d="M0 428 H182 C202 428 212 474 242 484 C272 494 292 312 332 302 C372 292 392 428 432 428 H562 C582 428 592 470 622 480 C652 490 672 322 712 312 C752 302 772 428 812 428 H942 C962 428 972 472 1002 482 C1032 492 1052 316 1092 306 C1132 296 1152 428 1200 428"/>
+  </svg>
+
   <form class="login-card" method="post" action="/login">
-    <div class="login-brand">👁 ERG / VEP <span>ISCEV</span></div>
+    <div class="login-brand">
+      <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><path d="M5 12h3l1.5-3 2 6 1.5-4 1 1h5"/></svg></span>
+      <span><b>ERG / VEP Workstation</b><small>ISCEV · OPHTHALMIC ELECTROPHYSIOLOGY</small></span>
+    </div>
     <h1>로그인</h1>
-    <p class="muted">안과 전기생리 검사 시스템</p>
     <input type="hidden" name="next" value="{{ next }}">
     <label>아이디<input name="username" autocomplete="username" autofocus required></label>
     <label>비밀번호
@@ -22,8 +36,9 @@
              maxlength="6" placeholder="6자리"{% if need_otp %} autofocus{% endif %}>
     </label>
     {% if error %}<p class="msg err">{{ error }}</p>{% endif %}
-    <button class="btn primary" type="submit">로그인</button>
-    <p class="login-hint muted">최초 관리자 계정: <code>admin</code> · 로그인 후 비밀번호를 변경하세요.</p>
+    <button class="btn primary big" type="submit">로그인</button>
+    <p class="login-hint">최초 관리자 계정: <code>admin</code> · 로그인 후 비밀번호를 변경하세요.</p>
   </form>
+  <div class="login-foot">ISCEV ffERG 2022 · PERG 2024 · VEP 2025 · mfERG 2021</div>
 </body>
 </html>

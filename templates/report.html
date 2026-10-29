@@ -1,9 +1,15 @@
 {% extends "base.html" %}
-{% block title %}Report · ERG/VEP{% endblock %}
+{% block title %}리포트 · ERG/VEP{% endblock %}
+{% block crumbs %}<a href="/patients">환자</a><span class="sep">/</span><a id="crumb-patient" href="/patients">…</a><span class="sep">/</span>{% endblock %}
+{% block ptitle %}검사 리포트{% endblock %}
+{% block psub %}Exam #{{ exam_id }}{% endblock %}
 {% block content %}
-<div class="row-between no-print">
-  <a class="back" href="/">← Dashboard</a>
-  <button class="btn" onclick="window.print()">🖨 Print</button>
+
+<div class="page-head no-print">
+  <a class="back" id="back-link" href="/"><svg width="14" height="14"><use href="#i-left"/></svg>환자 기록으로</a>
+  <div class="actions">
+    <button class="btn" onclick="window.print()"><svg><use href="#i-print"/></svg>인쇄</button>
+  </div>
 </div>
 
 <div id="report-head"></div>
@@ -18,30 +24,43 @@ const EXAM_ID = {{ exam_id }};
   try { p = await api(`/api/patients/${exam.patient_id}`); } catch (e) {}
   let proto = {};
   try { proto = await api(`/api/protocols/${exam.protocol}`); } catch (e) {}
-  const ageSex = [p.age != null ? p.age + "y" : null,
-    ({M:"M",F:"F",O:"O"}[p.sex] || null)].filter(Boolean).join(" ");
+  const back = `/patients/${exam.patient_id}`;
+  document.getElementById("back-link").href = back;
+  const crumb = document.getElementById("crumb-patient");
+  if (crumb) { crumb.href = back; crumb.textContent = p.name || `#${exam.patient_id}`; }
+  const sexKo = ({M:"남",F:"여",O:"기타"}[p.sex] || "");
+  const ageSex = [p.age != null ? p.age + "세" : null, sexKo || null].filter(Boolean).join(" · ");
   // ISCEV reports should document the patient state at the time of the test.
   const eyeLine = (label, va, ref, pupil) => {
     const parts = [];
     if (va) parts.push("VA " + va);
     if (ref) parts.push(ref);
     if (pupil) parts.push("pupil " + pupil);
-    return parts.length ? `<div><b>${label}:</b> ${parts.join(" · ")}</div>` : "";
+    return parts.length ? `<div><b>${label}</b><span class="mono">${_esc(parts.join(" · "))}</span></div>` : "";
   };
-  const clinical = eyeLine("OD", p.va_od, p.refraction_od, p.pupil_od)
-    + eyeLine("OS", p.va_os, p.refraction_os, p.pupil_os);
+  const clinical = eyeLine("OD · 우안", p.va_od, p.refraction_od, p.pupil_od)
+    + eyeLine("OS · 좌안", p.va_os, p.refraction_os, p.pupil_os);
   document.getElementById("report-head").innerHTML = `
-    <h1>${exam.test_type} report</h1>
-    <div class="report-meta card">
-      <div><b>Patient:</b> ${p.name || "-"} (#${p.mrn || exam.patient_id})${ageSex ? " · " + ageSex : ""}</div>
-      <div><b>Protocol:</b> ${proto.label || exam.protocol}</div>
-      <div><b>Standard:</b> ${proto.standard || "—"}</div>
-      <div><b>Performed:</b> ${new Date(exam.performed_at).toLocaleString()}</div>
-      <div><b>Device:</b> ${exam.device || "-"}</div>
-      <div><b>Operator:</b> ${exam.operator || "-"}</div>
-      ${clinical}
-    </div>`;
-  renderExam(exam, document.getElementById("waveforms"));
+    <div class="report-head-bar">
+      <span class="tag" style="font-size:13px;padding:4px 10px">${_esc(exam.test_type)}</span>
+      <span class="big">${_esc(proto.label || exam.protocol)}</span>
+      <span class="std">${_esc(proto.standard || "")}</span>
+      <span class="grow"></span>
+      <span class="mono muted">Exam #${exam.id}</span>
+    </div>
+    <section class="panel">
+      <div class="panel-h"><span class="t">검사 정보</span><span class="sub">Patient &amp; acquisition</span></div>
+      <div class="panel-b report-meta">
+        <div><b>환자 · Patient</b>${_esc(p.name || "-")} <span class="mono muted">#${_esc(p.mrn || exam.patient_id)}</span>${ageSex ? " · " + ageSex : ""}</div>
+        <div><b>검사일시 · Performed</b><span class="mono">${fmtDT(exam.performed_at, true)}</span></div>
+        <div><b>프로토콜 · Protocol</b>${_esc(proto.label || exam.protocol)}</div>
+        <div><b>표준 · Standard</b>${_esc(proto.standard || "—")}</div>
+        <div><b>장비 · Device</b><span class="mono">${_esc(exam.device || "-")}</span></div>
+        <div><b>검사자 · Operator</b>${_esc(exam.operator || "-")}</div>
+        ${clinical}
+      </div>
+    </section>`;
+  renderExam(exam, document.getElementById("waveforms"), proto);
 })();
 </script>
 {% endblock %}

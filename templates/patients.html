@@ -1,52 +1,66 @@
 {% extends "base.html" %}
-{% block title %}Patients · ERG/VEP{% endblock %}
+{% block title %}환자 · ERG/VEP{% endblock %}
+{% block ptitle %}환자 관리{% endblock %}
+{% block psub %}Patients{% endblock %}
 {% block content %}
-<h1>환자 관리 <span class="muted" style="font-size:14px">Patients</span></h1>
+
+<div class="page-head">
+  <div class="toolbar">
+    <span class="search-wrap"><svg><use href="#i-search"/></svg>
+      <input id="search" placeholder="이름 / 등록번호 / 연락처 검색…" autocomplete="off"></span>
+    <span class="muted" id="count"></span>
+  </div>
+  {% if 'edit_patient' in perms %}
+  <div class="actions">
+    <button class="btn primary" id="toggle-form" type="button"><svg><use href="#i-plus"/></svg>신규 환자 등록</button>
+  </div>
+  {% endif %}
+</div>
 
 {% if 'edit_patient' in perms %}
-<section class="card">
-  <div class="row-between">
-    <h2>신규 환자 등록</h2>
-    <button class="btn small" id="toggle-form" type="button">폼 접기</button>
-  </div>
-  <form id="patient-form"></form>
+<section class="panel hidden" id="form-panel">
+  <div class="panel-h"><span class="t">신규 환자 등록</span><span class="sub">New patient record</span>
+    <span class="grow"></span>
+    <div class="tools"><button class="btn small ghost" id="close-form" type="button">닫기</button></div></div>
+  <div class="panel-b"><form id="patient-form"></form></div>
 </section>
 {% endif %}
 
-<section class="card">
-  <div class="row-between">
-    <h2>환자 목록</h2>
-    <input id="search" placeholder="이름 / 등록번호 / 연락처 검색…" class="search">
-  </div>
+<section class="panel">
+  <div class="panel-h"><span class="t">환자 목록</span><span class="sub">Patient list</span></div>
+  <div class="panel-b tight">
   <table class="table">
     <thead>
-      <tr><th>등록번호</th><th>성명</th><th>성별/나이</th><th>생년월일</th>
+      <tr><th>등록번호</th><th>성명</th><th>성별 / 나이</th><th>생년월일</th>
           <th>연락처</th><th>보험</th><th></th></tr>
     </thead>
     <tbody id="patient-rows"></tbody>
   </table>
+  </div>
 </section>
 
 <script>
 const form = document.getElementById("patient-form");
+const formPanel = document.getElementById("form-panel");
 if (form) renderPatientForm(form, null, "환자 등록");
 
 const sexLabel = (s) => ({M:"남", F:"여", O:"기타"}[s] || "-");
 
 async function loadPatients(q) {
   const rows = await api(`/api/patients${q ? "?q=" + encodeURIComponent(q) : ""}`);
+  document.getElementById("count").textContent = rows.length + "명";
   const tb = document.getElementById("patient-rows");
   tb.innerHTML = rows.map(p => `
     <tr>
-      <td>${p.mrn}</td>
-      <td><a href="/patients/${p.id}">${p.name}</a></td>
-      <td>${sexLabel(p.sex)}${p.age != null ? " / " + p.age : ""}</td>
-      <td>${p.birth_date || "-"}</td>
-      <td>${p.phone || "-"}</td>
-      <td>${p.insurance_type || "-"}</td>
-      <td><a class="btn small" href="/patients/${p.id}">열기</a></td>
+      <td class="num">${_esc(p.mrn)}</td>
+      <td><a href="/patients/${p.id}">${_esc(p.name)}</a></td>
+      <td>${sexLabel(p.sex)}${p.age != null ? ` <span class="num">/ ${p.age}</span>` : ""}</td>
+      <td class="num">${_esc(p.birth_date || "-")}</td>
+      <td class="num">${_esc(p.phone || "-")}</td>
+      <td>${p.insurance_type ? `<span class="tag neutral">${_esc(p.insurance_type)}</span>` : "-"}</td>
+      <td style="text-align:right"><a class="btn small" href="/patients/${p.id}"><svg><use href="#i-eye"/></svg>열기</a></td>
     </tr>`).join("") ||
-    `<tr><td colspan="7" class="muted">등록된 환자가 없습니다.</td></tr>`;
+    `<tr><td colspan="7" class="empty">등록된 환자가 없습니다.</td></tr>`;
 }
 
 if (form) form.addEventListener("submit", async (ev) => {
@@ -64,11 +78,13 @@ if (form) form.addEventListener("submit", async (ev) => {
   }
 });
 
-const toggleBtn = document.getElementById("toggle-form");
-if (toggleBtn) toggleBtn.addEventListener("click", (e) => {
-  const hidden = form.classList.toggle("hidden");
-  e.target.textContent = hidden ? "폼 펼치기" : "폼 접기";
-});
+function showForm(show) {
+  if (!formPanel) return;
+  formPanel.classList.toggle("hidden", !show);
+  if (show) { formPanel.scrollIntoView({ behavior: "smooth", block: "start" }); form.querySelector("input")?.focus(); }
+}
+document.getElementById("toggle-form")?.addEventListener("click", () => showForm(formPanel.classList.contains("hidden")));
+document.getElementById("close-form")?.addEventListener("click", () => showForm(false));
 
 document.getElementById("search").addEventListener("input", (e) =>
   loadPatients(e.target.value));

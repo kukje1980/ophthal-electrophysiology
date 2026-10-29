@@ -1,53 +1,71 @@
 {% extends "base.html" %}
 {% block title %}관리자 · ERG/VEP{% endblock %}
+{% block ptitle %}관리자{% endblock %}
+{% block psub %}Users &amp; audit{% endblock %}
 {% block content %}
-<h1>관리자 <span class="muted" style="font-size:14px">Users &amp; Audit</span></h1>
 
-<section class="card">
-  <h2>사용자 계정</h2>
-  <form id="user-form" class="form-grid">
-    <label>아이디<input name="username" required></label>
-    <label>이름<input name="full_name"></label>
-    <label>비밀번호<input name="password" type="password" required minlength="6"></label>
-    <label>역할
-      <select name="role">
-        {% for value, label in roles %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
-      </select>
-    </label>
-    <button class="btn primary" type="submit">계정 생성</button>
-  </form>
-  <p id="user-msg" class="msg"></p>
-  <table class="table compact">
-    <thead><tr><th>아이디</th><th>이름</th><th>역할</th><th>상태</th>
-      <th>마지막 로그인</th><th></th></tr></thead>
-    <tbody id="user-rows"></tbody>
-  </table>
-</section>
+<div class="ws ws-2r">
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-h"><span class="t">사용자 계정</span><span class="sub">Accounts</span>
+        <span class="grow"></span><span class="tools muted" id="user-count"></span></div>
+      <div class="panel-b tight">
+      <table class="table compact">
+        <thead><tr><th>아이디</th><th>이름</th><th>역할</th><th>상태</th>
+          <th>마지막 로그인</th><th></th></tr></thead>
+        <tbody id="user-rows"></tbody>
+      </table>
+      </div>
+    </section>
 
-<section class="card">
-  <div class="row-between">
-    <h2>감사 로그 (Audit log)</h2>
-    <a class="btn small" href="/api/audit/export">CSV 내보내기</a>
+    <section class="panel">
+      <div class="panel-h"><span class="t">감사 로그</span><span class="sub">Audit log · 최근 100건</span>
+        <span class="grow"></span>
+        <div class="tools"><a class="btn small" href="/api/audit/export"><svg><use href="#i-download"/></svg>CSV 내보내기</a></div></div>
+      <div class="panel-b tight" style="max-height:520px;overflow:auto">
+      <table class="table compact">
+        <thead><tr><th>시각</th><th>사용자</th><th>행위</th><th>대상</th>
+          <th>상세</th><th>IP</th></tr></thead>
+        <tbody id="audit-rows"></tbody>
+      </table>
+      </div>
+    </section>
   </div>
-  <table class="table compact">
-    <thead><tr><th>시각</th><th>사용자</th><th>행위</th><th>대상</th>
-      <th>상세</th><th>IP</th></tr></thead>
-    <tbody id="audit-rows"></tbody>
-  </table>
-</section>
+
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-h"><span class="t">계정 생성</span><span class="sub">New account</span></div>
+      <div class="panel-b">
+        <form id="user-form" class="form-grid">
+          <label class="span2">아이디<input name="username" required autocomplete="off"></label>
+          <label class="span2">이름<input name="full_name"></label>
+          <label class="span2">비밀번호<input name="password" type="password" required minlength="6" autocomplete="new-password"></label>
+          <label class="span2">역할
+            <select name="role">
+              {% for value, label in roles %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+            </select>
+          </label>
+          <button class="btn primary span2" type="submit"><svg><use href="#i-plus"/></svg>계정 생성</button>
+        </form>
+        <p id="user-msg" class="msg"></p>
+      </div>
+    </section>
+  </div>
+</div>
 
 <script>
 const ROLE_LABEL = {{ roles | tojson }}.reduce((m,[v,l])=>(m[v]=l,m), {});
 
 async function loadUsers() {
   const rows = await api("/api/users");
+  document.getElementById("user-count").textContent = rows.length + "명";
   document.getElementById("user-rows").innerHTML = rows.map(u => `
     <tr>
-      <td><b>${u.username}</b></td>
-      <td>${u.full_name || "-"}</td>
-      <td>${ROLE_LABEL[u.role] || u.role}</td>
-      <td>${u.is_active ? "활성" : "<span class='muted'>비활성</span>"}</td>
-      <td>${u.last_login ? new Date(u.last_login).toLocaleString() : "-"}</td>
+      <td class="mono"><b>${_esc(u.username)}</b></td>
+      <td>${_esc(u.full_name || "-")}</td>
+      <td><span class="tag neutral">${_esc(ROLE_LABEL[u.role] || u.role)}</span></td>
+      <td>${u.is_active ? '<span class="badge flag-norm">활성</span>' : '<span class="badge flag-abn">비활성</span>'}</td>
+      <td class="num">${u.last_login ? fmtDT(u.last_login) : "-"}</td>
       <td>
         <button class="btn small" data-toggle="${u.id}" data-active="${u.is_active}">
           ${u.is_active ? "비활성화" : "활성화"}</button>
@@ -65,13 +83,13 @@ async function loadAudit() {
   const rows = await api("/api/audit?limit=100");
   document.getElementById("audit-rows").innerHTML = rows.map(a => `
     <tr>
-      <td>${new Date(a.at).toLocaleString()}</td>
-      <td>${a.username || "-"}</td>
-      <td><span class="tag">${a.action}</span></td>
-      <td>${a.entity ? a.entity + (a.entity_id ? " #" + a.entity_id : "") : "-"}</td>
-      <td>${a.detail || "-"}</td>
-      <td>${a.ip || "-"}</td>
-    </tr>`).join("") || `<tr><td colspan="6" class="muted">기록 없음</td></tr>`;
+      <td class="num">${fmtDT(a.at, true)}</td>
+      <td class="mono">${_esc(a.username || "-")}</td>
+      <td><span class="tag">${_esc(a.action)}</span></td>
+      <td class="mono">${a.entity ? _esc(a.entity + (a.entity_id ? " #" + a.entity_id : "")) : "-"}</td>
+      <td class="muted">${_esc(a.detail || "-")}</td>
+      <td class="mono dim">${_esc(a.ip || "-")}</td>
+    </tr>`).join("") || `<tr><td colspan="6" class="empty">기록 없음</td></tr>`;
 }
 
 document.getElementById("user-form").addEventListener("submit", async (ev) => {
