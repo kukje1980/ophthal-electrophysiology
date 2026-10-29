@@ -47,6 +47,17 @@ def decrypt_phi(stored: str | None) -> str | None:
         return None
 
 
+def encrypt_bytes(data: bytes) -> bytes:
+    """Encrypt a binary blob (e.g. a clinical photo) for storage at rest."""
+    return _fernet().encrypt(data)
+
+
+def decrypt_bytes(token: bytes) -> bytes:
+    """Inverse of :func:`encrypt_bytes`. Raises InvalidToken on tampering or a
+    wrong key."""
+    return _fernet().decrypt(token)
+
+
 def mask_rrn(stored: str | None) -> str | None:
     """Return a masked national id (e.g. 680310-1******) from stored cipher."""
     plain = decrypt_phi(stored)

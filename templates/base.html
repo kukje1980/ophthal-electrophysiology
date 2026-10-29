@@ -11,6 +11,7 @@
   <script src="/static/js/markers.js"></script>
   <script src="/static/js/acquisition.js"></script>
   <script src="/static/js/patient-form.js"></script>
+  {% block head %}{% endblock %}
 </head>
 <body>
   <header class="topbar">
@@ -18,6 +19,7 @@
     <nav>
       <a href="/">Dashboard</a>
       <a href="/patients">Patients</a>
+      {% if perms and 'view_photo' in perms %}<a href="/photos">전체사진</a>{% endif %}
       <a href="/live">Live</a>
       {% if perms and 'manage_reference' in perms %}<a href="/reference">정상범위</a>{% endif %}
       {% if perms and 'manage_users' in perms %}<a href="/admin">Admin</a>{% endif %}
@@ -35,7 +37,7 @@
     {% endif %}
   </header>
 
-  <main class="container">
+  <main class="container {% block main_class %}{% endblock %}">
     {% block content %}{% endblock %}
   </main>
 

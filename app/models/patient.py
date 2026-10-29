@@ -73,6 +73,9 @@ class Patient(Base):
     exams = relationship(
         "Exam", back_populates="patient", cascade="all, delete-orphan"
     )
+    photos = relationship(
+        "Photo", back_populates="patient", cascade="all, delete-orphan"
+    )
 
     @property
     def age(self):

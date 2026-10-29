@@ -9,8 +9,8 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import settings
 from app.database import SessionLocal, init_db
 from app.routers import (
-    account, audit, auth, devices, exams, live, pages, patients, protocols,
-    reference, users,
+    account, audit, auth, devices, exams, live, pages, patients, photos,
+    protocols, reference, users,
 )
 
 # Paths reachable without a login session.
@@ -95,6 +95,7 @@ def create_app() -> FastAPI:
     app.include_router(account.router)
     app.include_router(live.router)  # WebSocket live stream
     app.include_router(reference.router)
+    app.include_router(photos.router)
     # Auth + HTML pages
     app.include_router(auth.router)
     app.include_router(pages.router)

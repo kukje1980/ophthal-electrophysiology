@@ -12,6 +12,12 @@
     <div class="stat-num">{{ recent|length }}</div>
     <div class="stat-label">Recent exams</div>
   </div>
+  {% if 'view_photo' in perms %}
+  <a class="card stat stat-link" href="/photos">
+    <div class="stat-num">{{ photo_count }}</div>
+    <div class="stat-label">Photos · 전체사진</div>
+  </a>
+  {% endif %}
   <div class="card stat">
     <a class="btn primary" href="/patients">+ New patient / exam</a>
   </div>
