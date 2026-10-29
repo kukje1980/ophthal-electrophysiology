@@ -30,6 +30,12 @@ class Settings:
 
     APP_TITLE: str = "Ophthalmic Electrophysiology (ISCEV ERG/VEP)"
 
+    # Clinical photos (fundus / OCT / anterior segment ...) -----------------
+    # Image files are stored here, encrypted at rest with the PHI key.
+    PHOTO_DIR: str = os.getenv("PHOTO_DIR", "./data/photos")
+    # Upload limit per image file, in megabytes.
+    PHOTO_MAX_MB: int = int(os.getenv("PHOTO_MAX_MB", "40"))
+
     # Security -------------------------------------------------------------
     # Signs the session cookie. MUST be set to a strong random value in
     # production (e.g. `python -c "import secrets;print(secrets.token_hex(32))"`).

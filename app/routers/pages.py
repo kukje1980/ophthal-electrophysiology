@@ -1,13 +1,18 @@
 """HTML pages (server-rendered shells; data is fetched via the JSON API)."""
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.crud import exam as exam_crud
 from app.crud import patient as patient_crud
+from app.crud import photo as photo_crud
 from app.database import get_db
 from app.iscev import TEST_TYPES
+from app.models.photo import EYES, MODALITIES
 from app.security import ROLES, current_user, has_permission
 from app.security.auth import ROLE_LABELS
 
@@ -35,7 +40,7 @@ def dashboard(request: Request, db: Session = Depends(get_db),
     patients = patient_crud.list_all(db)
     return templates.TemplateResponse("dashboard.html", _ctx(
         request, user, recent=recent, patient_count=len(patients),
-        exam_count=len(recent),
+        exam_count=len(recent), photo_count=photo_crud.count(db),
     ))
 
 
@@ -82,6 +87,27 @@ def report_view(exam_id: int, request: Request,
     return templates.TemplateResponse("report.html", _ctx(
         request, user, exam_id=exam_id, embed=False,
     ))
+
+
+@router.get("/photos", response_class=HTMLResponse)
+def photos_page(request: Request, patient_id: Optional[int] = None,
+                db: Session = Depends(get_db), user=Depends(current_user)):
+    """전체사진 — every clinical photo, selectable for the multi viewer."""
+    if not has_permission(user, "view_photo"):
+        return RedirectResponse("/", status_code=303)
+    patient = patient_crud.get(db, patient_id) if patient_id else None
+    return templates.TemplateResponse("photos.html", _ctx(
+        request, user, patient=patient, modalities=MODALITIES, eyes=EYES,
+        max_mb=settings.PHOTO_MAX_MB,
+    ))
+
+
+@router.get("/photos/viewer", response_class=HTMLResponse)
+def photo_viewer_page(request: Request, user=Depends(current_user)):
+    """Multi viewer for the selected photos (?ids=1,2,3)."""
+    if not has_permission(user, "view_photo"):
+        return RedirectResponse("/", status_code=303)
+    return templates.TemplateResponse("photo_viewer.html", _ctx(request, user))
 
 
 @router.get("/live", response_class=HTMLResponse)

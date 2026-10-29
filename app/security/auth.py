@@ -20,6 +20,7 @@ PERMISSIONS = {
     "manage_users",     # create/disable accounts
     "view_audit",       # read the audit log
     "manage_reference", # edit laboratory normative reference ranges
+    "view_photo", "upload_photo", "delete_photo",  # clinical photos
 }
 
 # Role -> granted permissions.
@@ -28,12 +29,13 @@ ROLES = {
     "clinician": {
         "view_patient", "edit_patient", "delete_patient",
         "run_exam", "delete_exam", "view_report", "view_phi",
-        "manage_reference",
+        "manage_reference", "view_photo", "upload_photo", "delete_photo",
     },
     "technician": {
         "view_patient", "edit_patient", "run_exam", "view_report",
+        "view_photo", "upload_photo",
     },  # note: no view_phi
-    "viewer": {"view_patient", "view_report"},
+    "viewer": {"view_patient", "view_report", "view_photo"},
 }
 
 ROLE_LABELS = {

@@ -35,6 +35,19 @@
   <tbody id="exam-rows"></tbody>
 </table>
 
+{% if 'view_photo' in perms %}
+<div class="row-between" style="margin-top:26px">
+  <h2>사진 (Photos)</h2>
+  <div style="display:flex;gap:8px">
+    <a class="btn" href="/photos?patient_id={{ patient.id }}">전체사진 보기</a>
+    {% if 'upload_photo' in perms %}
+    <a class="btn primary" href="/photos?patient_id={{ patient.id }}&upload=1">+ 사진 업로드</a>
+    {% endif %}
+  </div>
+</div>
+<div class="ph-strip" id="photo-strip"></div>
+{% endif %}
+
 <script>
 const PID = {{ patient.id }};
 const sexLabel = (s) => ({M:"남", F:"여", O:"기타"}[s] || "-");
@@ -99,7 +112,20 @@ async function loadExams() {
     `<tr><td colspan="4" class="muted">검사 기록이 없습니다.</td></tr>`;
 }
 
+async function loadPhotoStrip() {
+  const strip = document.getElementById("photo-strip");
+  if (!strip) return;
+  const rows = await api(`/api/photos?patient_id=${PID}&limit=12`);
+  const back = encodeURIComponent(location.pathname);
+  strip.innerHTML = rows.map(p => `
+    <a href="/photos/viewer?ids=${p.id}&back=${back}" title="${p.modality_label || ""}">
+      <img src="/api/photos/${p.id}/thumb" alt="" loading="lazy">
+      <span>${p.eye || ""} ${(p.taken_at || p.created_at).slice(0, 10)}</span>
+    </a>`).join("") || `<p class="muted">등록된 사진이 없습니다.</p>`;
+}
+
 loadPatient();
 loadExams();
+loadPhotoStrip();
 </script>
 {% endblock %}
