@@ -171,3 +171,30 @@ def test_trashed_exam_leaves_worklist_and_cannot_be_edited(client, vep_exam):
     assert client.post(f"/api/waveforms/{wf['id']}/redetect").status_code == 404
     assert client.post(f"/api/trash/exams/{eid}/restore").status_code == 200
     assert client.put(f"/api/measurements/{mid}", json={"latency_ms": 100}).status_code == 200
+
+
+def test_rod_b_wave_window_reaches_slow_peaks():
+    from app.iscev import marker_config
+    assert marker_config("DA0.01", "b")["win"] == (40, 130)
+    assert "from" not in marker_config("DA0.01", "b")   # no a-wave on the rod response
+    assert marker_config("DA3.0", "b")["win"] == (30, 90)
+
+
+def test_snap_pulls_a_click_onto_the_peak(client, vep_exam):
+    wf = _wf(vep_exam)
+    m = _m(wf, "P100")
+    peak = m["latency_ms"]
+    r = client.put(f"/api/measurements/{m['id']}", json={"latency_ms": peak + 2.5, "snap": True})
+    assert r.status_code == 200 and abs(r.json()["latency_ms"] - peak) <= 1.0
+    r = client.put(f"/api/measurements/{m['id']}", json={"latency_ms": peak + 2.5})
+    # without snapping the cursor stays where it was put (on the sample grid)
+    assert abs(r.json()["latency_ms"] - (peak + 2.5)) <= 1.0 and r.json()["latency_ms"] > peak + 1
+    assert r.json()["is_auto"] is False
+
+
+def test_sign_needs_an_interpretation(client, vep_exam):
+    eid = vep_exam["id"]
+    r = client.post(f"/api/exams/{eid}/sign")
+    assert r.status_code == 400
+    client.put(f"/api/exams/{eid}/interpretation", json={"impression": "정상 VEP"})
+    assert client.post(f"/api/exams/{eid}/sign").status_code == 200

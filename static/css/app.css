@@ -218,6 +218,7 @@ kbd { background: #e2e8f0; border-radius: 4px; padding: 1px 5px; font-size: 11px
 /* Cursor editing ----------------------------------------------------- */
 canvas.editable { cursor: default; }
 .edit-hint { font-size: 11px; margin-left: 10px; }
+.edit-snap-label { font-size: 11px; margin-left: 10px; display: inline-flex; align-items: center; gap: 4px; }
 .mk.clickable { cursor: pointer; border-bottom: 1px dashed #94a3b8; }
 .mk.clickable:hover { color: var(--primary); }
 .marker-table tr.armed td { background: #fffbeb; }
@@ -237,7 +238,7 @@ canvas.editable { cursor: default; }
 .wf-msg:empty { display: none; }
 
 @media print {
-  .marker-tools, .lat-input + *, .row-actions, .edit-hint { display: none !important; }
+  .marker-tools, .lat-input + *, .row-actions, .edit-hint, .edit-snap-label { display: none !important; }
   .lat-input { border: none; padding: 0; width: auto; font: inherit; }
   .inter { page-break-inside: avoid; }
   .interp-card textarea, .interp-card input { border: none; }

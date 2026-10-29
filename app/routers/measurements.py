@@ -28,7 +28,7 @@ def move_measurement(measurement_id: int, data: MeasurementMove,
                      request: Request, db: Session = Depends(get_db),
                      user=Depends(require_permission("edit_markers"))):
     try:
-        m = crud.move_marker(db, measurement_id, data.latency_ms)
+        m = crud.move_marker(db, measurement_id, data.latency_ms, data.snap)
     except ExamLocked as e:
         raise HTTPException(409, str(e))
     if m is None:
@@ -46,7 +46,7 @@ def add_measurement(waveform_id: int, data: MeasurementAdd, request: Request,
                     db: Session = Depends(get_db),
                     user=Depends(require_permission("edit_markers"))):
     try:
-        m = crud.add_marker(db, waveform_id, data.marker, data.latency_ms)
+        m = crud.add_marker(db, waveform_id, data.marker, data.latency_ms, data.snap)
     except ExamLocked as e:
         raise HTTPException(409, str(e))
     except KeyError as e:

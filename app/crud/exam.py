@@ -16,6 +16,7 @@ from app.crud import idempotency
 from app.crud import reference as reference_crud
 from app.iscev import (
     analyse_exam, detect_markers, get_protocol, marker_config, remeasure,
+    snap_latency,
 )
 from app.models import Exam, Measurement, Patient, Visit, Waveform
 from app.models.exam import STATUS_COMPLETED, STATUS_SIGNED
@@ -281,15 +282,24 @@ def _manual_set(wf: Waveform) -> set:
     return {m.marker for m in wf.measurements if not m.is_auto}
 
 
-def move_marker(db: Session, measurement_id: int, latency_ms: float) -> Optional[Measurement]:
-    """Move a cursor to ``latency_ms`` (clamped into the trace) and re-measure
-    it and the components that reference it."""
+def _place(wf: Waveform, marker: str, latency_ms: float, snap: bool) -> float:
+    latency_ms = float(min(max(latency_ms, 0.0), wf.duration_ms))
+    if snap:
+        latency_ms = snap_latency(wf.samples, wf.duration_ms, wf.step, marker, latency_ms)
+    return latency_ms
+
+
+def move_marker(db: Session, measurement_id: int, latency_ms: float,
+                snap: bool = False) -> Optional[Measurement]:
+    """Move a cursor to ``latency_ms`` (clamped into the trace; optionally
+    snapped onto the nearest peak / trough) and re-measure it and the
+    components that reference it."""
     m = db.get(Measurement, measurement_id)
     if m is None or _is_hidden(m.waveform.exam):
         return None
     wf = m.waveform
     _require_unlocked(wf.exam)
-    m.latency_ms = float(min(max(latency_ms, 0.0), wf.duration_ms))
+    m.latency_ms = _place(wf, m.marker, latency_ms, snap)
     m.is_auto = False
     _apply_measurements(db, wf, _manual_set(wf))
     db.commit()
@@ -298,7 +308,7 @@ def move_marker(db: Session, measurement_id: int, latency_ms: float) -> Optional
 
 
 def add_marker(db: Session, waveform_id: int, marker: str,
-               latency_ms: float) -> Optional[Measurement]:
+               latency_ms: float, snap: bool = False) -> Optional[Measurement]:
     """Place a marker by hand. Replaces an existing cursor of the same name."""
     wf = db.get(Waveform, waveform_id)
     if wf is None or _is_hidden(wf.exam):
@@ -313,7 +323,7 @@ def add_marker(db: Session, waveform_id: int, marker: str,
         db.add(existing)
         wf.measurements.append(existing)
         db.flush()
-    existing.latency_ms = float(min(max(latency_ms, 0.0), wf.duration_ms))
+    existing.latency_ms = _place(wf, marker, latency_ms, snap)
     existing.is_auto = False
     _apply_measurements(db, wf, _manual_set(wf))
     db.commit()
@@ -379,6 +389,8 @@ def sign(db: Session, exam: Exam, by: str) -> Exam:
     """Sign the report: it becomes read-only."""
     if exam.status == STATUS_SIGNED:
         raise ExamLocked("Report is already signed")
+    if not ((exam.interpretation or "").strip() or (exam.impression or "").strip()):
+        raise ValueError("판독 소견 또는 결론을 저장한 뒤 서명하세요.")
     exam.status = STATUS_SIGNED
     exam.signed_by = by
     exam.signed_at = datetime.utcnow()

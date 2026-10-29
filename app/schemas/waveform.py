@@ -19,6 +19,7 @@ class MeasurementMove(BaseModel):
     """Move an existing cursor to a new implicit time (ms)."""
 
     latency_ms: float = Field(..., ge=0)
+    snap: bool = False  # onto the nearest peak/trough of the marker's polarity
 
 
 class MeasurementAdd(BaseModel):
@@ -26,6 +27,7 @@ class MeasurementAdd(BaseModel):
 
     marker: str = Field(..., min_length=1, max_length=16)
     latency_ms: float = Field(..., ge=0)
+    snap: bool = False
 
 
 class WaveformOut(BaseModel):

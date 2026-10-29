@@ -200,7 +200,9 @@ function renderExam(exam, container, opts = {}) {
         <h3>${step}</h3>
         <span class="legend">
           <i class="dot od"></i>OD <i class="dot os"></i>OS
-          ${opts.editable ? `<span class="edit-hint muted">마커 클릭 → 파형 클릭으로 이동 · * 수동</span>` : ""}
+          ${opts.editable ? `<span class="edit-hint muted">마커 클릭 → 파형 클릭으로 이동 · * 수동</span>
+            <label class="inline edit-snap-label" title="클릭한 곳 ±4 ms 안의 가장 가까운 정점/골로 커서를 옮깁니다">
+              <input type="checkbox" class="edit-snap" checked> 피크에 맞춤</label>` : ""}
         </span>
       </div>
       <canvas width="820" height="300" class="${opts.editable ? "editable" : ""}"></canvas>
@@ -283,7 +285,8 @@ function renderExam(exam, container, opts = {}) {
           const m = (tr.measurements || []).find((x) => x.marker === state.armed.marker);
           state.armed = null;
           if (!m) return redraw();
-          try { await api(`/api/measurements/${m.id}`, { method: "PUT", body: { latency_ms: +t.toFixed(1) } }); await done(); }
+          const snap = block.querySelector(".edit-snap").checked;
+          try { await api(`/api/measurements/${m.id}`, { method: "PUT", body: { latency_ms: +t.toFixed(1), snap } }); await done(); }
           catch (e) { fail(e); redraw(); }
           return;
         }

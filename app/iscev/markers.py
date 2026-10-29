@@ -49,6 +49,9 @@ _DEFAULT = {
 # The mfERG components N1/P1/N2 peak much earlier (~15/30/55 ms) than the
 # flash-VEP N1/P1/N2, so they get their own short windows per step.
 _OVERRIDE = {
+    # The rod (DA 0.01) b-wave is slower (implicit time up to ~110 ms) than
+    # the combined-response b-wave, and there is no a-wave to measure from.
+    ("DA0.01", "b"): {"win": (40, 130), "pol": "pos"},
     ("LA3.0_30Hz", "P1"): {"win": (12, 40), "pol": "pos"},
     ("mfERG61", "N1"): {"win": (8, 22), "pol": "neg"},
     ("mfERG61", "P1"): {"win": (22, 45), "pol": "pos", "from": "N1"},
@@ -164,6 +167,24 @@ def detect_markers(samples: List[float], duration_ms: float,
         positions.append((marker, float(t[int(idxs[local])])))
 
     return _measure_all(y, duration_ms, step_key, positions, ref_lookup)
+
+
+def snap_latency(samples: List[float], duration_ms: float, step_key: str,
+                 marker: str, latency_ms: float, window_ms: float = 4.0) -> float:
+    """Move a manually placed cursor onto the nearest local extremum of the
+    marker's polarity within ±``window_ms`` (how clinicians "click near" a
+    peak). Markers without a known polarity are returned unchanged."""
+    cfg = marker_config(step_key, marker)
+    y = np.asarray(samples, dtype=float)
+    if not cfg or len(y) == 0 or window_ms <= 0:
+        return float(latency_ms)
+    t = _time_axis(len(y), duration_ms)
+    idxs = np.where(np.abs(t - latency_ms) <= window_ms)[0]
+    if not len(idxs):
+        return float(latency_ms)
+    seg = y[idxs]
+    local = int(np.argmin(seg) if cfg["pol"] == "neg" else np.argmax(seg))
+    return round(float(t[idxs[local]]), 2)
 
 
 def remeasure(samples: List[float], duration_ms: float, step_key: str,

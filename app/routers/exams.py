@@ -178,6 +178,8 @@ def sign_exam(exam_id: int, request: Request, db: Session = Depends(get_db),
         obj = crud.sign(db, obj, _display_name(user))
     except ExamLocked as e:
         raise HTTPException(409, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     audit_crud.audit(db, user=user, action="exam.sign", entity="exam",
                      entity_id=exam_id, request=request)
     return obj
