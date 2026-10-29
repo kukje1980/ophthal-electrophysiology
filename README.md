@@ -1,5 +1,9 @@
 # Ophthalmic Electrophysiology (ISCEV ERG / VEP)
 
+> This repository also contains **[`fundus_viewer/`](fundus_viewer/README.md)**, a separate
+> Windows fundus-camera viewer (folder-watching import, patient DB, 3D eyeball view;
+> SYSEYE RetiCam 3100 Plus ultra-wide-field, Microclear APOLLO, Kowa VK-2).
+
 A FastAPI + web application for recording, analysing and reporting clinical
 visual electrophysiology studies following the current **ISCEV** standards:
 
