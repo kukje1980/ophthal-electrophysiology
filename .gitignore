@@ -19,11 +19,6 @@ env/
 # Env
 .env
 
-# Fundus viewer build output
-fundus_viewer/build/
-fundus_viewer/dist/
-fundus_viewer/.venv/
-
 # Runtime data
 backups/
 logs/
