@@ -51,7 +51,15 @@ jobs:
 
       - name: Smoke test the packaged build
         shell: bash
+        # Data goes to a scratch folder so nothing of the test ships in the zip.
+        env:
+          DATABASE_URL: sqlite:///${{ runner.temp }}/smoke/smoke.db
+          LOG_DIR: ${{ runner.temp }}/smoke/logs
+          PHOTO_DIR: ${{ runner.temp }}/smoke/photos
+          BACKUP_DIR: ${{ runner.temp }}/smoke/backups
+          BACKUP_ENABLED: "0"
         run: |
+          mkdir -p "$RUNNER_TEMP/smoke"
           cd dist/OphthalElectrophysiology
           ./OphthalElectrophysiology.exe --no-browser &
           for i in $(seq 1 60); do
@@ -60,10 +68,10 @@ jobs:
             fi
             sleep 1
           done
-          kill %1 || true
+          taskkill //F //IM OphthalElectrophysiology.exe || true
           test "${ok:-0}" = 1
-          # the smoke test must not ship its database or logs
-          rm -rf ophthal_electrophysiology.db* data backups logs
+          # nothing but the build may be in the folder we zip
+          ls -A | grep -vE '^(OphthalElectrophysiology\.exe|_internal)$' && exit 1 || true
 
       - name: Zip the build and the source
         shell: bash
