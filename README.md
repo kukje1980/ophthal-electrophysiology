@@ -39,6 +39,60 @@ Typical flow: **검사 접수 (start screen) → find or register the patient �
 visit's details → 저장하고 검사 시작 → Acquire / Live → Report → (check
 cursors) → Interpretation → Sign**.
 
+## Clinical photos — 전체사진 + 멀티 뷰어
+
+Fundus, red-free, FAF, FAG, ICGA, OCT/OCT-A, anterior segment, topography and
+visual-field images can be stored per patient (**전체사진** in the sidebar, or
+the *사진* section of a patient).
+
+- **Upload** — drag & drop several files at once with eye (OD/OS/OU),
+  modality, date and a note. JPEG / PNG / WebP / BMP / GIF are kept exactly as
+  uploaded; TIFF and other formats (incl. 16-bit) are converted to lossless PNG
+  for the browser. A blank date falls back to the file's EXIF capture time.
+- **전체사진** — every photo as a thumbnail grid grouped by date, filterable by
+  patient / modality / eye. Click to select (Shift+click for a range, *이 날짜
+  선택* for a whole visit); the selection is kept across searches, so photos of
+  different patients or visits can be combined.
+- **▦ 멀티** opens the selected photos side by side (auto 1 / 1×2 / 2×2 / 2×3 /
+  3×3 layout; extra photos wait in the filmstrip — click one to show it in the
+  selected viewport, the same photo may be shown twice to compare filters).
+  On each viewport, while looking at the photo:
+  - **확대 / 이동** — wheel or pinch zoom at the cursor (to 3200 %), drag to pan,
+    *맞춤* / *1:1*, double-click to enlarge one viewport, **🔗 동기화** to zoom
+    and pan every viewport together (OD vs OS, follow-up comparison);
+  - **🔍 돋보기** magnifier lens (wheel changes its power);
+  - **회전 / 반전** — 90° rotation, horizontal / vertical flip;
+  - **영상 조정** — brightness, contrast, gamma, saturation, sharpen, auto
+    levels, **Red-free** (green channel), R / B / grey channels, invert, with a
+    live histogram; *모든 사진에 적용* copies the settings to every viewport;
+  - **📏 측정** — length lines in pixels, or µm/mm once a µm/px scale is set;
+    cursor position and original RGB are read out;
+  - **3D** — WebGL surface of the (adjusted) image with brightness as height:
+    orbit / pan / zoom, height and smoothing, mesh resolution, texture /
+    height-colour-map / shaded surface, grid, auto-rotate.
+  - **⬇ 내려받기** saves the edited image (or 3D view); **💾 편집본 저장** stores
+    it as a *new* photo linked to the original (`source_id`) — originals are
+    never modified.
+
+  Large images stay responsive: adjustments preview on a ≤1.5 MP proxy while a
+  slider moves and are applied at full resolution once it rests. Keyboard
+  shortcuts are listed under **?** in the viewer.
+
+**Storage & privacy.** Image files live under `PHOTO_DIR`, encrypted at rest
+with the PHI Fernet key and named by random keys (no patient data on disk);
+deleting a photo or its patient removes the files after the transaction
+commits. Every full-image view / download is written to the audit log
+(`photo.view`, `photo.download`, `photo.upload`, `photo.edit_save`,
+`photo.delete`).
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/photos` | list (`patient_id`, `q`, `modality`, `eye`, or `ids=1,2,3` in order) |
+| `POST /api/photos` | multipart upload (`patient_id`, `files[]`, `eye`, `modality`, `taken_at`, `note`, `source_id`) |
+| `GET /api/photos/{id}/image` | full image (`?download=1` for the original file) |
+| `GET /api/photos/{id}/thumb` | JPEG thumbnail |
+| `PUT` / `DELETE /api/photos/{id}` | edit metadata / delete |
+
 ## Architecture
 
 ```
@@ -50,8 +104,8 @@ app/
   models/            Patient, Visit, Exam, Waveform, Measurement
   schemas/           Pydantic I/O
   crud/              DB access + acquire→store→auto-mark pipeline
-  routers/           patients, visits, exams, measurements, protocols, devices,
-                     system, pages (HTML)
+  routers/           patients, visits, exams, measurements, photos, protocols,
+                     devices, system, pages (HTML)
   iscev/             protocol catalogue, reference ranges, marker detection,
                      interocular (OD/OS) comparison + exam analysis summary
   acquisition/       device abstraction (the hardware seam)
@@ -61,7 +115,8 @@ app/
     simulator.py     simulated amplifier + stimulator (default driver)
     hardware.py      ready-to-fill skeleton for a real rig
     registry.py      driver registry + active-device selection
-templates/  static/  Jinja2 pages + Canvas plotting
+templates/  static/  Jinja2 pages + Canvas plotting; static/js/photo-viewer.js
+                     is the multi-photo viewer (2D canvas + WebGL 3D)
 tests/               pytest suite (analysis, reading workflow, reception, backups, live)
 ```
 
@@ -359,12 +414,12 @@ python -m app.backup restore oep_20261028-143000_auto.db.gz
 
 The application requires a login and enforces role-based access:
 
-| Role | Patients | Exams | Cursors | Interpret / sign | Full national id (PHI) | Users / audit |
-|------|----------|-------|---------|------------------|------------------------|---------------|
-| **admin** | view / edit / delete | run / delete | edit | ✓ | ✓ | ✓ |
-| **clinician** | view / edit / delete | run / delete | edit | ✓ | ✓ | — |
-| **technician** | view / edit | run | edit | — | — (masked only) | — |
-| **viewer** | view | view reports | — | — | — | — |
+| Role | Patients | Exams | Cursors | Interpret / sign | Photos | Full national id (PHI) | Users / audit |
+|------|----------|-------|---------|------------------|--------|------------------------|---------------|
+| **admin** | view / edit / delete | run / delete | edit | ✓ | view / upload / delete | ✓ | ✓ |
+| **clinician** | view / edit / delete | run / delete | edit | ✓ | view / upload / delete | ✓ | — |
+| **technician** | view / edit | run | edit | — | view / upload | — (masked only) | — |
+| **viewer** | view | view reports | — | — | view | — | — |
 
 - **PHI at rest** — the national id (주민등록번호) is encrypted with Fernet and
   only ever returned masked (e.g. `720815-2******`). The full value comes from
@@ -407,6 +462,8 @@ The application requires a login and enforces role-based access:
 | `BACKUP_KEEP_ALL_DAYS` / `BACKUP_KEEP_DAILY_DAYS` / `BACKUP_KEEP_MONTHLY` | `3` / `30` / `24` | retention |
 | `BACKUP_MIN_FREE_MB` | `500` | free space a backup must leave on its disk |
 | `LOG_DIR` / `LOG_LEVEL` | `./logs` / `INFO` | rotating log file |
+| `PHOTO_DIR` | `./data/photos` | encrypted clinical photo store |
+| `PHOTO_MAX_MB` | `40` | upload limit per image file |
 
 > **Note:** reference ranges in `app/iscev/reference.py` are representative
 > demonstration values. Each laboratory must substitute its own normative
@@ -414,4 +471,4 @@ The application requires a login and enforces role-based access:
 >
 > **Production hardening:** set strong `SECRET_KEY` and `PHI_ENCRYPTION_KEY`,
 > serve over HTTPS with `SESSION_HTTPS_ONLY=1`, and manage the encryption key
-> with a secrets manager (rotating it requires re-encrypting stored PHI).
+> with a secrets manager (rotating it requires re-encrypting stored PHI, including the photo store).

@@ -63,6 +63,13 @@
       {% else %}<span>검사 기록 없음</span>{% endfor %}
     </div>
   </div>
+  {% if 'view_photo' in perms %}
+  <a class="kpi kpi-link" href="/photos">
+    <span class="kpi-label"><svg class="ico"><use href="#i-photo"/></svg>전체사진</span>
+    <span class="kpi-value">{{ photo_count }}<small>장</small></span>
+    <span class="kpi-foot">임상 사진 · 멀티 뷰어</span>
+  </a>
+  {% endif %}
   <div class="kpi">
     <span class="kpi-label"><svg class="ico"><use href="#i-plug"/></svg>장비 상태</span>
     <span class="kpi-device" data-dev-led><i class="led"></i><span data-dev="name">—</span></span>

@@ -18,13 +18,13 @@ templates = Jinja2Templates(directory="templates")
 def login_page(request: Request, next: str = "/", error: str = ""):
     if request.session.get("user_id"):
         return RedirectResponse(next or "/", status_code=303)
-    return templates.TemplateResponse("login.html", {
+    return templates.TemplateResponse(request, "login.html", {
         "request": request, "next": next, "error": error,
     })
 
 
 def _login_error(request, next, message, *, need_otp=False, status=401):
-    return templates.TemplateResponse("login.html", {
+    return templates.TemplateResponse(request, "login.html", {
         "request": request, "next": next, "error": message, "need_otp": need_otp,
     }, status_code=status)
 

@@ -19,7 +19,7 @@ from app.database import SessionLocal, checkpoint, engine, init_db
 from app.logging_setup import setup_logging
 from app.routers import (
     account, audit, auth, devices, exams, live, measurements, pages, patients,
-    protocols, reference, system, users, visits,
+    photos, protocols, reference, system, users, visits,
 )
 
 log = logging.getLogger("app")
@@ -178,6 +178,7 @@ def create_app() -> FastAPI:
     app.include_router(reference.router)
     app.include_router(system.router)  # health, backups, trash
     app.include_router(visits.router)
+    app.include_router(photos.router)  # clinical photo gallery
     # Auth + HTML pages
     app.include_router(auth.router)
     app.include_router(pages.router)

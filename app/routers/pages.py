@@ -6,11 +6,14 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.crud import exam as exam_crud
 from app.crud import patient as patient_crud
 from app.crud import visit as visit_crud
+from app.crud import photo as photo_crud
 from app.database import get_db
 from app.iscev import TEST_TYPES
+from app.models.photo import EYES, MODALITIES
 from app.security import ROLES, current_user, has_permission
 from app.security.auth import ROLE_LABELS
 
@@ -35,7 +38,7 @@ def _ctx(request: Request, user, **extra) -> dict:
 def reception_page(request: Request, user=Depends(current_user)):
     """검사 접수 — the start screen: find or register the patient, record
     this visit's details, then start the exam."""
-    return templates.TemplateResponse("reception.html", _ctx(request, user))
+    return templates.TemplateResponse(request, "reception.html", _ctx(request, user))
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
@@ -43,9 +46,9 @@ def dashboard(request: Request, db: Session = Depends(get_db),
               user=Depends(current_user)):
     recent = exam_crud.list_recent(db, limit=15)
     # COUNT queries — never load every patient just to count them
-    return templates.TemplateResponse("dashboard.html", _ctx(
+    return templates.TemplateResponse(request, "dashboard.html", _ctx(
         request, user, recent=recent, patient_count=patient_crud.count(db),
-        exam_count=exam_crud.count(db),
+        exam_count=exam_crud.count(db), photo_count=photo_crud.count(db),
         unsigned=exam_crud.list_unsigned(db, limit=30),
     ))
 
@@ -58,7 +61,7 @@ def favicon():
 
 @router.get("/patients", response_class=HTMLResponse)
 def patients_page(request: Request, user=Depends(current_user)):
-    return templates.TemplateResponse("patients.html", _ctx(request, user))
+    return templates.TemplateResponse(request, "patients.html", _ctx(request, user))
 
 
 @router.get("/patients/{patient_id}", response_class=HTMLResponse)
@@ -67,7 +70,7 @@ def patient_detail(patient_id: int, request: Request,
     p = patient_crud.get(db, patient_id)
     if not p:
         raise HTTPException(404, "Patient not found")
-    return templates.TemplateResponse("patient_detail.html", _ctx(
+    return templates.TemplateResponse(request, "patient_detail.html", _ctx(
         request, user, patient=p, test_types=TEST_TYPES,
     ))
 
@@ -75,7 +78,7 @@ def patient_detail(patient_id: int, request: Request,
 @router.get("/stimulus", response_class=HTMLResponse)
 def stimulus_monitor(request: Request, user=Depends(current_user)):
     """Patient-facing monitor stimulator surface (pattern / flash / flicker)."""
-    return templates.TemplateResponse("stimulus.html", _ctx(request, user))
+    return templates.TemplateResponse(request, "stimulus.html", _ctx(request, user))
 
 
 @router.get("/exam/new", response_class=HTMLResponse)
@@ -87,7 +90,7 @@ def exam_new(patient_id: int, request: Request, visit_id: Optional[int] = None,
     visit = visit_crud.get(db, visit_id) if visit_id else None
     if visit is not None and visit.patient_id != p.id:
         visit = None
-    return templates.TemplateResponse("exam.html", _ctx(
+    return templates.TemplateResponse(request, "exam.html", _ctx(
         request, user, patient=p, test_types=TEST_TYPES, visit=visit,
         visit_tests=[t for t in (visit.tests or "").split(",") if t] if visit else [],
     ))
@@ -100,15 +103,36 @@ def report_view(exam_id: int, request: Request,
     e = exam_crud.get(db, exam_id)
     if not e:
         raise HTTPException(404, "Exam not found")
-    return templates.TemplateResponse("report.html", _ctx(
+    return templates.TemplateResponse(request, "report.html", _ctx(
         request, user, exam_id=exam_id, patient_id=e.patient_id, embed=False,
     ))
+
+
+@router.get("/photos", response_class=HTMLResponse)
+def photos_page(request: Request, patient_id: Optional[int] = None,
+                db: Session = Depends(get_db), user=Depends(current_user)):
+    """전체사진 — every clinical photo, selectable for the multi viewer."""
+    if not has_permission(user, "view_photo"):
+        return RedirectResponse("/", status_code=303)
+    patient = patient_crud.get(db, patient_id) if patient_id else None
+    return templates.TemplateResponse(request, "photos.html", _ctx(
+        request, user, patient=patient, modalities=MODALITIES, eyes=EYES,
+        max_mb=settings.PHOTO_MAX_MB,
+    ))
+
+
+@router.get("/photos/viewer", response_class=HTMLResponse)
+def photo_viewer_page(request: Request, user=Depends(current_user)):
+    """Multi viewer for the selected photos (?ids=1,2,3)."""
+    if not has_permission(user, "view_photo"):
+        return RedirectResponse("/", status_code=303)
+    return templates.TemplateResponse(request, "photo_viewer.html", _ctx(request, user))
 
 
 @router.get("/live", response_class=HTMLResponse)
 def live_page(request: Request, user=Depends(current_user)):
     """Live streaming oscilloscope (real-time amplifier link)."""
-    return templates.TemplateResponse("live.html", _ctx(request, user))
+    return templates.TemplateResponse(request, "live.html", _ctx(request, user))
 
 
 @router.get("/reference", response_class=HTMLResponse)
@@ -116,18 +140,18 @@ def reference_page(request: Request, user=Depends(current_user)):
     """Laboratory normative reference-range management."""
     if not has_permission(user, "manage_reference"):
         return RedirectResponse("/", status_code=303)
-    return templates.TemplateResponse("reference.html", _ctx(request, user))
+    return templates.TemplateResponse(request, "reference.html", _ctx(request, user))
 
 
 @router.get("/account", response_class=HTMLResponse)
 def account_page(request: Request, user=Depends(current_user)):
-    return templates.TemplateResponse("account.html", _ctx(request, user))
+    return templates.TemplateResponse(request, "account.html", _ctx(request, user))
 
 
 @router.get("/admin", response_class=HTMLResponse)
 def admin_page(request: Request, user=Depends(current_user)):
     if not has_permission(user, "manage_users"):
         return RedirectResponse("/", status_code=303)
-    return templates.TemplateResponse("admin.html", _ctx(
+    return templates.TemplateResponse(request, "admin.html", _ctx(
         request, user, roles=list(ROLE_LABELS.items()),
     ))
