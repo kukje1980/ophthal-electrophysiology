@@ -35,9 +35,9 @@ No Python needed on Windows. The newest build is always at the same address
 - **Source**: <https://github.com/kukje1980/ophthal-electrophysiology/releases/download/latest/ophthal-electrophysiology-source.zip>
 
 Both are built by the `release` GitHub Actions workflow: every push runs the
-tests; *Actions → release → Run workflow* (pick the branch), a push to the
-default branch, or a `v*` tag publishes them as the release **latest**, and a
-tag also gets its own permanent release. Local build:
+tests, builds and smoke-tests the Windows bundle, and publishes it as the
+release **latest** (so the newest pushed branch is what is downloaded); a
+`v*` tag also gets its own permanent release. Local build:
 `pip install pyinstaller && pyinstaller packaging/oep.spec`.
 
 ## Quick start
