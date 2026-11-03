@@ -36,7 +36,20 @@ def _load_env_file(path: str) -> None:
             os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
+def _utf8_console() -> None:
+    """Windows consoles default to a legacy code page (cp1252/cp949) that
+    cannot show every character of the startup messages; never let that
+    crash the server."""
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):
+                pass
+
+
 def main() -> None:
+    _utf8_console()
     base = _base_dir()
     os.chdir(base)
     _load_env_file(os.path.join(base, "settings.env"))
