@@ -27,6 +27,9 @@ jobs:
           - os: macos-15-intel
             label: macOS (Intel)
             suffix: macos-x86_64
+            # cryptography >= 49 ships no Intel-macOS wheel; a source build links
+            # Homebrew OpenSSL and then clashes with Python's own libssl at run time
+            extra_pip: --only-binary cryptography "cryptography<49"
           - os: windows-latest
             label: Windows (x64)
             suffix: windows-x64
@@ -41,7 +44,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt pyinstaller==${{ env.PYINSTALLER_VERSION }}
+          python -m pip install -r requirements.txt pyinstaller==${{ env.PYINSTALLER_VERSION }} ${{ matrix.extra_pip }}
 
       - name: Read version
         id: ver
