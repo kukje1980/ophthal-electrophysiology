@@ -11,6 +11,10 @@ Maintenance release folding in work finished on other branches since v0.3.0.
   amplifiers and front-end parts (`docs/dry-electrode-vep-hardware-options.md`).
 - The photo-gallery fix made on `main` (a duplicate `esc()` that left the grid
   loading) was already absent here; checked, no change needed.
+- Release workflow: each version now gets a permanent release `v<version>`
+  automatically — the first push carrying a new `app.__version__` creates it
+  (tag included), with this changelog section as its notes. `latest` keeps
+  following every push.
 
 ## v0.3.0 — 2026-11-03
 

@@ -2,8 +2,9 @@ name: release
 
 # Every push runs the tests, builds the Windows bundle and a source zip, and
 # publishes them as the GitHub release "latest" (fixed download address, no
-# login needed). Pull requests only build. A version tag (v1.2.3) additionally
-# creates a permanent release for that version.
+# login needed). Pull requests only build. Each version also gets a permanent
+# release v<app.__version__>, created by the first push that carries it (the
+# sessions that push here cannot push tags) or by a v1.2.3 tag push.
 #
 #   https://github.com/<owner>/<repo>/releases/download/latest/OphthalElectrophysiology-windows.zip
 #   https://github.com/<owner>/<repo>/releases/download/latest/ophthal-electrophysiology-source.zip
@@ -104,16 +105,26 @@ jobs:
             --title "안과 전기생리 검사 시스템 — 최신판 (v$VERSION, $(date -u +%Y-%m-%d))" \
             --notes-file packaging/release_notes.md
 
-      - name: Publish the version release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Publish the version release (once per version)
+        if: github.event_name != 'pull_request'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION=$(python -c "import app; print(app.__version__)")
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then TAG="${GITHUB_REF#refs/tags/}"; else TAG="v$VERSION"; fi
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "release $TAG already exists - nothing to do"; exit 0
+          fi
+          # install notes + this version's section of CHANGELOG.md
+          {
+            cat packaging/release_notes.md
+            echo; echo "### 이번 버전 변경 사항 / Changes in $TAG"; echo
+            awk -v v="## $TAG" 'index($0, v) == 1 {on = 1; next} on && /^## v/ {exit} on' CHANGELOG.md
+          } > version_notes.md
           gh release create "$TAG" \
             OphthalElectrophysiology-windows.zip ophthal-electrophysiology-source.zip SHA256SUMS.txt \
             --target "$GITHUB_SHA" \
             --title "안과 전기생리 검사 시스템 $TAG" \
-            --notes-file packaging/release_notes.md --generate-notes
+            --notes-file version_notes.md
