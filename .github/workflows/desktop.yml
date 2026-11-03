@@ -3,6 +3,7 @@ name: Desktop builds (macOS / Windows)
 on:
   workflow_dispatch:
   push:
+    branches: ["main", "claude/**"]
     tags: ["v*"]
 
 permissions:
