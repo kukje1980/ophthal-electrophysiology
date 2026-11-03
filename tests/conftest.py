@@ -24,6 +24,7 @@ os.environ.update({
     "BACKUP_ENABLED": "0",          # scheduler off; tests call the API directly
     "BACKUP_MIN_FREE_MB": "1",
     "LOG_DIR": f"{_TMP}/logs",
+    "PHOTO_DIR": f"{_TMP}/photos",
     "SECRET_KEY": "test-secret",
     "ADMIN_PASSWORD": "admin1234",
 })
