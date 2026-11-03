@@ -82,8 +82,7 @@
 const FIXED_PATIENT = {{ patient.id if patient else 'null' }};
 const MAX_MB = {{ max_mb }};
 const SEL_KEY = "oep.photos.selected";
-const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => (
-  { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+// esc() comes from static/js/acquisition.js (loaded in <head> by base.html)
 
 let photos = [];
 let anchor = null;  // last clicked id, for Shift+click ranges
