@@ -8,6 +8,7 @@ from app.models.user import User
 from app.models.audit import AuditLog
 from app.models.reference import ReferenceRange
 from app.models.idempotency import IdempotencyKey
+from app.models.photo import Photo
 
 __all__ = ["Patient", "Exam", "Visit", "Waveform", "Measurement", "User", "AuditLog",
-           "ReferenceRange", "IdempotencyKey"]
+           "ReferenceRange", "IdempotencyKey", "Photo"]

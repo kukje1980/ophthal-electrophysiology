@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+{% block title %}전체사진 · ERG/VEP{% endblock %}
+{% block main_class %}wide-gallery{% endblock %}
+{% block content %}
+<div class="row-between">
+  <h1>전체사진 <span class="muted" style="font-size:14px">All photos</span></h1>
+  {% if 'upload_photo' in perms %}
+  <button class="btn primary" id="upload-btn" type="button">+ 사진 업로드</button>
+  {% endif %}
+</div>
+{% if patient %}
+<p class="muted">환자 <b>{{ patient.name }}</b> #{{ patient.mrn }} 의 사진 ·
+  <a href="/patients/{{ patient.id }}">환자 정보</a> · <a href="/photos">모든 환자 사진 보기</a></p>
+{% endif %}
+
+<section class="card ph-filters">
+  <input id="ph-q" class="search" placeholder="환자명 / 등록번호 / 메모 검색…" {% if patient %}hidden{% endif %}>
+  <select id="ph-modality" aria-label="검사 종류">
+    <option value="">모든 검사</option>
+    {% for k, v in modalities.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+  </select>
+  <select id="ph-eye" aria-label="눈">
+    <option value="">OD · OS · OU</option>
+    {% for e in eyes %}<option value="{{ e }}">{{ e }}</option>{% endfor %}
+  </select>
+  <span class="muted" id="ph-count"></span>
+</section>
+
+<div class="ph-selbar">
+  <b id="ph-selcount">0장 선택</b>
+  <button class="btn small" id="ph-all" type="button">보이는 사진 전체 선택</button>
+  <button class="btn small" id="ph-none" type="button">선택 해제</button>
+  {% if 'delete_photo' in perms %}
+  <button class="btn small danger" id="ph-delete" type="button" disabled>🗑 삭제</button>
+  {% endif %}
+  <span class="ph-hint">클릭: 선택 · Shift+클릭: 범위 선택 · 더블클릭/⤢: 바로 보기</span>
+  <button class="btn primary" id="ph-multi" type="button" disabled
+          title="선택한 사진을 나란히 보면서 확대·3D·영상 조정">▦ 멀티</button>
+</div>
+
+<div id="ph-groups"><p class="muted">불러오는 중…</p></div>
+
+{% if 'upload_photo' in perms %}
+<dialog id="ph-upload" class="ph-dialog">
+  <form id="ph-upform">
+    <div class="row-between">
+      <h2 style="margin:0">사진 업로드</h2>
+      <button class="btn small" type="button" data-close>✕</button>
+    </div>
+    <label class="pfield"><span>환자 <em>*</em></span>
+      <input id="up-psearch" placeholder="이름 / 등록번호로 찾기" {% if patient %}hidden{% endif %}>
+      <select id="up-patient" required></select>
+    </label>
+    <div class="pgrid" style="margin-top:12px">
+      <label class="pfield"><span>눈</span>
+        <select name="eye"><option value="">-</option>
+          {% for e in eyes %}<option value="{{ e }}">{{ e }}</option>{% endfor %}</select></label>
+      <label class="pfield"><span>검사 종류</span>
+        <select name="modality"><option value="">-</option>
+          {% for k, v in modalities.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+      <label class="pfield"><span>촬영일 <small class="muted">비우면 파일의 촬영 정보(EXIF)</small></span>
+        <input type="date" name="taken_at"></label>
+      <label class="pfield"><span>메모</span><input name="note" maxlength="512"></label>
+    </div>
+    <div class="ph-drop" id="up-drop">
+      사진을 여기로 끌어다 놓거나
+      <label class="btn small">파일 선택
+        <input type="file" id="up-files" multiple accept="image/*,.tif,.tiff" hidden></label>
+      <div class="muted" id="up-list">JPEG · PNG · TIFF · BMP · WebP, 파일당 최대 {{ max_mb }} MB</div>
+    </div>
+    <progress id="up-prog" max="1" value="0" hidden></progress>
+    <p class="msg" id="up-msg"></p>
+    <div class="pactions">
+      <button class="btn primary" type="submit" id="up-submit">업로드</button>
+      <button class="btn" type="button" data-close>취소</button>
+    </div>
+  </form>
+</dialog>
+{% endif %}
+
+<script>
+const FIXED_PATIENT = {{ patient.id if patient else 'null' }};
+const MAX_MB = {{ max_mb }};
+const SEL_KEY = "oep.photos.selected";
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => (
+  { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+let photos = [];
+let anchor = null;  // last clicked id, for Shift+click ranges
+const selected = new Set((() => {
+  try { return JSON.parse(sessionStorage.getItem(SEL_KEY) || "[]"); } catch (e) { return []; }
+})());
+
+function saveSelection() {
+  try { sessionStorage.setItem(SEL_KEY, JSON.stringify([...selected])); } catch (e) {}
+}
+
+const day = (p) => (p.taken_at || p.created_at || "").slice(0, 10);
+const timeOf = (p) => p.taken_at
+  ? new Date(p.taken_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+
+async function loadPhotos() {
+  const qs = new URLSearchParams();
+  if (FIXED_PATIENT) qs.set("patient_id", FIXED_PATIENT);
+  const q = document.getElementById("ph-q").value.trim();
+  if (q && !FIXED_PATIENT) qs.set("q", q);
+  for (const k of ["modality", "eye"]) {
+    const v = document.getElementById("ph-" + k).value;
+    if (v) qs.set(k, v);
+  }
+  try {
+    photos = await api("/api/photos?" + qs);
+  } catch (e) {
+    document.getElementById("ph-groups").innerHTML = `<p class="msg err">${esc(e.message)}</p>`;
+    return;
+  }
+  if (![...qs.keys()].length) {  // full list: forget photos deleted elsewhere
+    const ids = new Set(photos.map((p) => p.id));
+    [...selected].forEach((id) => { if (!ids.has(id)) selected.delete(id); });
+  }
+  render();
+}
+
+function render() {
+  document.getElementById("ph-count").textContent = `${photos.length}장`;
+  const groups = [];
+  for (const p of photos) {
+    const d = day(p);
+    if (!groups.length || groups[groups.length - 1].day !== d) groups.push({ day: d, items: [] });
+    groups[groups.length - 1].items.push(p);
+  }
+  document.getElementById("ph-groups").innerHTML = groups.map((g) => `
+    <section class="ph-group">
+      <h3>${esc(g.day)} <span class="muted">${g.items.length}장</span>
+        <button class="btn small" type="button" data-day="${esc(g.day)}">이 날짜 선택</button></h3>
+      <div class="ph-grid">${g.items.map(card).join("")}</div>
+    </section>`).join("") ||
+    `<p class="muted">사진이 없습니다.${document.getElementById("upload-btn") ? " <b>+ 사진 업로드</b>로 추가하세요." : ""}</p>`;
+  updateSelection();
+}
+
+function card(p) {
+  return `
+    <div class="ph-card" data-id="${p.id}" tabindex="0" role="checkbox" aria-checked="false"
+         title="${esc(p.original_name || p.title || "")}">
+      <div class="ph-img">
+        <img src="/api/photos/${p.id}/thumb" alt="" loading="lazy">
+        <span class="ph-check" aria-hidden="true">✓</span>
+        ${p.eye ? `<span class="ph-eye ${esc(p.eye)}">${esc(p.eye)}</span>` : ""}
+        ${p.source_id ? `<span class="ph-edited">편집본</span>` : ""}
+        <button class="ph-open" type="button" data-open="${p.id}" title="이 사진만 크게 보기"
+                aria-label="이 사진만 크게 보기">⤢</button>
+      </div>
+      <div class="ph-cap">
+        ${FIXED_PATIENT ? "" : `<b>${esc(p.patient_name)}</b> <span class="muted">#${esc(p.patient_mrn)}</span><br>`}
+        ${p.modality_label ? `<span class="tag">${esc(p.modality_label)}</span>` : ""}
+        <span class="muted">${esc(timeOf(p))}</span>
+        ${p.note ? `<div class="ph-note">${esc(p.note)}</div>` : ""}
+      </div>
+    </div>`;
+}
+
+function updateSelection() {
+  document.querySelectorAll(".ph-card").forEach((el) => {
+    const on = selected.has(+el.dataset.id);
+    el.classList.toggle("is-sel", on);
+    el.setAttribute("aria-checked", String(on));
+  });
+  const shown = new Set(photos.map((p) => p.id));
+  const hidden = [...selected].filter((id) => !shown.has(id)).length;
+  document.getElementById("ph-selcount").textContent =
+    `${selected.size}장 선택` + (hidden ? ` (검색 밖 ${hidden}장 포함)` : "");
+  document.getElementById("ph-multi").disabled = selected.size === 0;
+  const del = document.getElementById("ph-delete");
+  if (del) del.disabled = selected.size === 0;
+  saveSelection();
+}
+
+function toggle(id, shift) {
+  if (shift && anchor != null) {
+    const ids = photos.map((p) => p.id);
+    const a = ids.indexOf(anchor), b = ids.indexOf(id);
+    if (a >= 0 && b >= 0) {
+      for (const x of ids.slice(Math.min(a, b), Math.max(a, b) + 1)) selected.add(x);
+      updateSelection();
+      return;
+    }
+  }
+  selected.has(id) ? selected.delete(id) : selected.add(id);
+  anchor = id;
+  updateSelection();
+}
+
+function openViewer(ids) {
+  const back = location.pathname + location.search;
+  location.href = `/photos/viewer?ids=${ids.join(",")}&back=${encodeURIComponent(back)}`;
+}
+
+const groupsEl = document.getElementById("ph-groups");
+groupsEl.addEventListener("click", (e) => {
+  const open = e.target.closest("[data-open]");
+  if (open) { openViewer([+open.dataset.open]); return; }
+  const dayBtn = e.target.closest("[data-day]");
+  if (dayBtn) {
+    const items = photos.filter((p) => day(p) === dayBtn.dataset.day);
+    const all = items.every((p) => selected.has(p.id));
+    items.forEach((p) => all ? selected.delete(p.id) : selected.add(p.id));
+    updateSelection();
+    return;
+  }
+  const c = e.target.closest(".ph-card");
+  if (c) toggle(+c.dataset.id, e.shiftKey);
+});
+groupsEl.addEventListener("dblclick", (e) => {
+  const c = e.target.closest(".ph-card");
+  if (c) openViewer([+c.dataset.id]);
+});
+groupsEl.addEventListener("keydown", (e) => {
+  const c = e.target.closest(".ph-card");
+  if (!c || e.target !== c) return;
+  if (e.key === " ") { e.preventDefault(); toggle(+c.dataset.id, e.shiftKey); }
+  if (e.key === "Enter") openViewer([+c.dataset.id]);
+});
+
+document.getElementById("ph-all").addEventListener("click", () => {
+  photos.forEach((p) => selected.add(p.id));
+  updateSelection();
+});
+document.getElementById("ph-none").addEventListener("click", () => {
+  selected.clear();
+  updateSelection();
+});
+document.getElementById("ph-multi").addEventListener("click", () => {
+  // Keep the gallery order (newest first) for the viewer.
+  const order = photos.map((p) => p.id).filter((id) => selected.has(id));
+  const rest = [...selected].filter((id) => !order.includes(id));
+  const ids = order.concat(rest);
+  if (ids.length > 200) { alert("한 번에 200장까지 볼 수 있습니다."); return; }
+  openViewer(ids);
+});
+
+const delBtn = document.getElementById("ph-delete");
+if (delBtn) delBtn.addEventListener("click", async () => {
+  if (!confirm(`선택한 사진 ${selected.size}장을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+  for (const id of [...selected]) {
+    try {
+      await api(`/api/photos/${id}`, { method: "DELETE" });
+      selected.delete(id);
+    } catch (e) {
+      if (!/not found/i.test(e.message)) { alert(`#${id}: ${e.message}`); break; }
+      selected.delete(id);
+    }
+  }
+  loadPhotos();
+});
+
+let qTimer = null;
+document.getElementById("ph-q").addEventListener("input", () => {
+  clearTimeout(qTimer);
+  qTimer = setTimeout(loadPhotos, 250);
+});
+document.getElementById("ph-modality").addEventListener("change", loadPhotos);
+document.getElementById("ph-eye").addEventListener("change", loadPhotos);
+
+/* -- upload ------------------------------------------------------------ */
+const dlg = document.getElementById("ph-upload");
+if (dlg) {
+  const form = document.getElementById("ph-upform");
+  const fileInput = document.getElementById("up-files");
+  const psel = document.getElementById("up-patient");
+  const msg = document.getElementById("up-msg");
+  const prog = document.getElementById("up-prog");
+  let files = [];
+  let patients = [];
+
+  const fillPatients = (q) => {
+    const k = (q || "").trim().toLowerCase();
+    const keep = psel.value;
+    psel.innerHTML = `<option value="">환자를 선택하세요</option>` + patients
+      .filter((p) => !k || p.name.toLowerCase().includes(k) || p.mrn.toLowerCase().includes(k))
+      .map((p) => `<option value="${p.id}">${esc(p.name)} (#${esc(p.mrn)})</option>`).join("");
+    psel.value = keep;
+    if (!psel.value && k && psel.options.length === 2) psel.selectedIndex = 1;
+  };
+
+  const showFiles = () => {
+    const big = files.filter((f) => f.size > MAX_MB * 1024 * 1024);
+    document.getElementById("up-list").innerHTML = files.length
+      ? `${files.length}개 파일 · ${(files.reduce((s, f) => s + f.size, 0) / 1048576).toFixed(1)} MB` +
+        (big.length ? `<br><span class="msg err">${MAX_MB} MB 초과: ${big.map((f) => esc(f.name)).join(", ")}</span>` : "")
+      : `JPEG · PNG · TIFF · BMP · WebP, 파일당 최대 ${MAX_MB} MB`;
+  };
+
+  async function openUpload() {
+    msg.textContent = ""; msg.className = "msg";
+    if (!patients.length) {
+      try { patients = await api("/api/patients"); } catch (e) { patients = []; }
+    }
+    fillPatients(document.getElementById("up-psearch").value);
+    if (FIXED_PATIENT) psel.value = String(FIXED_PATIENT);
+    dlg.showModal();
+  }
+
+  document.getElementById("upload-btn").addEventListener("click", openUpload);
+  dlg.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => dlg.close()));
+  document.getElementById("up-psearch").addEventListener("input", (e) => fillPatients(e.target.value));
+  fileInput.addEventListener("change", () => { files = [...fileInput.files]; showFiles(); });
+  const drop = document.getElementById("up-drop");
+  ["dragenter", "dragover"].forEach((t) => drop.addEventListener(t, (e) => {
+    e.preventDefault(); drop.classList.add("is-over");
+  }));
+  ["dragleave", "drop"].forEach((t) => drop.addEventListener(t, () => drop.classList.remove("is-over")));
+  drop.addEventListener("drop", (e) => {
+    e.preventDefault();
+    files = [...e.dataTransfer.files].filter((f) => f.type.startsWith("image/") || /\.tiff?$/i.test(f.name));
+    showFiles();
+  });
+
+  // One request per batch of files so progress is meaningful and a bad file
+  // only rejects its own batch.
+  function sendBatch(batch, done, total) {
+    return new Promise((resolve, reject) => {
+      const fd = new FormData(form);
+      fd.delete("files");
+      fd.set("patient_id", psel.value);
+      for (const k of ["eye", "modality", "taken_at", "note"]) if (!fd.get(k)) fd.delete(k);
+      batch.forEach((f) => fd.append("files", f, f.name));
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/photos");
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) prog.value = (done + e.loaded) / total; };
+      xhr.onload = () => {
+        let data = null;
+        try { data = JSON.parse(xhr.responseText); } catch (e) {}
+        if (xhr.status === 201) resolve(data);
+        else reject(new Error(data && data.detail ? data.detail : `HTTP ${xhr.status}`));
+      };
+      xhr.onerror = () => reject(new Error("네트워크 오류"));
+      xhr.send(fd);
+    });
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!psel.value) { msg.textContent = "환자를 선택하세요."; msg.className = "msg err"; return; }
+    if (!files.length) { msg.textContent = "업로드할 사진을 선택하세요."; msg.className = "msg err"; return; }
+    if (files.some((f) => f.size > MAX_MB * 1024 * 1024)) {
+      msg.textContent = `${MAX_MB} MB를 넘는 파일은 올릴 수 없습니다.`; msg.className = "msg err"; return;
+    }
+    const submit = document.getElementById("up-submit");
+    submit.disabled = true;
+    prog.hidden = false; prog.value = 0;
+    msg.textContent = "업로드 중…"; msg.className = "msg";
+    const total = files.reduce((s, f) => s + f.size, 0) || 1;
+    let done = 0, added = [];
+    try {
+      for (let i = 0; i < files.length; i += 10) {
+        const batch = files.slice(i, i + 10);
+        added = added.concat(await sendBatch(batch, done, total));
+        done += batch.reduce((s, f) => s + f.size, 0);
+      }
+      added.forEach((p) => selected.add(p.id));
+      files = []; fileInput.value = ""; showFiles();
+      dlg.close();
+      await loadPhotos();
+    } catch (err) {
+      msg.textContent = (added.length ? `${added.length}장 저장 후 실패 — ` : "") + err.message;
+      msg.className = "msg err";
+      if (added.length) loadPhotos();
+    } finally {
+      submit.disabled = false;
+      prog.hidden = true;
+    }
+  });
+
+  if (new URLSearchParams(location.search).get("upload") === "1") openUpload();
+}
+
+loadPhotos();
+</script>
+{% endblock %}

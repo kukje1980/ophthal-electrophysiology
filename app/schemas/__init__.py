@@ -10,6 +10,7 @@ from app.schemas.visit import (
     PatientSearchOut, ReceptionIn, ReceptionOut, VisitCreate, VisitListOut,
     VisitOut,
 )
+from app.schemas.photo import PhotoOut, PhotoUpdate
 
 __all__ = [
     "PatientCreate",
@@ -30,4 +31,6 @@ __all__ = [
     "VisitCreate",
     "VisitListOut",
     "VisitOut",
+    "PhotoOut",
+    "PhotoUpdate",
 ]

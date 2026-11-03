@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}멀티 뷰어 · 전체사진{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/photo-viewer.css">
+<script src="/static/js/photo-viewer.js"></script>
+{% endblock %}
+{% block content %}
+<div class="row-between pv-pagehead">
+  <a class="back" href="/photos" id="pv-back">← 전체사진</a>
+  <span class="muted" id="pv-title"></span>
+</div>
+<div id="viewer"></div>
+
+<script>
+const CAN_SAVE = {{ 'true' if 'upload_photo' in perms else 'false' }};
+
+(async function () {
+  const params = new URLSearchParams(location.search);
+  // Return to where the viewer was opened from (gallery or a patient page).
+  const back = params.get("back") || "";
+  if (/^\/(photos|patients\/\d+)([/?]|$)/.test(back)) {
+    const link = document.getElementById("pv-back");
+    link.href = back;
+    if (back.startsWith("/patients/")) link.textContent = "← 환자 정보";
+  }
+  const ids = (params.get("ids") || "").split(",").filter((x) => /^\d+$/.test(x));
+
+  let rows = [];
+  try {
+    if (ids.length) rows = await api(`/api/photos?ids=${ids.join(",")}`);
+  } catch (e) {
+    document.getElementById("pv-title").textContent = e.message;
+  }
+
+  const day = (p) => (p.taken_at || p.created_at || "").slice(0, 10);
+  const toViewer = (p) => ({
+    id: p.id,
+    src: `/api/photos/${p.id}/image`,
+    thumb: `/api/photos/${p.id}/thumb`,
+    title: p.title || `photo-${p.id}`,
+    label: [p.patient_name, p.eye, p.modality_label, day(p)].filter(Boolean).join(" · "),
+    short: [p.eye, day(p)].filter(Boolean).join(" "),
+    contentType: p.content_type,
+    downloadUrl: `/api/photos/${p.id}/image?download=1`,
+    info: [
+      ["환자", `${p.patient_name || "-"} (#${p.patient_mrn || p.patient_id})`],
+      ["눈", p.eye || "-"],
+      ["검사", p.modality_label || "-"],
+      ["촬영일", p.taken_at ? new Date(p.taken_at).toLocaleString() : "-"],
+      ["등록", `${new Date(p.created_at).toLocaleString()}${p.uploaded_by ? " · " + p.uploaded_by : ""}`],
+      ...(p.original_name ? [["파일", p.original_name]] : []),
+      ...(p.source_id ? [["편집본", `원본 사진 #${p.source_id}`]] : []),
+      ...(p.note ? [["메모", p.note]] : []),
+    ],
+    raw: p,
+  });
+
+  // Store the edited image as a new photo of the same patient; the original
+  // stays untouched (source_id links the copy to it).
+  async function saveEdited(photo, blob, meta) {
+    const p = photo.raw;
+    const fd = new FormData();
+    fd.append("patient_id", p.patient_id);
+    if (p.eye) fd.append("eye", p.eye);
+    if (p.modality) fd.append("modality", p.modality);
+    if (p.taken_at) fd.append("taken_at", p.taken_at);
+    fd.append("source_id", p.id);
+    fd.append("note", `편집본 (원본 #${p.id}): ${meta.summary}`.slice(0, 512));
+    const ext = blob.type === "image/png" ? "png" : "jpg";
+    fd.append("files", blob, `${p.title || "photo-" + p.id}_edited.${ext}`);
+    const res = await fetch("/api/photos", { method: "POST", body: fd });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data && data.detail ? data.detail : res.statusText);
+    return toViewer(data[0]);
+  }
+
+  const patients = [...new Set(rows.map((p) => p.patient_name))];
+  document.getElementById("pv-title").textContent = rows.length
+    ? `${rows.length}장 · ${patients.join(", ")}` : "선택된 사진이 없습니다";
+  new PhotoViewer(document.getElementById("viewer"), {
+    photos: rows.map(toViewer),
+    onSaveEdited: CAN_SAVE ? saveEdited : null,
+  });
+})();
+</script>
+{% endblock %}

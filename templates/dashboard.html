@@ -17,6 +17,9 @@
   <div class="console-cta">
     <a class="btn primary lg" href="/"><svg class="ico"><use href="#i-clip"/></svg>검사 접수</a>
     <a class="btn dark" href="/live"><svg class="ico"><use href="#i-pulse"/></svg>실시간 측정</a>
+    {% if 'view_photo' in perms %}
+    <a class="btn dark" href="/photos"><svg class="ico"><use href="#i-photo"/></svg>전체사진 <span class="mono">{{ photo_count }}</span></a>
+    {% endif %}
   </div>
 </section>
 

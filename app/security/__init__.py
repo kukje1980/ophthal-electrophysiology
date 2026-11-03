@@ -1,6 +1,8 @@
 """Security layer: password hashing, PHI encryption, authentication and RBAC."""
 from app.security.passwords import hash_password, verify_password
-from app.security.crypto import decrypt_phi, encrypt_phi, mask_rrn
+from app.security.crypto import (
+    decrypt_bytes, decrypt_phi, encrypt_bytes, encrypt_phi, mask_rrn,
+)
 from app.security import totp
 from app.security.auth import (
     PERMISSIONS,
@@ -16,6 +18,8 @@ __all__ = [
     "verify_password",
     "encrypt_phi",
     "decrypt_phi",
+    "encrypt_bytes",
+    "decrypt_bytes",
     "mask_rrn",
     "totp",
     "PERMISSIONS",

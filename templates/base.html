@@ -12,6 +12,7 @@
   <script src="/static/js/markers.js"></script>
   <script src="/static/js/acquisition.js"></script>
   <script src="/static/js/patient-form.js"></script>
+  {% block head %}{% endblock %}
 </head>
 <body>
 {% include "partials/icons.html" %}
@@ -34,6 +35,10 @@
         <svg class="ico"><use href="#i-dash"/></svg>대시보드 · 판독</a>
       <a href="/patients" class="{{ 'active' if path.startswith('/patients') or path.startswith('/exam') or path.startswith('/reports') }}">
         <svg class="ico"><use href="#i-users"/></svg>환자 · 검사</a>
+      {% if perms and 'view_photo' in perms %}
+      <a href="/photos" class="{{ 'active' if path.startswith('/photos') }}">
+        <svg class="ico"><use href="#i-photo"/></svg>전체사진</a>
+      {% endif %}
       <a href="/live" class="{{ 'active' if path.startswith('/live') }}">
         <svg class="ico"><use href="#i-pulse"/></svg>실시간 측정</a>
       <a href="/stimulus" class="{{ 'active' if path.startswith('/stimulus') }}">
@@ -95,7 +100,7 @@
       </div>
     </header>
 
-    <main class="container">
+    <main class="container {% block main_class %}{% endblock %}">
       {% block content %}{% endblock %}
     </main>
 

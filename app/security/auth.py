@@ -24,6 +24,7 @@ PERMISSIONS = {
     "edit_markers",     # move / add / remove waveform cursors
     "interpret_exam",   # write the findings / impression of a study
     "sign_report",      # sign off (lock) or re-open a report
+    "view_photo", "upload_photo", "delete_photo",  # clinical photos
 }
 
 # Role -> granted permissions.
@@ -33,12 +34,13 @@ ROLES = {
         "view_patient", "edit_patient", "delete_patient",
         "run_exam", "delete_exam", "view_report", "view_phi",
         "manage_reference", "edit_markers", "interpret_exam", "sign_report",
+        "view_photo", "upload_photo", "delete_photo",
     },
     "technician": {
         "view_patient", "edit_patient", "run_exam", "view_report",
-        "edit_markers",
+        "edit_markers", "view_photo", "upload_photo",
     },  # note: no view_phi, cannot interpret or sign
-    "viewer": {"view_patient", "view_report"},
+    "viewer": {"view_patient", "view_report", "view_photo"},
 }
 
 ROLE_LABELS = {
