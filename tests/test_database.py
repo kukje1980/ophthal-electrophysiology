@@ -50,4 +50,6 @@ def test_health_is_public(client):
     r = anon.get("/health")
     assert r.status_code == 200
     assert r.json()["db"] == "ok"
+    from app import __version__
+    assert r.json()["version"] == __version__
     assert anon.get("/api/patients").status_code == 401

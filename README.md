@@ -35,6 +35,11 @@ Open <http://localhost:8000>. Interactive API docs at `/docs`.
 
 Tests: `pip install -r requirements-dev.txt && python -m pytest`.
 
+Releases: the latest tagged version is always at
+<https://github.com/kukje1980/ophthal-electrophysiology/releases/latest>
+(source zip + release notes); see [CHANGELOG.md](CHANGELOG.md) for what
+changed. The running version is reported by `GET /health`.
+
 Typical flow: **검사 접수 (start screen) → find or register the patient → this
 visit's details → 저장하고 검사 시작 → Acquire / Live → Report → (check
 cursors) → Interpretation → Sign**.
