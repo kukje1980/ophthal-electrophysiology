@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
-from app import backup
+from app import __version__, backup
 from app.config import settings
 from app.crud import exam as exam_crud
 from app.crud import patient as patient_crud
@@ -44,7 +44,8 @@ def health():
     except Exception as e:  # noqa: BLE001
         log.error("health check: database unreachable: %s", e)
         return JSONResponse({"status": "error", "db": "error"}, status_code=503)
-    return {"status": "ok", "db": "ok", "time": datetime.now().isoformat(timespec="seconds")}
+    return {"status": "ok", "db": "ok", "version": __version__,
+            "time": datetime.now().isoformat(timespec="seconds")}
 
 
 def _warnings(bk: dict, disk_free: Optional[int], phi_bad: int) -> list:

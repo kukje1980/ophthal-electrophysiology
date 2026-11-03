@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.3.1 — 2026-11-03
+
+v0.3.0 이후 다른 작업 브랜치에서 끝난 변경을 합친 유지보수 릴리즈입니다.
+Maintenance release folding in work finished on other branches since v0.3.0.
+
+- `GET /health` now reports the running `version`, so an installed PC can be
+  identified remotely (ported from `main`).
+- New reference document: dry-electrode VEP hardware options — electrodes,
+  amplifiers and front-end parts (`docs/dry-electrode-vep-hardware-options.md`).
+- The photo-gallery fix made on `main` (a duplicate `esc()` that left the grid
+  loading) was already absent here; checked, no change needed.
+
 ## v0.3.0 — 2026-11-03
 
 첫 정식 릴리즈. 2026-10-04 이후의 모든 작업 브랜치를 통합한 버전입니다.
