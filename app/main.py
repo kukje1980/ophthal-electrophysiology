@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import OperationalError
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import backup
+from app import __version__, backup
 from app.config import settings
 from app.database import SessionLocal, checkpoint, engine, init_db
 from app.logging_setup import setup_logging
@@ -107,7 +107,7 @@ async def _lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title=settings.APP_TITLE, version="0.2.0", lifespan=_lifespan)
+    app = FastAPI(title=settings.APP_TITLE, version=__version__, lifespan=_lifespan)
 
     @app.exception_handler(RequestValidationError)
     async def _invalid(request: Request, exc: RequestValidationError):

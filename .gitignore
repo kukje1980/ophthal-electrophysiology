@@ -28,3 +28,8 @@ logs/
 .pytest_cache/
 # Clinical photo store (PHOTO_DIR)
 data/
+
+# Desktop packaging (PyInstaller)
+build/
+dist/
+packaging/build-icons/

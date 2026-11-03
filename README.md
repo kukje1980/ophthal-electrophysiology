@@ -35,6 +35,35 @@ Open <http://localhost:8000>. Interactive API docs at `/docs`.
 
 Tests: `pip install -r requirements-dev.txt && python -m pytest`.
 
+## Desktop app (macOS / Windows)
+
+Double-click builds of the latest version are produced by the
+**Desktop builds** GitHub Actions workflow (`.github/workflows/desktop.yml`):
+run it from the *Actions* tab, or push a tag `vX.Y.Z` to also publish a
+GitHub Release. Each run uploads:
+
+| File | For |
+|------|-----|
+| `OphthalElectrophysiology-<ver>-macos-arm64.dmg` / `.zip` | Apple Silicon Macs |
+| `OphthalElectrophysiology-<ver>-macos-x86_64.dmg` / `.zip` | Intel Macs |
+| `OphthalElectrophysiology-<ver>-windows-x64-setup.exe` | Windows 10/11 installer |
+| `OphthalElectrophysiology-<ver>-windows-x64.zip` | Windows, no install (unzip and run) |
+
+The app (`desktop.py`) starts the server, opens the browser at
+<http://localhost:8000> and shows a small control window — closing it stops
+the server. Database, photos, backups, logs and a generated `SECRET_KEY` live in
+a per-user data folder (macOS `~/Library/Application Support/OphthalElectrophysiology`,
+Windows `%LOCALAPPDATA%\OphthalElectrophysiology`); `settings.env` there overrides
+any setting from `app/config.py` (port, LAN access, backup mirror, device driver …).
+Other PCs on the LAN can use the same server at `http://<this-pc>:8000`.
+
+The builds are **not code-signed**. macOS: right-click the app → *Open* once
+(or `xattr -cr /Applications/OphthalElectrophysiology.app`); Windows:
+*More info → Run anyway* on the SmartScreen prompt.
+
+Local build: `pip install pyinstaller && python packaging/make_icons.py packaging/build-icons && pyinstaller --noconfirm --clean packaging/ophthal.spec`
+(output in `dist/`). Default login `admin` / `admin1234` — change it after the first login.
+
 Typical flow: **검사 접수 (start screen) → find or register the patient → this
 visit's details → 저장하고 검사 시작 → Acquire / Live → Report → (check
 cursors) → Interpretation → Sign**.

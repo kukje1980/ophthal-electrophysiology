@@ -1,0 +1,131 @@
+name: Desktop builds (macOS / Windows)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  PYTHON_VERSION: "3.12"
+  PYINSTALLER_VERSION: "6.11.1"
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS (Apple Silicon)
+            suffix: macos-arm64
+          - os: macos-15-intel
+            label: macOS (Intel)
+            suffix: macos-x86_64
+          - os: windows-latest
+            label: Windows (x64)
+            suffix: windows-x64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller==${{ env.PYINSTALLER_VERSION }}
+
+      - name: Read version
+        id: ver
+        shell: bash
+        run: echo "version=$(python -c 'import app; print(app.__version__)')" >> "$GITHUB_OUTPUT"
+
+      - name: Render icons
+        run: python packaging/make_icons.py packaging/build-icons
+
+      - name: Build with PyInstaller
+        run: pyinstaller --noconfirm --clean packaging/ophthal.spec
+
+      - name: Smoke test (frozen binary serves /health)
+        shell: bash
+        env:
+          OEP_DATA_DIR: ${{ runner.temp }}/oep-smoke
+          OPEN_BROWSER: "0"
+          PORT: "8765"
+        run: |
+          set -e
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            BIN="dist/OphthalElectrophysiology.app/Contents/MacOS/OphthalElectrophysiology"
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            BIN="dist/OphthalElectrophysiology/OphthalElectrophysiology.exe"
+          else
+            BIN="dist/OphthalElectrophysiology/OphthalElectrophysiology"
+          fi
+          "$BIN" &
+          PID=$!
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8765/health | grep -q '"status":"ok"'; then
+              echo "health OK after ${i}s"; break
+            fi
+            sleep 1
+            if [ "$i" = 60 ]; then echo "server never became healthy"; cat "$OEP_DATA_DIR"/logs/*.log || true; exit 1; fi
+          done
+          curl -fsS -o /dev/null -w "login page: %{http_code}\n" http://127.0.0.1:8765/login
+          curl -fsS -o /dev/null -w "static css: %{http_code}\n" http://127.0.0.1:8765/static/css/app.css
+          kill $PID || true
+
+      - name: Package (macOS .dmg + .zip)
+        if: runner.os == 'macOS'
+        env:
+          V: ${{ steps.ver.outputs.version }}
+          S: ${{ matrix.suffix }}
+        run: |
+          mkdir -p out dmgroot
+          cp -R dist/OphthalElectrophysiology.app dmgroot/
+          ln -s /Applications dmgroot/Applications
+          hdiutil create -volname "Ophthal Electrophysiology $V" -srcfolder dmgroot -ov -format UDZO "out/OphthalElectrophysiology-$V-$S.dmg"
+          ditto -c -k --sequesterRsrc --keepParent dist/OphthalElectrophysiology.app "out/OphthalElectrophysiology-$V-$S.zip"
+          ls -la out
+
+      - name: Package (Windows .zip + installer)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          V: ${{ steps.ver.outputs.version }}
+          S: ${{ matrix.suffix }}
+        run: |
+          New-Item -ItemType Directory -Force out | Out-Null
+          Compress-Archive -Path dist/OphthalElectrophysiology -DestinationPath "out/OphthalElectrophysiology-$env:V-$env:S.zip" -Force
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup --no-progress -y; $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          & $iscc "/DVersion=$env:V" "/DSource=$PWD\dist\OphthalElectrophysiology" "/DOut=$PWD\out" packaging\windows-installer.iss
+          Get-ChildItem out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OphthalElectrophysiology-${{ steps.ver.outputs.version }}-${{ matrix.suffix }}
+          path: out/*
+          if-no-files-found: error
+          retention-days: 90
+
+  release:
+    name: GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
