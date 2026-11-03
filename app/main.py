@@ -163,7 +163,7 @@ def create_app() -> FastAPI:
     # Waveform JSON compresses ~5-10x: much faster reports over slow links.
     app.add_middleware(GZipMiddleware, minimum_size=1024)
 
-    app.mount("/static", StaticFiles(directory="static"), name="static")
+    app.mount("/static", StaticFiles(directory=settings.STATIC_DIR), name="static")
 
     # JSON API
     app.include_router(patients.router)

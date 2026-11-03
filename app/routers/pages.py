@@ -18,7 +18,7 @@ from app.security import ROLES, current_user, has_permission
 from app.security.auth import ROLE_LABELS
 
 router = APIRouter(tags=["pages"])
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory=settings.TEMPLATES_DIR)
 
 
 def _ctx(request: Request, user, **extra) -> dict:

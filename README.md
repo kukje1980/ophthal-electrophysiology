@@ -23,6 +23,23 @@ oscillatory potentials, P50, N95, P100, …), measures implicit time and
 amplitude, classifies them against reference ranges, and renders printable
 reports.
 
+## Download (최신판 내려받기)
+
+No Python needed on Windows. The newest build is always at the same address
+(no GitHub login required):
+
+- **Windows**: <https://github.com/kukje1980/ophthal-electrophysiology/releases/download/latest/OphthalElectrophysiology-windows.zip>
+  — unzip, run `OphthalElectrophysiology.exe`, the browser opens on
+  <http://localhost:8000>. Database, photos, backups and logs are created next
+  to the exe; put `KEY=VALUE` lines in a `settings.env` beside it to configure.
+- **Source**: <https://github.com/kukje1980/ophthal-electrophysiology/releases/download/latest/ophthal-electrophysiology-source.zip>
+
+Both are built by the `release` GitHub Actions workflow: every push runs the
+tests; *Actions → release → Run workflow* (pick the branch), a push to the
+default branch, or a `v*` tag publishes them as the release **latest**, and a
+tag also gets its own permanent release. Local build:
+`pip install pyinstaller && pyinstaller packaging/oep.spec`.
+
 ## Quick start
 
 ```bash

@@ -28,6 +28,13 @@ First tagged release, integrating every working branch since 2026-10-04.
 - Market survey of skin (lower-lid) ERG electrodes with recommendation.
 - Survey of dry and non-contact EEG electrode makers for gel-free VEP.
 
+### 배포 / Distribution
+- **Windows standalone build** (PyInstaller, no Python install needed) and a source zip,
+  published automatically by the `release` workflow at the fixed address
+  `releases/download/latest/…`; `v*` tags also get a permanent release.
+- Templates and static files are resolved from the package location (`RESOURCE_DIR`),
+  so the server no longer depends on the working directory.
+
 ### 기타 / Housekeeping
 - Dependencies updated to current releases (FastAPI 0.162, SQLAlchemy 2.1, Pydantic 2.14, NumPy 2.5).
 - Test suite: 58 tests (`python -m pytest`).

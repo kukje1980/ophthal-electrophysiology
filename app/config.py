@@ -5,8 +5,19 @@ real-device deployment decoupled from the source code.
 """
 import os
 
+# Repository root (the folder holding app/, templates/ and static/). Inside a
+# PyInstaller bundle this is the bundle's resource directory, so the packaged
+# Windows build finds its templates and static files without a working-dir
+# convention.
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 
 class Settings:
+    # Static resources -------------------------------------------------------
+    RESOURCE_DIR: str = os.getenv("RESOURCE_DIR", _ROOT)
+    TEMPLATES_DIR: str = os.path.join(RESOURCE_DIR, "templates")
+    STATIC_DIR: str = os.path.join(RESOURCE_DIR, "static")
+
     # Database -------------------------------------------------------------
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL", "sqlite:///./ophthal_electrophysiology.db"
